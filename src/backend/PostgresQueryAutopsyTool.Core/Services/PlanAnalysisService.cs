@@ -39,7 +39,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         _comparisonEngine = new ComparisonEngine();
     }
 
-    public async Task<PlanAnalysisResult> AnalyzeAsync(JsonElement postgresExplainJson, CancellationToken cancellationToken)
+    public async Task<PlanAnalysisResult> AnalyzeAsync(JsonElement postgresExplainJson, CancellationToken cancellationToken, string? queryText = null)
     {
         NormalizedPlanNode root;
         try
@@ -60,7 +60,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         var analyzedNodes = _metricsEngine.Compute(root);
         var rankedFindings = _findingsEngine.EvaluateAndRank(root.NodeId, analyzedNodes);
         var summary = PlanSummaryBuilder.Build(root.NodeId, analyzedNodes, rankedFindings);
-        var narrative = NarrativeGenerator.From(summary, rankedFindings);
+        var narrative = NarrativeGenerator.From(summary, analyzedNodes, rankedFindings);
 
         // Keep async boundary for future CPU-heavy traversal.
         await Task.Yield();
@@ -68,6 +68,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         return new PlanAnalysisResult(
             AnalysisId: Guid.NewGuid().ToString("n"),
             RootNodeId: root.NodeId,
+            QueryText: string.IsNullOrWhiteSpace(queryText) ? null : queryText,
             Nodes: analyzedNodes,
             Findings: rankedFindings,
             Narrative: narrative,
@@ -116,6 +117,23 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         }
 
         var byId = analysis.Nodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        string NodeLabel(string nodeId)
+        {
+            if (!byId.TryGetValue(nodeId, out var n)) return nodeId;
+            return NodeLabelFormatter.ShortLabel(n, byId);
+        }
+
+        string NodeListLabels(IEnumerable<string> ids)
+            => string.Join(", ", ids.Select(NodeLabel));
+
+        var querySection = string.IsNullOrWhiteSpace(analysis.QueryText)
+            ? ""
+            : $@"
+## Source Query
+```sql
+{analysis.QueryText}
+```";
+
         return $@"# Postgres Query Autopsy Report
 
 AnalysisId: {analysis.AnalysisId}
@@ -125,6 +143,7 @@ AnalysisId: {analysis.AnalysisId}
 
 ## Where Time Went
 {analysis.Narrative.WhereTimeWent}
+{querySection}
 
 ## Summary
 - Node count: {analysis.Summary.TotalNodeCount}
@@ -146,7 +165,7 @@ AnalysisId: {analysis.AnalysisId}
 {analysis.Narrative.WhatProbablyDoesNotMatter}
 
 ## Findings Appendix
-{string.Join("\n", analysis.Findings.Select(f => $"- `{f.RuleId}` **[{f.Severity}] [{f.Confidence}]** {f.Title} (nodes: {string.Join(",", f.NodeIds ?? Array.Empty<string>())})"))}
+{string.Join("\n", analysis.Findings.Select(f => $"- `{f.RuleId}` **[{f.Severity}] [{f.Confidence}]** {f.Title} (nodes: {NodeListLabels(f.NodeIds ?? Array.Empty<string>())})"))}
 ";
     }
 

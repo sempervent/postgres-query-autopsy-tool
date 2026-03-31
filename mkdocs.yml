@@ -1,0 +1,28 @@
+site_name: Postgres Query Autopsy Tool
+site_description: Forensic analysis of PostgreSQL EXPLAIN plans with metrics, findings, and compare diffs.
+repo_url: https://github.com/sempervent/postgres-query-autopsy-tool
+edit_uri: edit/main/docs/
+
+theme:
+  name: readthedocs
+plugins:
+  - search
+  - mermaid2
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Capturing EXPLAIN JSON: capturing-explain-json.md
+  - Architecture: architecture.md
+  - Analyze Workflow: analyze-workflow.md
+  - Compare Workflow: compare-workflow.md
+  - Findings Catalog: findings-catalog.md
+  - Comparison Model: comparison-model.md
+  - Fixtures & Sample SQL: fixtures.md
+  - API & Reports: api-and-reports.md
+  - Contributing: contributing.md
+  - Implementation Log: implementation-log.md

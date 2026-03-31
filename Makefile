@@ -1,4 +1,4 @@
-.PHONY: help up down logs test test-backend test-frontend lint format
+.PHONY: help up down logs test test-backend test-frontend lint format docs-install docs-serve docs-build
 
 help:
 	@echo "Targets:"
@@ -9,6 +9,9 @@ help:
 	@echo "  make test-backend - run dotnet tests"
 	@echo "  make test-frontend- run frontend tests"
 	@echo "  make lint          - best-effort lint (if configured)"
+	@echo "  make docs-install  - install docs deps (venv required)"
+	@echo "  make docs-serve    - serve docs locally"
+	@echo "  make docs-build    - build docs (strict)"
 
 up:
 	docker compose up --build
@@ -34,4 +37,13 @@ lint:
 
 format:
 	@echo "Formatting is best-effort; run dotnet format / prettier if you add it."
+
+docs-install:
+	pip install -r requirements-docs.txt
+
+docs-serve:
+	mkdocs serve
+
+docs-build:
+	mkdocs build --strict
 

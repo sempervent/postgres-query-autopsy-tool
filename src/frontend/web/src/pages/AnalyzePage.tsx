@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { AnalysisFinding, AnalyzedPlanNode, PlanAnalysisResult } from '../api/types'
-import { analyzePlan, exportHtml, exportJson, exportMarkdown } from '../api/client'
+import { analyzePlanWithQuery, exportHtml, exportJson, exportMarkdown } from '../api/client'
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel } from '../presentation/nodeLabels'
+import { joinSideContextLineForNode } from '../presentation/joinPainHints'
+import { buildHotspots } from '../presentation/hotspotPresentation'
+import { buildAnalyzeGraph } from '../presentation/analyzeGraphAdapter'
+import { AnalyzePlanGraph } from '../components/AnalyzePlanGraph'
+import { applyGraphView, revealPath, shouldAutoFitOnVisibilityChange, toggleCollapsed } from '../presentation/analyzeGraphState'
+import { nodeReferenceText } from '../presentation/nodeReferences'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -22,11 +28,17 @@ function downloadText(filename: string, text: string, mime: string) {
 
 export default function AnalyzePage() {
   const [input, setInput] = useState('')
+  const [queryText, setQueryText] = useState('')
   const [analysis, setAnalysis] = useState<PlanAnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [treeMode, setTreeMode] = useState<'graph' | 'text'>('graph')
+  const [graphSearch, setGraphSearch] = useState('')
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const [matchIdx, setMatchIdx] = useState(0)
+  const [reframeToken, setReframeToken] = useState(0)
   const [nodeSearch, setNodeSearch] = useState('')
   const [findingSearch, setFindingSearch] = useState('')
   const [minSeverity, setMinSeverity] = useState<number>(1) // default: Low+
@@ -44,6 +56,7 @@ export default function AnalyzePage() {
   const rootId = analysis?.rootNodeId ?? null
 
   const selectedNode = selectedNodeId ? byId.get(selectedNodeId) ?? null : null
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
 
   function nodeLabel(n: AnalyzedPlanNode) {
     return nodeShortLabel(n, byId)
@@ -120,6 +133,38 @@ export default function AnalyzePage() {
     )
   }
 
+  const graph = useMemo(() => {
+    if (!analysis) return null
+    return buildAnalyzeGraph(analysis)
+  }, [analysis])
+
+  const graphView = useMemo(() => {
+    if (!graph) return null
+    return applyGraphView(graph, { collapsed, searchTerm: graphSearch }, selectedNodeId)
+  }, [graph, collapsed, graphSearch, selectedNodeId])
+
+  const graphHits = graphView?.hits ?? []
+
+  function selectGraphHit(i: number) {
+    if (!graphHits.length) return
+    const idx = ((i % graphHits.length) + graphHits.length) % graphHits.length
+    setMatchIdx(idx)
+    const id = graphHits[idx].nodeId
+    if (graph)
+      setCollapsed((prev) => {
+        const next = revealPath(prev, graph, id)
+        return next
+      })
+    setSelectedNodeId(id)
+  }
+
+  function jumpToNodeId(id: string) {
+    if (graph) setCollapsed((prev) => revealPath(prev, graph, id))
+    const idx = graphHits.findIndex((h) => h.nodeId === id)
+    if (idx >= 0) setMatchIdx(idx)
+    setSelectedNodeId(id)
+  }
+
   async function onAnalyze() {
     setError(null)
     setLoading(true)
@@ -127,7 +172,7 @@ export default function AnalyzePage() {
     setSelectedNodeId(null)
     try {
       const plan = JSON.parse(input) as unknown
-      const result = await analyzePlan(plan)
+      const result = await analyzePlanWithQuery(plan, queryText)
       setAnalysis(result)
       setSelectedNodeId(result.rootNodeId)
     } catch (e) {
@@ -162,22 +207,44 @@ export default function AnalyzePage() {
         <p style={{ opacity: 0.85, marginTop: -8, marginBottom: 12 }}>
           Paste PostgreSQL `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` output (the full JSON payload).
         </p>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          spellCheck={false}
-          style={{
-            width: '100%',
-            minHeight: 240,
-            padding: 12,
-            borderRadius: 12,
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            color: 'var(--text-h)',
-            fontFamily: 'var(--mono)',
-          }}
-          placeholder='[\n  {\n    "Plan": { ... }\n  }\n]'
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            spellCheck={false}
+            style={{
+              width: '100%',
+              minHeight: 220,
+              padding: 12,
+              borderRadius: 12,
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-h)',
+              fontFamily: 'var(--mono)',
+            }}
+            placeholder='Plan JSON: [ { "Plan": { ... } } ]'
+          />
+          <details>
+            <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Optional: source SQL query</summary>
+            <textarea
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 140,
+                marginTop: 8,
+                padding: 12,
+                borderRadius: 12,
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-h)',
+                fontFamily: 'var(--mono)',
+              }}
+              placeholder="SELECT ... FROM ... WHERE ..."
+            />
+          </details>
+        </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={onAnalyze}
@@ -265,6 +332,8 @@ export default function AnalyzePage() {
             {(() => {
               const ctx = (selectedNode as any).contextEvidence as any
               const lines: string[] = []
+              const side = joinSideContextLineForNode(selectedNode)
+              if (side) lines.push(side)
               const hash = ctx?.hashJoin?.childHash
               if (hash?.hashBatches || hash?.diskUsageKb) {
                 lines.push(`hash build: batches=${String(hash?.hashBatches ?? '—')} disk=${String(hash?.diskUsageKb ?? '—')}kB`)
@@ -297,6 +366,33 @@ export default function AnalyzePage() {
         {analysis ? (
           <div style={{ marginTop: 16 }}>
             <h2>Plan tree</h2>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setTreeMode('graph')}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: treeMode === 'graph' ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                  background: treeMode === 'graph' ? 'var(--accent-bg)' : 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                Graph
+              </button>
+              <button
+                onClick={() => setTreeMode('text')}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: treeMode === 'text' ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                  background: treeMode === 'text' ? 'var(--accent-bg)' : 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                Text
+              </button>
+              <div style={{ opacity: 0.8, fontSize: 12 }}>Tip: click a hotspot to focus the graph.</div>
+            </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
               <input
                 value={nodeSearch}
@@ -312,7 +408,111 @@ export default function AnalyzePage() {
                 }}
               />
             </div>
-            {rootId ? <TreeNode nodeId={rootId} /> : null}
+            {treeMode === 'graph' && graph ? (
+              <>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                  <input
+                    value={graphSearch}
+                    onChange={(e) => {
+                      setGraphSearch(e.target.value)
+                      setMatchIdx(0)
+                    }}
+                    placeholder="Graph search (operator / relation / index)"
+                    style={{
+                      flex: 1,
+                      minWidth: 220,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      background: 'transparent',
+                      color: 'var(--text-h)',
+                    }}
+                  />
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                    {graphSearch.trim().length ? `${graphHits.length} match${graphHits.length === 1 ? '' : 'es'}` : ''}
+                  </div>
+                  <button
+                    onClick={() => selectGraphHit(matchIdx - 1)}
+                    disabled={!graphHits.length}
+                    style={{ padding: '10px 12px', borderRadius: 12, cursor: graphHits.length ? 'pointer' : 'not-allowed', opacity: graphHits.length ? 1 : 0.5 }}
+                  >
+                    prev
+                  </button>
+                  <button
+                    onClick={() => selectGraphHit(matchIdx + 1)}
+                    disabled={!graphHits.length}
+                    style={{ padding: '10px 12px', borderRadius: 12, cursor: graphHits.length ? 'pointer' : 'not-allowed', opacity: graphHits.length ? 1 : 0.5 }}
+                  >
+                    next
+                  </button>
+                </div>
+                {graphSearch.trim().length && graphHits.length ? (
+                  <div
+                    style={{
+                      marginBottom: 8,
+                      padding: 10,
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      maxHeight: 220,
+                      overflow: 'auto',
+                      background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
+                    }}
+                  >
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Matches (click to jump)</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {graphHits.slice(0, 25).map((h, i) => (
+                        <button
+                          key={h.nodeId}
+                          onClick={() => jumpToNodeId(h.nodeId)}
+                          style={{
+                            textAlign: 'left',
+                            padding: '8px 10px',
+                            borderRadius: 10,
+                            border: i === matchIdx ? '1px solid var(--accent-border)' : '1px solid var(--border)',
+                            background: i === matchIdx ? 'var(--accent-bg)' : 'transparent',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, fontSize: 13 }}>{h.label}</div>
+                          {h.subtitle ? <div style={{ fontSize: 12, opacity: 0.8 }}>{h.subtitle}</div> : null}
+                        </button>
+                      ))}
+                      {graphHits.length > 25 ? (
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>Showing first 25 results. Refine your search to narrow down.</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <AnalyzePlanGraph
+                  nodes={(graphView?.nodes ?? graph.nodes).map((n) => ({
+                    ...n,
+                    data: { ...n.data, hasChildren: (childrenById.get(n.id)?.length ?? 0) > 0 },
+                  }))}
+                  edges={graphView?.edges ?? graph.edges}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNodeId={(id) => jumpToNodeId(id)}
+                  onToggleCollapse={(id) => {
+                    setCollapsed((prev) => {
+                      const prevVisible = graph ? applyGraphView(graph, { collapsed: prev, searchTerm: graphSearch }, selectedNodeId).nodes.length : 0
+                      const next = toggleCollapsed(prev, id)
+                      // If current selection is now hidden, select the collapsed node.
+                      const view = graph ? applyGraphView(graph, { collapsed: next, searchTerm: graphSearch }, selectedNodeId) : null
+                      if (selectedNodeId && view && !view.nodes.some((n) => n.id === selectedNodeId)) setSelectedNodeId(id)
+                      const nextVisible = view?.nodes.length ?? prevVisible
+                      if (shouldAutoFitOnVisibilityChange(prevVisible, nextVisible)) setReframeToken((x) => x + 1)
+                      return next
+                    })
+                  }}
+                  reframeToken={reframeToken}
+                />
+                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+                  Legend: <span style={{ fontFamily: 'var(--mono)' }}>hot ex</span> = exclusive runtime hotspot,{' '}
+                  <span style={{ fontFamily: 'var(--mono)' }}>hot reads</span> = shared-read hotspot.
+                </div>
+              </>
+            ) : rootId ? (
+              <TreeNode nodeId={rootId} />
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -367,6 +567,14 @@ export default function AnalyzePage() {
                       {findingAnchorLabel((f.nodeIds ?? [])[0], byId as any)}
                     </span>
                   </div>
+                  {(() => {
+                    const nid = (f.nodeIds ?? [])[0]
+                    if (!nid) return null
+                    const n = byId.get(nid) ?? null
+                    const side = joinSideContextLineForNode(n)
+                    if (!side) return null
+                    return <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{side}</div>
+                  })()}
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ fontWeight: 800 }}>
                       [{severityLabel(f.severity)}] {f.title}
@@ -397,6 +605,21 @@ export default function AnalyzePage() {
                   if (!js?.subtitle) return null
                   return <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{js.subtitle}</div>
                 })()}
+                <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => {
+                      if (!selectedNodeId) return
+                      const text = nodeReferenceText(selectedNodeId, byId)
+                      await navigator.clipboard.writeText(text)
+                      setCopyStatus('Copied node reference')
+                      setTimeout(() => setCopyStatus(null), 1200)
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                  >
+                    Copy reference
+                  </button>
+                  {copyStatus ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyStatus}</div> : null}
+                </div>
                 <details style={{ marginTop: 6 }}>
                   <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9, marginTop: 6 }}>{selectedNode.nodeId}</div>
@@ -431,10 +654,35 @@ export default function AnalyzePage() {
             <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
               <h3 style={{ marginTop: 0 }}>What happened</h3>
               <p style={{ marginTop: -6, whiteSpace: 'pre-wrap' }}>{analysis.narrative.whatHappened}</p>
-              <h3>Where time went</h3>
-              <p style={{ marginTop: -6, whiteSpace: 'pre-wrap' }}>{analysis.narrative.whereTimeWent}</p>
-              <h3>What likely matters</h3>
-              <p style={{ marginTop: -6, whiteSpace: 'pre-wrap' }}>{analysis.narrative.whatLikelyMatters}</p>
+              <h3>Where to inspect next</h3>
+              {(() => {
+                const hs = buildHotspots(analysis)
+                if (!hs.length) return <div style={{ opacity: 0.85 }}>No hotspots available (missing timing/buffer fields).</div>
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                    {hs.slice(0, 10).map((h) => (
+                      <button
+                        key={`${h.kind}-${h.nodeId}`}
+                        onClick={() => setSelectedNodeId(h.nodeId)}
+                        style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                      >
+                        <div style={{ fontWeight: 800 }}>{h.label}</div>
+                        <div style={{ marginTop: 4, fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                          {h.kind === 'exclusiveTime' ? 'exclusive runtime' : h.kind === 'subtreeTime' ? 'subtree runtime' : 'shared reads'}
+                          {h.evidence ? ` · ${h.evidence}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {analysis.queryText ? (
+                <details style={{ marginTop: 10 }}>
+                  <summary style={{ cursor: 'pointer' }}>Source query</summary>
+                  <pre style={{ marginTop: 8, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{analysis.queryText}</pre>
+                </details>
+              ) : null}
             </div>
           </>
         ) : (

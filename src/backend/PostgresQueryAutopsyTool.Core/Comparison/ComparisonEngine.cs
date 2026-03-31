@@ -484,8 +484,29 @@ public sealed class ComparisonEngine
             line += $" {rewriteHint}";
 
         // Context diff hints (only when present; keep short and factual).
-        if (pair?.ContextDiff?.Highlights.Count > 0)
-            line += $" Context: {string.Join("; ", pair.ContextDiff.Highlights.Take(2))}.";
+        if (pair?.ContextDiff is not null)
+        {
+            var cd = pair.ContextDiff;
+
+            // Side-attributed join hints (only when evidence is explicitly side-scoped).
+            if (cd.HashBuild?.Summary is not null &&
+                (d.NodeTypeA.Contains("Hash Join", StringComparison.OrdinalIgnoreCase) ||
+                 d.NodeTypeB.Contains("Hash Join", StringComparison.OrdinalIgnoreCase)))
+            {
+                line += $" Build side: {cd.HashBuild.Summary}.";
+            }
+
+            if (cd.NestedLoop?.InnerSideWaste?.Summary is not null &&
+                (d.NodeTypeA.Contains("Nested Loop", StringComparison.OrdinalIgnoreCase) ||
+                 d.NodeTypeB.Contains("Nested Loop", StringComparison.OrdinalIgnoreCase)))
+            {
+                line += $" Inner side: {cd.NestedLoop.InnerSideWaste.Summary}.";
+            }
+
+            // Generic context diff hints (bounded).
+            if (cd.Highlights.Count > 0)
+                line += $" Context: {string.Join("; ", cd.Highlights.Take(2))}.";
+        }
         return line;
     }
 

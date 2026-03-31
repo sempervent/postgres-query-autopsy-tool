@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { NodePairDetail, PlanComparisonResult } from '../api/types'
 import { comparePlansWithDiagnostics } from '../api/client'
-import { contextBadges } from '../presentation/contextBadges'
 import { findingAnchorLabel, joinLabelAndSubtitle, pairShortLabel } from '../presentation/nodeLabels'
+import { joinSideBadgesForPair, joinSideSummaryLinesForPair } from '../presentation/joinPainHints'
+import { pairReferenceText } from '../presentation/nodeReferences'
 
 export default function ComparePage() {
   const [planA, setPlanA] = useState('')
@@ -31,6 +32,7 @@ export default function ComparePage() {
   }, [improved, worsened])
 
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
 
   const effectivePair = selectedPair ?? selectedDefault
   const selectedDetail: NodePairDetail | null = useMemo(() => {
@@ -256,7 +258,7 @@ export default function ComparePage() {
               {filteredWorsened.slice(0, 8).map((d) => (
                 (() => {
                   const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
-                  const badges = contextBadges(pair?.contextDiff ?? null, 3)
+                  const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
                   const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                   const subtitle = pair ? pairSubtitle(pair) : null
                   return (
@@ -310,7 +312,7 @@ export default function ComparePage() {
               {filteredImproved.slice(0, 8).map((d) => (
                 (() => {
                   const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
-                  const badges = contextBadges(pair?.contextDiff ?? null, 3)
+                  const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
                   const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                   const subtitle = pair ? pairSubtitle(pair) : null
                   return (
@@ -402,9 +404,39 @@ export default function ComparePage() {
             )}
             {selectedDetail ? (
               <>
+                <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => {
+                      const text = pairReferenceText(selectedDetail, byIdA, byIdB)
+                      await navigator.clipboard.writeText(text)
+                      setCopyStatus('Copied pair reference')
+                      setTimeout(() => setCopyStatus(null), 1200)
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                  >
+                    Copy reference
+                  </button>
+                  {copyStatus ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyStatus}</div> : null}
+                </div>
                 {pairSubtitle(selectedDetail) ? (
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>
                 ) : null}
+                {(() => {
+                  const lines = joinSideSummaryLinesForPair(selectedDetail, byIdA, byIdB)
+                  if (!lines.length) return null
+                  return (
+                    <>
+                      <h3 style={{ marginTop: 12 }}>Join side change summary</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {lines.map((l) => (
+                          <div key={l} style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)' }}>
+                            <div style={{ marginTop: 0, fontSize: 13 }}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()}
                     {selectedDetail.contextDiff?.highlights?.length ? (
                       <>
                         <h3 style={{ marginTop: 12 }}>Context change summary</h3>

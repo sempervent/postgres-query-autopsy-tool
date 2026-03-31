@@ -24,3 +24,4 @@ test('analyze page does not leak raw root.* ids by default', () => {
   expect(screen.queryByText(/root\.\d+/)).toBeNull()
 })
 
+

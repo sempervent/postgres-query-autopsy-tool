@@ -61,11 +61,12 @@ public sealed class OperatorEvidenceCollectorTests
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);
-        var narrative = NarrativeGenerator.From(summary, findings);
+        var narrative = NarrativeGenerator.From(summary, metrics, findings);
 
         return new PlanAnalysisResult(
             AnalysisId: "test",
             RootNodeId: root.NodeId,
+            QueryText: null,
             Nodes: metrics,
             Findings: findings,
             Narrative: narrative,

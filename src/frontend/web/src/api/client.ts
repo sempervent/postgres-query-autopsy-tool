@@ -22,6 +22,10 @@ export async function analyzePlan(plan: unknown): Promise<PlanAnalysisResult> {
   return postJson<PlanAnalysisResult>('/api/analyze', { plan })
 }
 
+export async function analyzePlanWithQuery(plan: unknown, queryText: string | null | undefined): Promise<PlanAnalysisResult> {
+  return postJson<PlanAnalysisResult>('/api/analyze', { plan, queryText: queryText && queryText.trim().length ? queryText : null })
+}
+
 export async function comparePlans(planA: unknown, planB: unknown): Promise<PlanComparisonResult> {
   return postJson<PlanComparisonResult>('/api/compare', { planA, planB })
 }

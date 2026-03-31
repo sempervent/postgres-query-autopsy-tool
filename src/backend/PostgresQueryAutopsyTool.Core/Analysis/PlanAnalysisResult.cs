@@ -5,6 +5,7 @@ namespace PostgresQueryAutopsyTool.Core.Analysis;
 public sealed record PlanAnalysisResult(
     string AnalysisId,
     string RootNodeId,
+    string? QueryText,
     IReadOnlyList<AnalyzedPlanNode> Nodes,
     IReadOnlyList<AnalysisFinding> Findings,
     AnalysisNarrative Narrative,

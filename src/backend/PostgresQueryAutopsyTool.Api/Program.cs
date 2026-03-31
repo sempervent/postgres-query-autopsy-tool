@@ -40,7 +40,7 @@ app.MapGet("/api/version", () =>
 
 app.MapPost("/api/analyze", async (AnalyzeRequestDto request, IPlanAnalysisService analysisService, CancellationToken ct) =>
 {
-    var analysis = await analysisService.AnalyzeAsync(request.Plan, ct);
+    var analysis = await analysisService.AnalyzeAsync(request.Plan, ct, queryText: request.QueryText);
     analysesStore[analysis.AnalysisId] = analysis;
     return Results.Ok(analysis);
 }).WithName("AnalyzePlan").WithOpenApi();
@@ -121,6 +121,7 @@ app.Run();
 public sealed class AnalyzeRequestDto
 {
     public JsonElement Plan { get; init; }
+    public string? QueryText { get; init; }
 }
 
 public sealed class CompareRequestDto

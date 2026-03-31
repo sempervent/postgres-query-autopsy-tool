@@ -51,6 +51,7 @@ export type PlanSummary = {
 export type PlanAnalysisResult = {
   analysisId: string
   rootNodeId: string
+  queryText?: string | null
   nodes: AnalyzedPlanNode[]
   findings: AnalysisFinding[]
   narrative: AnalysisNarrative
@@ -264,6 +265,16 @@ export type OperatorContextEvidenceDiff = {
   nestedLoop?: {
     amplificationDirection: EvidenceChangeDirection
     summary?: string | null
+    innerLoopsApprox?: { a: number | null; b: number | null; delta?: number | null; deltaPct?: number | null; direction: EvidenceChangeDirection } | null
+    innerSubtreeTimeShareOfPlan?: { a: number | null; b: number | null; delta?: number | null; deltaPct?: number | null; direction: EvidenceChangeDirection } | null
+    innerSideWaste?: {
+      wasteDirection: EvidenceChangeDirection
+      summary?: string | null
+      rowsRemovedByFilter: { a: number | null; b: number | null }
+      removedRowsShareApprox: { a: number | null; b: number | null }
+      rowsRemovedByIndexRecheck: { a: number | null; b: number | null }
+      heapFetches: { a: number | null; b: number | null }
+    } | null
   } | null
 }
 

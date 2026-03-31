@@ -71,3 +71,6 @@ src/frontend/web/*.log
 .vscode/
 .idea/
 *.swp
+
+# MkDocs build output
+site/
