@@ -9,9 +9,9 @@ export function nearestMeaningfulAncestorSubtitle(nodeId: string, byId: Map<stri
   let cur: AnalyzedPlanNode | null = n
   let depth = 0
   while (cur && depth < 60) {
-    const parentId = cur.parentNodeId ?? null
+    const parentId: string | null = cur.parentNodeId ?? null
     if (!parentId) break
-    const p = byId.get(parentId) ?? null
+    const p: AnalyzedPlanNode | null = byId.get(parentId) ?? null
     if (!p) break
 
     const t = String((p.node as any)?.nodeType ?? '').toLowerCase()
