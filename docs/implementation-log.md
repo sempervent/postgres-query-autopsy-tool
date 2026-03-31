@@ -476,4 +476,67 @@ Verified:
 - Docs: `mkdocs build --strict` passes.
 - Docker: `docker compose up --build -d` and `/api/health` pass.
 
+## Phase 23 — Analyze interaction cleanup + frontend/backend parity audit (complete)
+
+Implemented:
+- Valid interactive markup on Analyze:
+  - Replaced nested `button` patterns in **hotspots** and **findings** rows with `ClickableRow` (role=`button`, keyboard activation) plus inner `ReferenceCopyButton`.
+- Shared components:
+  - `components/ClickableRow.tsx` — row-level navigation without nesting buttons.
+  - `components/ReferenceCopyButton.tsx` — consistent small copy affordance with `aria-label`.
+- Compare alignment:
+  - Findings diff rows now use the same `ClickableRow` + `ReferenceCopyButton` pattern (replacing ad-hoc div markup).
+- Parity / polish:
+  - Analyze summary line now includes **severe findings count** from `PlanSummary.severeFindingsCount` next to nodes/depth/timing/buffers.
+- Test infrastructure:
+  - `ResizeObserver` stub in `test/setup.ts` for React Flow in tests.
+- Styling: `.clickableRow:focus-visible` for keyboard focus ring in `index.css`.
+
+Tests:
+- `AnalyzePage.interaction.test.tsx`: no nested `button` elements after analysis; Copy triggers clipboard write; finding row remains queryable by accessible name.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` passes.
+- Frontend: `npm test` and `npm run build` pass.
+- Docs: `mkdocs build --strict` passes.
+- Docker: `docker compose up --build -d` and `/api/health` pass.
+
+## Phase 24 — Compare navigator interaction unification + selected-state polish (complete)
+
+Implemented:
+- Compare navigator parity:
+  - **Worsened / improved** list rows and **“what changed most”** callouts use `ClickableRow` + `ReferenceCopyButton` (same family as findings diff and Analyze).
+  - **Selected state**: matching rows use `aria-pressed` and shared selected styling; top callouts use `selectedEmphasis="accent-bar"` so red/green tints remain visible.
+  - **Selection sync**: findings diff rows set `selected` when both node ids match the active pair.
+- `ClickableRow`: optional `selectedEmphasis` (`fill` default, `accent-bar` for tinted surfaces).
+- Navigator column: copy-feedback hook for top-of-column “Copied …” messaging on navigator/top-change copies.
+
+Tests:
+- `ComparePage.ux.test.tsx`: no nested `button` elements; default selection + improved click sync `aria-pressed` on worsened/improved and findings diff; navigator Copy does not change selection; keyboard `Enter` activates row selection.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` passes.
+- Frontend: `npx vitest run` and `npm run build` pass.
+- Docs: `mkdocs build --strict` passes.
+- Docker: `docker compose up --build -d` and `/api/health` pass.
+
+## Phase 25 — Compare visual branch mapping + workstation finalization (complete)
+
+Implemented:
+- **Branch context strip** (`CompareBranchStrip` + `compareBranchContext.ts`): side-by-side path from root to the selected node on Plan A and B, plus immediate children; human-readable labels via `nodeShortLabel`; focal row uses `ClickableRow` + `aria-pressed` consistent with the navigator.
+- **Selection sync**: clicking a mapped row in the strip calls `setSelectedPair` with the pair from `matches`; navigator, findings diff, detail panel, and strip share `effectivePair`.
+- **Findings diff parity**: `resolveFindingDiffPair` fills a missing side from `matches` so single-anchored diff items still select a pair and update the strip when possible.
+- **Visual semantics**: **A-only** / **B-only** chips for unmatched nodes in context; **unmapped** label when a path node has no partner; compact cue chips (confidence, deltas, operator shift, context highlight, severe findings on pair, join-side hints).
+- **IA**: branch context sits directly above **Selected node pair** in the right column; intro/empty-state copy mentions the branch strip.
+
+Tests:
+- `compareBranchContext.test.ts`: match lookup, finding resolution, view model labels (no `root` id in primary path labels), focal partner wiring.
+- `ComparePage.ux.test.tsx`: branch region + twin path headers; ancestor click in strip changes selection; B-only finding resolves pair; existing tests scoped to avoid duplicate text queries.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` passes.
+- Frontend: `npx vitest run` and `npm run build` pass.
+- Docs: `mkdocs build --strict` passes.
+- Docker: `docker compose up --build -d` and `/api/health` pass.
+
 

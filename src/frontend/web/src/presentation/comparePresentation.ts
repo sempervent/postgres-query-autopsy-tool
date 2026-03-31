@@ -46,7 +46,13 @@ export function compareIntroCopy(): CompareIntroCopy {
     title: 'Compare plans',
     subtitle:
       'Paste two PostgreSQL JSON plans. The tool maps nodes heuristically and highlights what changed (runtime, reads, and findings), with confidence surfaced where matches are uncertain.',
-    bullets: ['Heuristic node mapping (not magical certainty)', 'Top improved/worsened branches', 'Findings changes + context diffs', 'Inspectable pair details + confidence'],
+    bullets: [
+      'Heuristic node mapping (not magical certainty)',
+      'Top improved/worsened branches',
+      'Twin branch context (path + children) for the selected pair',
+      'Findings changes + context diffs',
+      'Inspectable pair details + confidence',
+    ],
     inputHints: ['Best input: `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)`', '`ANALYZE` improves runtime deltas; `BUFFERS` improves read deltas', 'If evidence is missing, sections will degrade gracefully'],
   }
 }
@@ -54,7 +60,7 @@ export function compareIntroCopy(): CompareIntroCopy {
 export function compareEmptyStateCopy() {
   return {
     title: 'Paste two plans to compare',
-    body: 'Provide Plan A and Plan B JSON, then click Compare. After it runs, start with “What changed most” and use the navigator lists to inspect specific pairs.',
+    body: 'Provide Plan A and Plan B JSON, then click Compare. After it runs, start with “What changed most”, use the navigator lists, and read the branch context strip next to pair details to see where the selection sits in each plan.',
   }
 }
 

@@ -9,6 +9,8 @@ import { AnalyzePlanGraph } from '../components/AnalyzePlanGraph'
 import { applyGraphView, revealPath, shouldAutoFitOnVisibilityChange, toggleCollapsed } from '../presentation/analyzeGraphState'
 import { findingReferenceText, hotspotReferenceText, nodeReferenceText } from '../presentation/nodeReferences'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
+import { ClickableRow } from '../components/ClickableRow'
+import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -311,8 +313,8 @@ export default function AnalyzePage() {
               <div>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>Summary</div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
-                  nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} timing={String(analysis.summary.hasActualTiming)} buffers=
-                  {String(analysis.summary.hasBuffers)}
+                  nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} severe={analysis.summary.severeFindingsCount} timing=
+                  {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)}
                 </div>
               </div>
             </div>
@@ -548,11 +550,15 @@ export default function AnalyzePage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {filteredFindings.slice(0, 60).map((f: AnalysisFinding) => (
-                <button
+              {filteredFindings.slice(0, 60).map((f: AnalysisFinding) => {
+                const anchorId = (f.nodeIds ?? [])[0]
+                return (
+                <ClickableRow
                   key={f.findingId}
-                  onClick={() => {
-                    const target = (f.nodeIds ?? [])[0]
+                  selected={!!anchorId && anchorId === selectedNodeId}
+                  aria-label={`Finding: ${f.title}`}
+                  onActivate={() => {
+                    const target = anchorId
                     if (target) setSelectedNodeId(target)
                   }}
                   style={{
@@ -561,31 +567,23 @@ export default function AnalyzePage() {
                     borderRadius: 12,
                     background: 'color-mix(in srgb, var(--accent-bg) 20%, transparent)',
                     color: 'var(--text-h)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                     <div style={{ fontSize: 12, opacity: 0.9 }}>
-                      <span style={{ fontFamily: 'var(--mono)' }}>{findingAnchorLabel((f.nodeIds ?? [])[0], byId as any)}</span>
+                      <span style={{ fontFamily: 'var(--mono)' }}>{findingAnchorLabel(anchorId, byId as any)}</span>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const nid = (f.nodeIds ?? [])[0]
-                        if (!nid) return
-                        copyFinding.copy(findingReferenceText(nid, byId, f.title), 'Copied finding reference')
+                    <ReferenceCopyButton
+                      aria-label="Copy finding reference"
+                      onCopy={() => {
+                        if (!anchorId) return
+                        copyFinding.copy(findingReferenceText(anchorId, byId, f.title), 'Copied finding reference')
                       }}
-                      style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
-                      title="Copy finding reference"
-                    >
-                      Copy
-                    </button>
+                    />
                   </div>
                   {(() => {
-                    const nid = (f.nodeIds ?? [])[0]
-                    if (!nid) return null
-                    const n = byId.get(nid) ?? null
+                    if (!anchorId) return null
+                    const n = byId.get(anchorId) ?? null
                     const side = joinSideContextLineForNode(n)
                     if (!side) return null
                     return <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{side}</div>
@@ -607,8 +605,9 @@ export default function AnalyzePage() {
                       <b>Suggestion:</b> {f.suggestion}
                     </div>
                   </details>
-                </button>
-              ))}
+                </ClickableRow>
+                )
+              })}
             </div>
             {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
 
@@ -675,36 +674,43 @@ export default function AnalyzePage() {
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
                     {hs.slice(0, 10).map((h) => (
-                      <button
+                      <ClickableRow
                         key={`${h.kind}-${h.nodeId}`}
-                        onClick={() => setSelectedNodeId(h.nodeId)}
-                        style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                        selected={h.nodeId === selectedNodeId}
+                        aria-label={`Hotspot: ${h.label}`}
+                        onActivate={() => setSelectedNodeId(h.nodeId)}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'transparent',
+                        }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                           <div style={{ fontWeight: 800 }}>{h.label}</div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
+                          <ReferenceCopyButton
+                            aria-label="Copy hotspot reference"
+                            onCopy={() =>
                               copyHotspot.copy(
                                 hotspotReferenceText(
                                   h.nodeId,
                                   byId,
-                                  h.kind === 'exclusiveTime' ? 'exclusive runtime hotspot' : h.kind === 'subtreeTime' ? 'subtree runtime hotspot' : 'shared reads hotspot',
+                                  h.kind === 'exclusiveTime'
+                                    ? 'exclusive runtime hotspot'
+                                    : h.kind === 'subtreeTime'
+                                      ? 'subtree runtime hotspot'
+                                      : 'shared reads hotspot',
                                 ),
                                 'Copied hotspot reference',
                               )
-                            }}
-                            style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
-                            title="Copy hotspot reference"
-                          >
-                            Copy
-                          </button>
+                            }
+                          />
                         </div>
                         <div style={{ marginTop: 4, fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
                           {h.kind === 'exclusiveTime' ? 'exclusive runtime' : h.kind === 'subtreeTime' ? 'subtree runtime' : 'shared reads'}
                           {h.evidence ? ` · ${h.evidence}` : ''}
                         </div>
-                      </button>
+                      </ClickableRow>
                     ))}
                   </div>
                 )

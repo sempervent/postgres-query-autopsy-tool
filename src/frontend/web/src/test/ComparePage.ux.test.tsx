@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest'
+import { expect, test, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
@@ -161,7 +161,25 @@ vi.mock('../api/client', () => {
         ],
         findingsDiff: {
           items: [
-            { changeType: 'New', ruleId: 'buffer-read-hotspot', nodeIdB: 'b2', severityA: null, severityB: 3, title: 't', summary: 's' },
+            {
+              changeType: 'New',
+              ruleId: 'buffer-read-hotspot',
+              nodeIdA: 'a2',
+              nodeIdB: 'b2',
+              severityA: null,
+              severityB: 3,
+              title: 't',
+              summary: 's',
+            },
+            {
+              changeType: 'New',
+              ruleId: 'anchor-b-only',
+              nodeIdB: 'b1',
+              severityA: null,
+              severityB: 1,
+              title: 'only b',
+              summary: 'resolved via match table',
+            },
           ],
         },
         narrative: 'n',
@@ -169,6 +187,15 @@ vi.mock('../api/client', () => {
       }
     }),
   }
+})
+
+const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+
+beforeEach(() => {
+  clipboardWrite.mockClear()
+  Object.assign(navigator, {
+    clipboard: { writeText: clipboardWrite },
+  })
 })
 
 test('compare page is truthful (no stale MVP placeholder copy)', () => {
@@ -198,10 +225,124 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(await screen.findByText('Summary')).toBeInTheDocument()
   expect(screen.getByText('What changed most')).toBeInTheDocument()
 
-  const selected = screen.getByText('Selected node pair').closest('div')!
-  expect(within(selected).getByText(/Seq Scan on users/i)).toBeInTheDocument()
+  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
+  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
+  expect(within(selectedPrimary).getByText(/Seq Scan on users → Seq Scan on users/)).toBeInTheDocument()
 
-  fireEvent.click(screen.getByRole('button', { name: /Top improved/i }))
-  expect(within(selected).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
+  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+})
+
+test('compare navigator uses ClickableRow: no nested buttons, selection syncs across navigator and findings diff', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  await screen.findByText('Navigator')
+  expect(document.querySelectorAll('button button').length).toBe(0)
+
+  const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
+  const improvedRow = screen.getByRole('button', { name: /Improved pair:/i })
+  expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
+  expect(improvedRow.getAttribute('aria-pressed')).toBe('false')
+
+  const diffRow = screen.getByRole('button', { name: /Finding diff: buffer-read-hotspot/i })
+  expect(diffRow.getAttribute('aria-pressed')).toBe('true')
+
+  fireEvent.click(improvedRow)
+  expect(worsenedRow.getAttribute('aria-pressed')).toBe('false')
+  expect(improvedRow.getAttribute('aria-pressed')).toBe('true')
+  expect(diffRow.getAttribute('aria-pressed')).toBe('false')
+})
+
+test('navigator Copy pair reference does not change selection', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByText('Navigator')
+
+  const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
+  const copyBtn = within(worsenedRow).getByRole('button', { name: /Copy pair reference/i })
+  fireEvent.click(copyBtn)
+  expect(clipboardWrite).toHaveBeenCalled()
+  expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
+})
+
+test('branch context shows twin paths and clicking a mapped ancestor updates selection', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  expect(await screen.findByRole('region', { name: 'Compare branch context' })).toBeInTheDocument()
+  expect(screen.getByText('Plan A — path to selected')).toBeInTheDocument()
+
+  const hashJoinA = screen.getByRole('button', { name: /Plan A branch row: Hash Join/i })
+  expect(screen.getByRole('button', { name: /Plan A branch row: Seq Scan on users/i }).getAttribute('aria-pressed')).toBe(
+    'true',
+  )
+
+  fireEvent.click(hashJoinA)
+  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
+  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
+  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  expect(hashJoinA.getAttribute('aria-pressed')).toBe('true')
+})
+
+test('finding diff with only Plan B anchor resolves pair and syncs selection', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByText('Findings diff')
+
+  fireEvent.click(screen.getByRole('button', { name: /Finding diff: anchor-b-only/i }))
+  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
+  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
+  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Finding diff: anchor-b-only/i }).getAttribute('aria-pressed')).toBe('true')
+})
+
+test('keyboard activates navigator row selection', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByText('Navigator')
+
+  const improvedRow = screen.getByRole('button', { name: /Improved pair:/i })
+  improvedRow.focus()
+  fireEvent.keyDown(improvedRow, { key: 'Enter' })
+
+  const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
+  expect(improvedRow.getAttribute('aria-pressed')).toBe('true')
+  expect(worsenedRow.getAttribute('aria-pressed')).toBe('false')
 })
 

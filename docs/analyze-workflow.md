@@ -20,11 +20,15 @@ Hotspots are rendered as clickable items that select the corresponding node.
 
 Each hotspot row also includes a subtle **Copy** action that copies a concise, human-readable node reference (optionally annotated as a hotspot).
 
+**Interaction model:** the row is one keyboard-focusable target (click or Enter/Space) to select the node. **Copy** is a separate button so the row is not nested invalid markup.
+
 ### Findings
 
 Findings are ranked by severity/confidence and tied to nodes. Use the node anchor label to jump into the plan tree.
 
 Finding rows also include a subtle **Copy** action that copies a concise human-readable reference for the anchored node (optionally suffixed with the finding title).
+
+**Interaction model:** same as hotspots—the row selects the anchor node; **Copy** is a separate control.
 
 ### Selected node
 
@@ -40,6 +44,8 @@ The selected node panel shows:
 
 - Missing timing/buffers reduces hotspot fidelity.
 - Query text is passed through and displayed; the tool does not claim exact SQL-to-plan mapping.
+
+After **Analyze**, the compact **summary** line under the input includes node count, max depth, **severe findings count** (from the backend summary), whether actual timing and buffers were present, and any **warnings** when the engine reports limitations.
 
 ## Graphical tree view
 

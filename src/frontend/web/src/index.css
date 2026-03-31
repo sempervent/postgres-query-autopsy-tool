@@ -109,3 +109,9 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ClickableRow: keyboard-focus ring (avoids nested button markup) */
+.clickableRow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

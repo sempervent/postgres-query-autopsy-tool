@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { NodePairDetail, PlanComparisonResult } from '../api/types'
 import { comparePlansWithDiagnostics } from '../api/client'
-import { findingAnchorLabel, joinLabelAndSubtitle, pairShortLabel } from '../presentation/nodeLabels'
+import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presentation/compareBranchContext'
+import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel, pairShortLabel } from '../presentation/nodeLabels'
 import { joinSideBadgesForPair, joinSideSummaryLinesForPair } from '../presentation/joinPainHints'
 import { findingReferenceText, pairReferenceText } from '../presentation/nodeReferences'
 import { buildCompareSummaryCards, compareCoverageLine, compareEmptyStateCopy, compareIntroCopy, compareWhatChangedMostCopy } from '../presentation/comparePresentation'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
+import { CompareBranchStrip } from '../components/CompareBranchStrip'
+import { ClickableRow } from '../components/ClickableRow'
+import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
 
 export default function ComparePage() {
   const [planA, setPlanA] = useState('')
@@ -35,8 +39,12 @@ export default function ComparePage() {
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null)
   const copyPair = useCopyFeedback()
   const copyFinding = useCopyFeedback()
+  const copyNav = useCopyFeedback()
 
   const effectivePair = selectedPair ?? selectedDefault
+  const pairSelected = (nodeIdA: string, nodeIdB: string) =>
+    effectivePair != null && effectivePair.a === nodeIdA && effectivePair.b === nodeIdB
+
   const selectedDetail: NodePairDetail | null = useMemo(() => {
     if (!effectivePair) return null
     return (
@@ -47,6 +55,20 @@ export default function ComparePage() {
       ) ?? null
     )
   }, [effectivePair, pairDetails])
+
+  const branchViewModel = useMemo(() => {
+    if (!comparison || !effectivePair) return null
+    return buildCompareBranchViewModel(comparison, effectivePair, selectedDetail)
+  }, [comparison, effectivePair, selectedDetail])
+
+  const branchPairHeading = useMemo(() => {
+    if (!effectivePair) return null
+    if (selectedDetail) return pairShortLabel(selectedDetail, byIdA, byIdB)
+    const aN = byIdA.get(effectivePair.a)
+    const bN = byIdB.get(effectivePair.b)
+    if (aN && bN) return `${nodeShortLabel(aN, byIdA)} → ${nodeShortLabel(bN, byIdB)}`
+    return null
+  }, [effectivePair, selectedDetail, byIdA, byIdB])
 
   function pairForDelta(nodeIdA: string, nodeIdB: string) {
     return pairDetails.find((p) => p.identity.nodeIdA === nodeIdA && p.identity.nodeIdB === nodeIdB) ?? null
@@ -291,30 +313,72 @@ export default function ComparePage() {
               <div style={{ marginTop: -6, opacity: 0.85 }}>{whatChangedMost.subtitle}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 10 }}>
                 {worsened[0] ? (
-                  <button
-                    onClick={() => setSelectedPair({ a: worsened[0].nodeIdA, b: worsened[0].nodeIdB })}
-                    style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'color-mix(in srgb, #ef4444 10%, transparent)', cursor: 'pointer' }}
-                  >
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top worsened</div>
-                    <div style={{ fontWeight: 900, marginTop: 4 }}>
-                      {pairForDelta(worsened[0].nodeIdA, worsened[0].nodeIdB)
-                        ? pairShortLabel(pairForDelta(worsened[0].nodeIdA, worsened[0].nodeIdB)!, byIdA, byIdB)
-                        : `${worsened[0].nodeTypeA} → ${worsened[0].nodeTypeB}`}
-                    </div>
-                  </button>
+                  (() => {
+                    const w0 = worsened[0]
+                    const p0 = pairForDelta(w0.nodeIdA, w0.nodeIdB)
+                    const lab = p0 ? pairShortLabel(p0, byIdA, byIdB) : `${w0.nodeTypeA} → ${w0.nodeTypeB}`
+                    return (
+                      <ClickableRow
+                        selectedEmphasis="accent-bar"
+                        selected={pairSelected(w0.nodeIdA, w0.nodeIdB)}
+                        aria-label={`Top worsened: ${lab}`}
+                        onActivate={() => setSelectedPair({ a: w0.nodeIdA, b: w0.nodeIdB })}
+                        style={{
+                          padding: 10,
+                          borderRadius: 12,
+                          border: '1px solid var(--border)',
+                          background: 'color-mix(in srgb, #ef4444 10%, transparent)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top worsened</div>
+                            <div style={{ fontWeight: 900, marginTop: 4 }}>{lab}</div>
+                          </div>
+                          {p0 ? (
+                            <ReferenceCopyButton
+                              aria-label="Copy pair reference for top worsened"
+                              onCopy={() => copyNav.copy(pairReferenceText(p0, byIdA, byIdB), 'Copied pair reference')}
+                            />
+                          ) : null}
+                        </div>
+                      </ClickableRow>
+                    )
+                  })()
                 ) : null}
                 {improved[0] ? (
-                  <button
-                    onClick={() => setSelectedPair({ a: improved[0].nodeIdA, b: improved[0].nodeIdB })}
-                    style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'color-mix(in srgb, #22c55e 10%, transparent)', cursor: 'pointer' }}
-                  >
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top improved</div>
-                    <div style={{ fontWeight: 900, marginTop: 4 }}>
-                      {pairForDelta(improved[0].nodeIdA, improved[0].nodeIdB)
-                        ? pairShortLabel(pairForDelta(improved[0].nodeIdA, improved[0].nodeIdB)!, byIdA, byIdB)
-                        : `${improved[0].nodeTypeA} → ${improved[0].nodeTypeB}`}
-                    </div>
-                  </button>
+                  (() => {
+                    const i0 = improved[0]
+                    const p0 = pairForDelta(i0.nodeIdA, i0.nodeIdB)
+                    const lab = p0 ? pairShortLabel(p0, byIdA, byIdB) : `${i0.nodeTypeA} → ${i0.nodeTypeB}`
+                    return (
+                      <ClickableRow
+                        selectedEmphasis="accent-bar"
+                        selected={pairSelected(i0.nodeIdA, i0.nodeIdB)}
+                        aria-label={`Top improved: ${lab}`}
+                        onActivate={() => setSelectedPair({ a: i0.nodeIdA, b: i0.nodeIdB })}
+                        style={{
+                          padding: 10,
+                          borderRadius: 12,
+                          border: '1px solid var(--border)',
+                          background: 'color-mix(in srgb, #22c55e 10%, transparent)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top improved</div>
+                            <div style={{ fontWeight: 900, marginTop: 4 }}>{lab}</div>
+                          </div>
+                          {p0 ? (
+                            <ReferenceCopyButton
+                              aria-label="Copy pair reference for top improved"
+                              onCopy={() => copyNav.copy(pairReferenceText(p0, byIdA, byIdB), 'Copied pair reference')}
+                            />
+                          ) : null}
+                        </div>
+                      </ClickableRow>
+                    )
+                  })()
                 ) : null}
               </div>
               {!worsened.length && !improved.length ? (
@@ -325,6 +389,9 @@ export default function ComparePage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.05fr', gap: 12 }}>
             <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+              {copyNav.status ? (
+                <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 10 }}>{copyNav.status}</div>
+              ) : null}
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
                 <input
                   value={filterNodeType}
@@ -358,13 +425,25 @@ export default function ComparePage() {
                         const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                         const subtitle = pair ? pairSubtitle(pair) : null
                         return (
-                          <button
+                          <ClickableRow
                             key={`${d.nodeIdA}-${d.nodeIdB}`}
-                            onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
-                            style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                            selected={pairSelected(d.nodeIdA, d.nodeIdB)}
+                            aria-label={`Worsened pair: ${label}`}
+                            onActivate={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
+                            style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent' }}
                           >
-                            <div style={{ fontWeight: 900 }}>{label}</div>
-                            {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 900 }}>{label}</div>
+                                {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                              </div>
+                              {pair ? (
+                                <ReferenceCopyButton
+                                  aria-label="Copy pair reference"
+                                  onCopy={() => copyNav.copy(pairReferenceText(pair, byIdA, byIdB), 'Copied pair reference')}
+                                />
+                              ) : null}
+                            </div>
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
                               <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
                                 conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
@@ -399,7 +478,7 @@ export default function ComparePage() {
                                 ))}
                               </div>
                             ) : null}
-                          </button>
+                          </ClickableRow>
                         )
                       })()
                     ))}
@@ -419,13 +498,25 @@ export default function ComparePage() {
                         const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                         const subtitle = pair ? pairSubtitle(pair) : null
                         return (
-                          <button
+                          <ClickableRow
                             key={`${d.nodeIdA}-${d.nodeIdB}`}
-                            onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
-                            style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                            selected={pairSelected(d.nodeIdA, d.nodeIdB)}
+                            aria-label={`Improved pair: ${label}`}
+                            onActivate={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
+                            style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent' }}
                           >
-                            <div style={{ fontWeight: 900 }}>{label}</div>
-                            {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 900 }}>{label}</div>
+                                {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                              </div>
+                              {pair ? (
+                                <ReferenceCopyButton
+                                  aria-label="Copy pair reference"
+                                  onCopy={() => copyNav.copy(pairReferenceText(pair, byIdA, byIdB), 'Copied pair reference')}
+                                />
+                              ) : null}
+                            </div>
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
                               <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
                                 conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
@@ -460,7 +551,7 @@ export default function ComparePage() {
                                 ))}
                               </div>
                             ) : null}
-                          </button>
+                          </ClickableRow>
                         )
                       })()
                     ))}
@@ -481,20 +572,18 @@ export default function ComparePage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {filteredDiffItems.slice(0, 30).map((i, idx) => (
-                      <div
+                      <ClickableRow
                         key={`${i.ruleId}-${idx}`}
-                        onClick={() => {
-                          if (i.nodeIdA && i.nodeIdB) setSelectedPair({ a: i.nodeIdA, b: i.nodeIdB })
+                        selected={(() => {
+                          const r = resolveFindingDiffPair(i, comparison.matches)
+                          return r ? pairSelected(r.a, r.b) : false
+                        })()}
+                        aria-label={`Finding diff: ${i.ruleId}`}
+                        onActivate={() => {
+                          const r = resolveFindingDiffPair(i, comparison.matches)
+                          if (r) setSelectedPair(r)
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            if (i.nodeIdA && i.nodeIdB) setSelectedPair({ a: i.nodeIdA, b: i.nodeIdB })
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                        style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent' }}
                       >
                         <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
                           {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
@@ -503,9 +592,9 @@ export default function ComparePage() {
                           <div style={{ fontSize: 13, opacity: 0.85 }}>
                             {findingAnchorLabel(i.nodeIdB ?? i.nodeIdA, i.nodeIdB ? byIdB : byIdA)}
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
+                          <ReferenceCopyButton
+                            aria-label="Copy finding reference"
+                            onCopy={() => {
                               const nid = i.nodeIdB ?? i.nodeIdA
                               if (!nid) return
                               copyFinding.copy(
@@ -513,14 +602,10 @@ export default function ComparePage() {
                                 'Copied finding reference',
                               )
                             }}
-                            style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
-                            title="Copy finding reference"
-                          >
-                            Copy
-                          </button>
+                          />
                         </div>
                         <div style={{ fontSize: 13 }}>{i.summary}</div>
-                      </div>
+                      </ClickableRow>
                     ))}
                   </div>
                   {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
@@ -558,6 +643,9 @@ export default function ComparePage() {
             </div>
 
             <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+            {branchViewModel ? (
+              <CompareBranchStrip model={branchViewModel} onSelectPair={setSelectedPair} pairHeading={branchPairHeading} />
+            ) : null}
             <h3 style={{ marginTop: 0 }}>Selected node pair</h3>
             {selectedDetail ? (
               <div style={{ fontWeight: 800 }}>{pairShortLabel(selectedDetail, byIdA, byIdB)}</div>

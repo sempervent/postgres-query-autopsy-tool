@@ -24,7 +24,7 @@ The backend is organized as a modular monolith:
 
 The frontend communicates with the backend via typed API calls:
 - Analyze page: paste/upload plan JSON, show narrative + findings + plan visualization
-- Compare page: submit two plans, show diff-aware narrative and changed findings
+- Compare page: submit two plans, show diff-aware narrative, changed findings, and a synchronized **branch context** strip (see `compareBranchContext` + `CompareBranchStrip`)
 
 ## Frontend presentation layer (Phase 12)
 
@@ -32,6 +32,9 @@ The UI uses a small presentation helper layer to keep human-readable labeling co
 - `src/frontend/web/src/presentation/nodeLabels.ts`: node and pair display labels/titles
 - `src/frontend/web/src/presentation/contextBadges.ts`: contextDiff-driven badges for scanability
 - `src/frontend/web/src/presentation/comparePresentation.ts`: compare intro copy, summary/coverage phrases, and top-change callouts
+- `src/frontend/web/src/presentation/compareBranchContext.ts`: builds the selected-pair **branch view model** (paths, children, mapping/unmatched flags, focal cues) from `PlanComparisonResult` + `matches`
+- `src/frontend/web/src/components/CompareBranchStrip.tsx`: compact twin-column UI wired to the same selection state as the navigator and findings diff
+- `src/frontend/web/src/components/ClickableRow.tsx` + `ReferenceCopyButton.tsx`: shared row navigation + copy affordances without nested `<button>` markup; `ClickableRow` supports `selected` + `selectedEmphasis` (`fill` vs `accent-bar`) for Compare rows that sit on tinted backgrounds
 
 Raw node ids remain available via optional “debug” details, but primary surfaces prefer human-readable labels.
 

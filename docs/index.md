@@ -43,4 +43,4 @@ flowchart TD
 ## What you’ll see
 
 - **Analyze**: hotspot-driven “inspect next” list and a graphical plan tree for quick branch navigation.
-- **Compare**: improved/worsened pairs with context diffs and side-aware join hints when evidence supports it.
+- **Compare**: improved/worsened pairs, a synchronized twin **branch context** strip (path + children in Plan A and B), context diffs, and side-aware join hints when evidence supports it.
