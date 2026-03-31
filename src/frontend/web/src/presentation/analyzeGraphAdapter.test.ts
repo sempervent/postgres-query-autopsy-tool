@@ -31,6 +31,7 @@ describe('buildAnalyzeGraph', () => {
     expect(g.edges.length).toBe(1)
     const n = g.nodes.find((x) => x.id === 'root.0')!
     expect(n.data.label).toBe('Seq Scan on users')
+    expect(n.data.refSubtitle).toMatch(/under Hash Join/i)
     expect(n.data.isHotExclusive).toBe(true)
     expect(n.data.findingsCount).toBe(1)
   })

@@ -18,9 +18,13 @@ Hotspots are rendered as clickable items that select the corresponding node.
 - **subtree runtime**: work dominated by descendants
 - **shared reads**: I/O hotspots (requires `BUFFERS`)
 
+Each hotspot row also includes a subtle **Copy** action that copies a concise, human-readable node reference (optionally annotated as a hotspot).
+
 ### Findings
 
 Findings are ranked by severity/confidence and tied to nodes. Use the node anchor label to jump into the plan tree.
+
+Finding rows also include a subtle **Copy** action that copies a concise human-readable reference for the anchored node (optionally suffixed with the finding title).
 
 ### Selected node
 

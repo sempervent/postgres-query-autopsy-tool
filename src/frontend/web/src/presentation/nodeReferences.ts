@@ -51,6 +51,16 @@ export function nodeReferenceText(nodeId: string, byId: Map<string, AnalyzedPlan
   return sub ? `${label} — ${sub}` : label
 }
 
+export function hotspotReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>, kind?: string | null): string {
+  const base = nodeReferenceText(nodeId, byId)
+  return kind ? `${base} — ${kind}` : base
+}
+
+export function findingReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>, findingTitle?: string | null): string {
+  const base = nodeReferenceText(nodeId, byId)
+  return findingTitle ? `${base} — ${findingTitle}` : base
+}
+
 export function joinSubtitleForNode(nodeId: string, byId: Map<string, AnalyzedPlanNode>): string | null {
   const n = byId.get(nodeId)
   if (!n) return null

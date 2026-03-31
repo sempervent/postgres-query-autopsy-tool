@@ -16,8 +16,8 @@ describe('analyzeGraphState', () => {
   test('search highlights matches and dims non-matches', () => {
     const base: any = {
       nodes: [
-        { id: 'a', data: { nodeId: 'a', label: 'Seq Scan on users', searchText: 'Seq Scan users' } },
-        { id: 'b', data: { nodeId: 'b', label: 'Hash Join', searchText: 'Hash Join orders users' } },
+        { id: 'a', data: { nodeId: 'a', label: 'Seq Scan on users', searchText: 'Seq Scan users', refSubtitle: 'under Hash Join' } },
+        { id: 'b', data: { nodeId: 'b', label: 'Hash Join', searchText: 'Hash Join orders users', refSubtitle: null } },
       ],
       edges: [],
     }

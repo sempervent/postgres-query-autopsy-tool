@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { nearestMeaningfulAncestorSubtitle, nodeReferenceText, pairReferenceText } from './nodeReferences'
+import { findingReferenceText, hotspotReferenceText, nearestMeaningfulAncestorSubtitle, nodeReferenceText, pairReferenceText } from './nodeReferences'
 
 describe('nodeReferences', () => {
   test('nearestMeaningfulAncestorSubtitle prefers join ancestor', () => {
@@ -24,6 +24,14 @@ describe('nodeReferences', () => {
     byIdB.set('b', { nodeId: 'b', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
     const pair: any = { identity: { nodeIdA: 'a', nodeIdB: 'b' } }
     expect(pairReferenceText(pair, byIdA as any, byIdB as any)).toMatch(/Seq Scan on users/)
+  })
+
+  test('hotspotReferenceText and findingReferenceText avoid raw ids', () => {
+    const byId = new Map<string, any>()
+    byId.set('x', { nodeId: 'x', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
+    expect(hotspotReferenceText('x', byId as any, 'shared reads hotspot')).toMatch(/Seq Scan on users/)
+    expect(hotspotReferenceText('x', byId as any, 'shared reads hotspot')).not.toMatch(/root\./)
+    expect(findingReferenceText('x', byId as any, 'severe misestimation')).toBe('Seq Scan on users — severe misestimation')
   })
 })
 

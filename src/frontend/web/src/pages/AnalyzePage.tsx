@@ -7,7 +7,8 @@ import { buildHotspots } from '../presentation/hotspotPresentation'
 import { buildAnalyzeGraph } from '../presentation/analyzeGraphAdapter'
 import { AnalyzePlanGraph } from '../components/AnalyzePlanGraph'
 import { applyGraphView, revealPath, shouldAutoFitOnVisibilityChange, toggleCollapsed } from '../presentation/analyzeGraphState'
-import { nodeReferenceText } from '../presentation/nodeReferences'
+import { findingReferenceText, hotspotReferenceText, nodeReferenceText } from '../presentation/nodeReferences'
+import { useCopyFeedback } from '../presentation/useCopyFeedback'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -56,7 +57,9 @@ export default function AnalyzePage() {
   const rootId = analysis?.rootNodeId ?? null
 
   const selectedNode = selectedNodeId ? byId.get(selectedNodeId) ?? null : null
-  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const copyNode = useCopyFeedback()
+  const copyHotspot = useCopyFeedback()
+  const copyFinding = useCopyFeedback()
 
   function nodeLabel(n: AnalyzedPlanNode) {
     return nodeShortLabel(n, byId)
@@ -562,10 +565,22 @@ export default function AnalyzePage() {
                     textAlign: 'left',
                   }}
                 >
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>
-                    <span style={{ fontFamily: 'var(--mono)' }}>
-                      {findingAnchorLabel((f.nodeIds ?? [])[0], byId as any)}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                    <div style={{ fontSize: 12, opacity: 0.9 }}>
+                      <span style={{ fontFamily: 'var(--mono)' }}>{findingAnchorLabel((f.nodeIds ?? [])[0], byId as any)}</span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const nid = (f.nodeIds ?? [])[0]
+                        if (!nid) return
+                        copyFinding.copy(findingReferenceText(nid, byId, f.title), 'Copied finding reference')
+                      }}
+                      style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
+                      title="Copy finding reference"
+                    >
+                      Copy
+                    </button>
                   </div>
                   {(() => {
                     const nid = (f.nodeIds ?? [])[0]
@@ -595,6 +610,7 @@ export default function AnalyzePage() {
                 </button>
               ))}
             </div>
+            {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
 
             <h2 style={{ marginTop: 16 }}>Selected node</h2>
             {selectedNode ? (
@@ -610,15 +626,13 @@ export default function AnalyzePage() {
                     onClick={async () => {
                       if (!selectedNodeId) return
                       const text = nodeReferenceText(selectedNodeId, byId)
-                      await navigator.clipboard.writeText(text)
-                      setCopyStatus('Copied node reference')
-                      setTimeout(() => setCopyStatus(null), 1200)
+                      await copyNode.copy(text, 'Copied node reference')
                     }}
                     style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
                   >
                     Copy reference
                   </button>
-                  {copyStatus ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyStatus}</div> : null}
+                  {copyNode.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyNode.status}</div> : null}
                 </div>
                 <details style={{ marginTop: 6 }}>
                   <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>
@@ -666,7 +680,26 @@ export default function AnalyzePage() {
                         onClick={() => setSelectedNodeId(h.nodeId)}
                         style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
                       >
-                        <div style={{ fontWeight: 800 }}>{h.label}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                          <div style={{ fontWeight: 800 }}>{h.label}</div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyHotspot.copy(
+                                hotspotReferenceText(
+                                  h.nodeId,
+                                  byId,
+                                  h.kind === 'exclusiveTime' ? 'exclusive runtime hotspot' : h.kind === 'subtreeTime' ? 'subtree runtime hotspot' : 'shared reads hotspot',
+                                ),
+                                'Copied hotspot reference',
+                              )
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
+                            title="Copy hotspot reference"
+                          >
+                            Copy
+                          </button>
+                        </div>
                         <div style={{ marginTop: 4, fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
                           {h.kind === 'exclusiveTime' ? 'exclusive runtime' : h.kind === 'subtreeTime' ? 'subtree runtime' : 'shared reads'}
                           {h.evidence ? ` · ${h.evidence}` : ''}
@@ -676,6 +709,7 @@ export default function AnalyzePage() {
                   </div>
                 )
               })()}
+              {copyHotspot.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyHotspot.status}</div> : null}
 
               {analysis.queryText ? (
                 <details style={{ marginTop: 10 }}>

@@ -14,7 +14,7 @@ The backend is organized as a modular monolith:
     - Derived metrics (`DerivedMetricsEngine` → per-node metrics + shares)
     - Findings (`FindingsEngine` + rules → ranked evidence-based findings)
     - Summary + narrative (`PlanSummaryBuilder`, `NarrativeGenerator`)
-  - Comparison engine (node mapping + deltas) (MVP/partial)
+  - Comparison engine (heuristic node mapping + deltas + pair details + findings diff)
   - Report generators (Markdown/HTML/JSON) rendered from `PlanAnalysisResult`
 - `PostgresQueryAutopsyTool.Api`
   - HTTP endpoints
@@ -31,6 +31,7 @@ The frontend communicates with the backend via typed API calls:
 The UI uses a small presentation helper layer to keep human-readable labeling consistent and to avoid leaking backend-internal ids into primary UX:
 - `src/frontend/web/src/presentation/nodeLabels.ts`: node and pair display labels/titles
 - `src/frontend/web/src/presentation/contextBadges.ts`: contextDiff-driven badges for scanability
+- `src/frontend/web/src/presentation/comparePresentation.ts`: compare intro copy, summary/coverage phrases, and top-change callouts
 
 Raw node ids remain available via optional “debug” details, but primary surfaces prefer human-readable labels.
 

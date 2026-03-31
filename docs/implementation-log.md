@@ -424,4 +424,56 @@ Verified:
 - Docs: `mkdocs build --strict` passes.
 - Docker: `docker compose up --build -d` and `/api/health` pass.
 
+## Phase 21 — Reference-system unification + subtle copy actions for hotspots/findings (complete)
+
+Implemented:
+- Reference-system unification:
+  - Graph search match-list subtitles now come from the same centralized “nearest meaningful ancestor” logic as copy/share references.
+  - Graph nodes carry a precomputed `refSubtitle` derived from the analyzed-plan parent chain (no parallel heuristic in graph state).
+  - Added reference helpers for hotspots and findings (node reference + optional short suffix).
+- Copy reference UX expansion:
+  - Analyze: hotspot rows include a subtle **Copy** action (human-readable node reference, optionally annotated as a hotspot).
+  - Analyze: finding rows include a subtle **Copy** action (human-readable node reference, optionally suffixed with finding title).
+  - Compare: findings diff rows include a subtle **Copy** action (human-readable node reference with a compact diff context suffix).
+  - Reused a lightweight copy-feedback hook for consistent “Copied …” messaging without a global toast framework.
+
+Tests:
+- Updated graph adapter/state tests to assert the unified subtitle path (`refSubtitle`) and keep existing search/collapse behavior coverage.
+- Expanded `nodeReferences` tests to cover hotspot/finding reference text formatting and avoid raw `root.*` leakage.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` passes.
+- Frontend: `npm test` and `npm run build` pass.
+- Docs: `mkdocs build --strict` passes.
+- Docker: `docker compose up --build -d` and `/api/health` pass.
+
+## Phase 22 — Compare UX truthfulness + compare-page overhaul (complete)
+
+Implemented:
+- Truthful Compare onboarding:
+  - Removed stale MVP/placeholder language from the Compare page.
+  - Added a concise, technical explainer of heuristic mapping, confidence, and what the UI surfaces.
+- Compare page structure upgrade:
+  - Labeled Plan A / Plan B inputs with “before/after” guidance (without forcing semantics).
+  - Added a summary card strip (runtime, shared reads, severe findings, node count, max depth) derived from compare summary.
+  - Added coverage phrasing (mapped pairs + unmatched counts) to orient users about mapping completeness.
+  - Added a “What changed most” quick-jump section (top worsened + top improved).
+  - Consolidated navigation into a clearer “Navigator” area plus findings diff.
+  - Strengthened selected pair hierarchy (confidence + depth visible early; debug kept collapsed).
+  - Fixed invalid nested-button markup in findings diff rows (row is now a clickable div with keyboard support).
+- Presentation-layer helpers:
+  - Introduced `presentation/comparePresentation.ts` for intro copy, empty state copy, coverage phrasing, and summary card formatting.
+
+Tests:
+- Added Compare UX tests to ensure:
+  - stale MVP placeholder copy no longer appears
+  - summary/“what changed most” render after a mocked compare run
+  - top-change quick-jump updates the selected pair panel
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` passes.
+- Frontend: `npm test` and `npm run build` pass.
+- Docs: `mkdocs build --strict` passes.
+- Docker: `docker compose up --build -d` and `/api/health` pass.
+
 

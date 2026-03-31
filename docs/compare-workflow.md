@@ -11,6 +11,13 @@ Mapping confidence is emitted per pair. Treat low-confidence pairs as “suspect
 
 ## Reading the compare UI
 
+### At the top: summary + “what changed most”
+
+After a compare run, start at the top:
+
+- **Summary cards**: total runtime, shared reads, severe findings, node count, max depth (Plan B value + delta vs Plan A).
+- **What changed most**: quick-jump to the top worsened and top improved mapped pairs.
+
 ### Improved / worsened lists
 
 Each row uses human-readable pair labels and may include badges:
@@ -27,6 +34,13 @@ The selected pair shows:
 - **Join side change summary** when supported (hash build / inner waste)
 - context change summary highlights
 - raw operator fields and evidence side-by-side
+
+### Findings diff
+
+Diff finding rows include a subtle **Copy** action that copies a concise human-readable reference for the anchored node (optionally annotated with the change type / rule id).
+
+Notes:
+- Compare is **heuristic**: mapping confidence is shown because some rewrites change structure and labels. Treat low-confidence pairs as leads to validate, not guarantees.
 
 ## Guardrails
 

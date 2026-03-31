@@ -3,7 +3,9 @@ import type { NodePairDetail, PlanComparisonResult } from '../api/types'
 import { comparePlansWithDiagnostics } from '../api/client'
 import { findingAnchorLabel, joinLabelAndSubtitle, pairShortLabel } from '../presentation/nodeLabels'
 import { joinSideBadgesForPair, joinSideSummaryLinesForPair } from '../presentation/joinPainHints'
-import { pairReferenceText } from '../presentation/nodeReferences'
+import { findingReferenceText, pairReferenceText } from '../presentation/nodeReferences'
+import { buildCompareSummaryCards, compareCoverageLine, compareEmptyStateCopy, compareIntroCopy, compareWhatChangedMostCopy } from '../presentation/comparePresentation'
+import { useCopyFeedback } from '../presentation/useCopyFeedback'
 
 export default function ComparePage() {
   const [planA, setPlanA] = useState('')
@@ -15,7 +17,6 @@ export default function ComparePage() {
   const [filterNodeType, setFilterNodeType] = useState('')
   const [filterFindingChange, setFilterFindingChange] = useState('')
 
-  const summary = comparison?.summary ?? null
   const improved = comparison?.topImprovedNodes ?? []
   const worsened = comparison?.topWorsenedNodes ?? []
   const diffItems = comparison?.findingsDiff?.items ?? []
@@ -32,7 +33,8 @@ export default function ComparePage() {
   }, [improved, worsened])
 
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null)
-  const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const copyPair = useCopyFeedback()
+  const copyFinding = useCopyFeedback()
 
   const effectivePair = selectedPair ?? selectedDefault
   const selectedDetail: NodePairDetail | null = useMemo(() => {
@@ -79,6 +81,14 @@ export default function ComparePage() {
     return diffItems.filter((i) => String(i.changeType) === q)
   }, [diffItems, filterFindingChange])
 
+  const intro = compareIntroCopy()
+  const empty = compareEmptyStateCopy()
+  const whatChangedMost = compareWhatChangedMostCopy()
+  const coverage = compareCoverageLine(comparison)
+  const summaryCards = buildCompareSummaryCards(comparison)
+  const findingsNewCount = diffItems.filter((i) => String(i.changeType) === 'New').length
+  const findingsResolvedCount = diffItems.filter((i) => String(i.changeType) === 'Resolved').length
+
   async function onCompare() {
     setError(null)
     setLoading(true)
@@ -98,14 +108,37 @@ export default function ComparePage() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-      <h2>Compare plans</h2>
-      <p style={{ opacity: 0.85, marginTop: -8 }}>
-        Paste two PostgreSQL JSON plans. This MVP shows a placeholder diff summary until the real node-mapping + delta engine is implemented.
-      </p>
+      <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+        <h2 style={{ marginTop: 0 }}>{intro.title}</h2>
+        <div style={{ opacity: 0.88, marginTop: -6 }}>{intro.subtitle}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+          <div style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'color-mix(in srgb, var(--accent-bg) 16%, transparent)' }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>What you’ll get</div>
+            <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+              {intro.bullets.map((b) => (
+                <li key={b} style={{ marginBottom: 4 }}>
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Input tips</div>
+            <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+              {intro.inputHints.map((h) => (
+                <li key={h} style={{ marginBottom: 4 }}>
+                  {h}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <section>
-          <h3>Plan A</h3>
+          <h3 style={{ marginBottom: 6 }}>Plan A</h3>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>“Before” (baseline), if you have one.</div>
           <textarea
             value={planA}
             onChange={(e) => setPlanA(e.target.value)}
@@ -120,12 +153,13 @@ export default function ComparePage() {
               color: 'var(--text-h)',
               fontFamily: 'var(--mono)',
             }}
-            placeholder='Paste JSON for Plan A'
+            placeholder="Paste JSON for Plan A (EXPLAIN ... FORMAT JSON)"
           />
         </section>
 
         <section>
-          <h3>Plan B</h3>
+          <h3 style={{ marginBottom: 6 }}>Plan B</h3>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>“After” (changed plan) — index/rewrite/config change.</div>
           <textarea
             value={planB}
             onChange={(e) => setPlanB(e.target.value)}
@@ -140,7 +174,7 @@ export default function ComparePage() {
               color: 'var(--text-h)',
               fontFamily: 'var(--mono)',
             }}
-            placeholder='Paste JSON for Plan B'
+            placeholder="Paste JSON for Plan B (EXPLAIN ... FORMAT JSON)"
           />
         </section>
       </div>
@@ -178,10 +212,13 @@ export default function ComparePage() {
         >
           Clear
         </button>
-        <label style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 8, opacity: 0.9 }}>
-          <input type="checkbox" checked={includeDiagnostics} onChange={(e) => setIncludeDiagnostics(e.target.checked)} />
-          include matcher diagnostics
-        </label>
+        <details style={{ marginLeft: 6, opacity: 0.9 }}>
+          <summary style={{ cursor: 'pointer' }}>Advanced</summary>
+          <label style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={includeDiagnostics} onChange={(e) => setIncludeDiagnostics(e.target.checked)} />
+            include matcher diagnostics
+          </label>
+        </details>
       </div>
 
       {error ? (
@@ -190,212 +227,337 @@ export default function ComparePage() {
         </div>
       ) : null}
 
+      {!comparison && !loading && !error ? (
+        <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
+          <div style={{ fontWeight: 900 }}>{empty.title}</div>
+          <div style={{ marginTop: 6 }}>{empty.body}</div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: 900 }}>Comparing…</div>
+          <div style={{ marginTop: 6, opacity: 0.85 }}>Mapping nodes and computing deltas. This usually takes a moment for large plans.</div>
+        </div>
+      ) : null}
+
       {comparison ? (
-        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>ComparisonId</div>
-            <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all' }}>{comparison.comparisonId}</div>
-
-            <h3 style={{ marginTop: 12 }}>Summary</h3>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, whiteSpace: 'pre-wrap' }}>
-              runtimeΔ%: {String(summary?.runtimeDeltaPct)}
-              {'\n'}sharedReadΔ%: {String(summary?.sharedReadDeltaPct)}
-              {'\n'}nodeCountΔ: {String(summary?.nodeCountDelta)}
-              {'\n'}maxDepthΔ: {String(summary?.maxDepthDelta)}
-              {'\n'}severeFindingsΔ: {String(summary?.severeFindingsDelta)}
-            </div>
-
-            <h3 style={{ marginTop: 12 }}>Narrative</h3>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{comparison.narrative}</p>
-
-            <h3 style={{ marginTop: 12 }}>Unmatched nodes</h3>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
-              A-only: {unmatchedA.length} · B-only: {unmatchedB.length}
-            </div>
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer' }}>Show unmatched</summary>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
-                <div>
-                  <b>A-only</b>
-                  <ul style={{ marginTop: 6 }}>
-                    {unmatchedA.slice(0, 60).map((id) => (
-                      <li key={id} style={{ fontSize: 13 }}>{findingAnchorLabel(id, byIdA)}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <b>B-only</b>
-                  <ul style={{ marginTop: 6 }}>
-                    {unmatchedB.slice(0, 60).map((id) => (
-                      <li key={id} style={{ fontSize: 13 }}>{findingAnchorLabel(id, byIdB)}</li>
-                    ))}
-                  </ul>
-                </div>
+        <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
+            <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+                <h3 style={{ marginTop: 0, marginBottom: 6 }}>Summary</h3>
+                {coverage ? <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{coverage}</div> : null}
               </div>
-            </details>
-          </div>
-
-          <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-              <input
-                value={filterNodeType}
-                onChange={(e) => setFilterNodeType(e.target.value)}
-                placeholder="Filter by node type"
-                style={{ flex: 1, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-h)' }}
-              />
-              <button
-                onClick={() => {
-                  const first = filteredWorsened[0] ?? filteredImproved[0]
-                  if (first) setSelectedPair({ a: first.nodeIdA, b: first.nodeIdB })
-                }}
-                style={{ padding: '10px 12px', borderRadius: 12 }}
-              >
-                jump to hottest
-              </button>
-            </div>
-            <h3 style={{ marginTop: 0 }}>Top worsened</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filteredWorsened.slice(0, 8).map((d) => (
-                (() => {
-                  const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
-                  const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
-                  const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
-                  const subtitle = pair ? pairSubtitle(pair) : null
-                  return (
-                <button
-                  key={`${d.nodeIdA}-${d.nodeIdB}`}
-                  onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
-                  style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
-                >
-                  <div style={{ fontWeight: 800 }}>{label}</div>
-                  {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                    conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+                {summaryCards.map((c) => (
+                  <div
+                    key={c.key}
+                    style={{
+                      padding: 10,
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      background:
+                        c.tone === 'good'
+                          ? 'color-mix(in srgb, #22c55e 12%, transparent)'
+                          : c.tone === 'bad'
+                            ? 'color-mix(in srgb, #ef4444 12%, transparent)'
+                            : 'transparent',
+                    }}
+                  >
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{c.label}</div>
+                    <div style={{ fontWeight: 900, marginTop: 4 }}>{c.value}</div>
+                    {c.deltaLabel ? <div style={{ marginTop: 2, fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>{c.deltaLabel}</div> : null}
                   </div>
-                  <div style={{ fontSize: 13 }}>
-                    inclusiveΔ: {String(d.inclusiveTimeMs?.delta)}ms, readsΔ: {String(d.sharedReadBlocks?.delta)}
-                  </div>
-                  {badges.length ? (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                      {badges.map((b) => (
-                        <span
-                          key={b.text}
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            borderRadius: 999,
-                            border: '1px solid var(--border)',
-                            background:
-                              b.tone === 'good'
-                                ? 'color-mix(in srgb, #22c55e 18%, transparent)'
-                                : b.tone === 'bad'
-                                  ? 'color-mix(in srgb, #ef4444 18%, transparent)'
-                                  : b.tone === 'mixed'
-                                    ? 'color-mix(in srgb, #f59e0b 18%, transparent)'
-                                    : 'transparent',
-                          }}
-                        >
-                          {b.text}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </button>
-                  )
-                })()
-              ))}
+                ))}
+              </div>
+              <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
+                  findings: +{findingsNewCount} new · -{findingsResolvedCount} resolved
+                </div>
+                <details style={{ opacity: 0.9 }}>
+                  <summary style={{ cursor: 'pointer' }}>Narrative</summary>
+                  <div style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>{comparison.narrative}</div>
+                </details>
+                <details style={{ opacity: 0.9 }}>
+                  <summary style={{ cursor: 'pointer' }}>Debug ids</summary>
+                  <div style={{ marginTop: 8, fontFamily: 'var(--mono)', fontSize: 12, wordBreak: 'break-all' }}>{comparison.comparisonId}</div>
+                </details>
+              </div>
             </div>
 
-            <h3 style={{ marginTop: 12 }}>Top improved</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filteredImproved.slice(0, 8).map((d) => (
-                (() => {
-                  const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
-                  const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
-                  const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
-                  const subtitle = pair ? pairSubtitle(pair) : null
-                  return (
-                <button
-                  key={`${d.nodeIdA}-${d.nodeIdB}`}
-                  onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
-                  style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
-                >
-                  <div style={{ fontWeight: 800 }}>{label}</div>
-                  {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                    conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
-                  </div>
-                  <div style={{ fontSize: 13 }}>
-                    inclusiveΔ: {String(d.inclusiveTimeMs?.delta)}ms, readsΔ: {String(d.sharedReadBlocks?.delta)}
-                  </div>
-                  {badges.length ? (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                      {badges.map((b) => (
-                        <span
-                          key={b.text}
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            borderRadius: 999,
-                            border: '1px solid var(--border)',
-                            background:
-                              b.tone === 'good'
-                                ? 'color-mix(in srgb, #22c55e 18%, transparent)'
-                                : b.tone === 'bad'
-                                  ? 'color-mix(in srgb, #ef4444 18%, transparent)'
-                                  : b.tone === 'mixed'
-                                    ? 'color-mix(in srgb, #f59e0b 18%, transparent)'
-                                    : 'transparent',
-                          }}
-                        >
-                          {b.text}
-                        </span>
-                      ))}
+            <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+              <h3 style={{ marginTop: 0 }}>{whatChangedMost.title}</h3>
+              <div style={{ marginTop: -6, opacity: 0.85 }}>{whatChangedMost.subtitle}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 10 }}>
+                {worsened[0] ? (
+                  <button
+                    onClick={() => setSelectedPair({ a: worsened[0].nodeIdA, b: worsened[0].nodeIdB })}
+                    style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'color-mix(in srgb, #ef4444 10%, transparent)', cursor: 'pointer' }}
+                  >
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top worsened</div>
+                    <div style={{ fontWeight: 900, marginTop: 4 }}>
+                      {pairForDelta(worsened[0].nodeIdA, worsened[0].nodeIdB)
+                        ? pairShortLabel(pairForDelta(worsened[0].nodeIdA, worsened[0].nodeIdB)!, byIdA, byIdB)
+                        : `${worsened[0].nodeTypeA} → ${worsened[0].nodeTypeB}`}
                     </div>
-                  ) : null}
-                </button>
-                  )
-                })()
-              ))}
+                  </button>
+                ) : null}
+                {improved[0] ? (
+                  <button
+                    onClick={() => setSelectedPair({ a: improved[0].nodeIdA, b: improved[0].nodeIdB })}
+                    style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'color-mix(in srgb, #22c55e 10%, transparent)', cursor: 'pointer' }}
+                  >
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top improved</div>
+                    <div style={{ fontWeight: 900, marginTop: 4 }}>
+                      {pairForDelta(improved[0].nodeIdA, improved[0].nodeIdB)
+                        ? pairShortLabel(pairForDelta(improved[0].nodeIdA, improved[0].nodeIdB)!, byIdA, byIdB)
+                        : `${improved[0].nodeTypeA} → ${improved[0].nodeTypeB}`}
+                    </div>
+                  </button>
+                ) : null}
+              </div>
+              {!worsened.length && !improved.length ? (
+                <div style={{ marginTop: 10, opacity: 0.85 }}>No top-changes were emitted. This usually means missing timing/buffer evidence or very small plans.</div>
+              ) : null}
             </div>
           </div>
 
-          <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-            <h3 style={{ marginTop: 0 }}>Findings diff</h3>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-              <select value={filterFindingChange} onChange={(e) => setFilterFindingChange(e.target.value)} style={{ padding: '10px 12px', borderRadius: 12 }}>
-                <option value="">all</option>
-                <option value="New">New</option>
-                <option value="Resolved">Resolved</option>
-                <option value="Worsened">Worsened</option>
-                <option value="Improved">Improved</option>
-                <option value="Unchanged">Unchanged</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {filteredDiffItems.slice(0, 30).map((i, idx) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.05fr', gap: 12 }}>
+            <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                <input
+                  value={filterNodeType}
+                  onChange={(e) => setFilterNodeType(e.target.value)}
+                  placeholder="Filter by node type"
+                  style={{ flex: 1, minWidth: 220, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-h)' }}
+                />
                 <button
-                  key={`${i.ruleId}-${idx}`}
                   onClick={() => {
-                    if (i.nodeIdA && i.nodeIdB) setSelectedPair({ a: i.nodeIdA, b: i.nodeIdB })
+                    const first = filteredWorsened[0] ?? filteredImproved[0]
+                    if (first) setSelectedPair({ a: first.nodeIdA, b: first.nodeIdB })
                   }}
-                  style={{ textAlign: 'left', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                  style={{ padding: '10px 12px', borderRadius: 12 }}
                 >
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
-                    {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
-                  </div>
-                  <div style={{ marginTop: 4, fontSize: 13, opacity: 0.85 }}>
-                    {findingAnchorLabel(i.nodeIdB ?? i.nodeIdA, i.nodeIdB ? byIdB : byIdA)}
-                  </div>
-                  <div style={{ fontSize: 13 }}>{i.summary}</div>
+                  jump to hottest
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
+              <h3 style={{ marginTop: 0 }}>Navigator</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+                    <div style={{ fontWeight: 900 }}>Worsened</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{filteredWorsened.length} shown</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                    {filteredWorsened.slice(0, 8).map((d) => (
+                      (() => {
+                        const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
+                        const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
+                        const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
+                        const subtitle = pair ? pairSubtitle(pair) : null
+                        return (
+                          <button
+                            key={`${d.nodeIdA}-${d.nodeIdB}`}
+                            onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
+                            style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                          >
+                            <div style={{ fontWeight: 900 }}>{label}</div>
+                            {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                                conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
+                              </div>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                                inclusiveΔ {String(d.inclusiveTimeMs?.delta)}ms · readsΔ {String(d.sharedReadBlocks?.delta)}
+                              </div>
+                            </div>
+                            {badges.length ? (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                {badges.map((b) => (
+                                  <span
+                                    key={b.text}
+                                    style={{
+                                      fontFamily: 'var(--mono)',
+                                      fontSize: 11,
+                                      padding: '4px 8px',
+                                      borderRadius: 999,
+                                      border: '1px solid var(--border)',
+                                      background:
+                                        b.tone === 'good'
+                                          ? 'color-mix(in srgb, #22c55e 18%, transparent)'
+                                          : b.tone === 'bad'
+                                            ? 'color-mix(in srgb, #ef4444 18%, transparent)'
+                                            : b.tone === 'mixed'
+                                              ? 'color-mix(in srgb, #f59e0b 18%, transparent)'
+                                              : 'transparent',
+                                    }}
+                                  >
+                                    {b.text}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </button>
+                        )
+                      })()
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+                    <div style={{ fontWeight: 900 }}>Improved</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{filteredImproved.length} shown</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                    {filteredImproved.slice(0, 8).map((d) => (
+                      (() => {
+                        const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
+                        const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
+                        const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
+                        const subtitle = pair ? pairSubtitle(pair) : null
+                        return (
+                          <button
+                            key={`${d.nodeIdA}-${d.nodeIdB}`}
+                            onClick={() => setSelectedPair({ a: d.nodeIdA, b: d.nodeIdB })}
+                            style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                          >
+                            <div style={{ fontWeight: 900 }}>{label}</div>
+                            {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                                conf {d.matchConfidence} · score {Number(d.matchScore).toFixed(2)}
+                              </div>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+                                inclusiveΔ {String(d.inclusiveTimeMs?.delta)}ms · readsΔ {String(d.sharedReadBlocks?.delta)}
+                              </div>
+                            </div>
+                            {badges.length ? (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                {badges.map((b) => (
+                                  <span
+                                    key={b.text}
+                                    style={{
+                                      fontFamily: 'var(--mono)',
+                                      fontSize: 11,
+                                      padding: '4px 8px',
+                                      borderRadius: 999,
+                                      border: '1px solid var(--border)',
+                                      background:
+                                        b.tone === 'good'
+                                          ? 'color-mix(in srgb, #22c55e 18%, transparent)'
+                                          : b.tone === 'bad'
+                                            ? 'color-mix(in srgb, #ef4444 18%, transparent)'
+                                            : b.tone === 'mixed'
+                                              ? 'color-mix(in srgb, #f59e0b 18%, transparent)'
+                                              : 'transparent',
+                                    }}
+                                  >
+                                    {b.text}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </button>
+                        )
+                      })()
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 style={{ marginTop: 0 }}>Findings diff</h3>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                    <select value={filterFindingChange} onChange={(e) => setFilterFindingChange(e.target.value)} style={{ padding: '10px 12px', borderRadius: 12 }}>
+                      <option value="">all</option>
+                      <option value="New">New</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Worsened">Worsened</option>
+                      <option value="Improved">Improved</option>
+                      <option value="Unchanged">Unchanged</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {filteredDiffItems.slice(0, 30).map((i, idx) => (
+                      <div
+                        key={`${i.ruleId}-${idx}`}
+                        onClick={() => {
+                          if (i.nodeIdA && i.nodeIdB) setSelectedPair({ a: i.nodeIdA, b: i.nodeIdB })
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            if (i.nodeIdA && i.nodeIdB) setSelectedPair({ a: i.nodeIdA, b: i.nodeIdB })
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        style={{ textAlign: 'left', padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                      >
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
+                          {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 4 }}>
+                          <div style={{ fontSize: 13, opacity: 0.85 }}>
+                            {findingAnchorLabel(i.nodeIdB ?? i.nodeIdA, i.nodeIdB ? byIdB : byIdA)}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const nid = i.nodeIdB ?? i.nodeIdA
+                              if (!nid) return
+                              copyFinding.copy(
+                                findingReferenceText(nid, i.nodeIdB ? byIdB : byIdA, `${i.changeType} finding: ${i.ruleId}`),
+                                'Copied finding reference',
+                              )
+                            }}
+                            style={{ padding: '4px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, opacity: 0.9 }}
+                            title="Copy finding reference"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 13 }}>{i.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
+                </div>
+
+                <details style={{ opacity: 0.9 }}>
+                  <summary style={{ cursor: 'pointer' }}>Unmatched nodes</summary>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9, marginTop: 6 }}>
+                    A-only: {unmatchedA.length} · B-only: {unmatchedB.length}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
+                    <div>
+                      <b>A-only</b>
+                      <ul style={{ marginTop: 6 }}>
+                        {unmatchedA.slice(0, 60).map((id) => (
+                          <li key={id} style={{ fontSize: 13 }}>
+                            {findingAnchorLabel(id, byIdA)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <b>B-only</b>
+                      <ul style={{ marginTop: 6 }}>
+                        {unmatchedB.slice(0, 60).map((id) => (
+                          <li key={id} style={{ fontSize: 13 }}>
+                            {findingAnchorLabel(id, byIdB)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
             <h3 style={{ marginTop: 0 }}>Selected node pair</h3>
             {selectedDetail ? (
               <div style={{ fontWeight: 800 }}>{pairShortLabel(selectedDetail, byIdA, byIdB)}</div>
@@ -408,19 +570,25 @@ export default function ComparePage() {
                   <button
                     onClick={async () => {
                       const text = pairReferenceText(selectedDetail, byIdA, byIdB)
-                      await navigator.clipboard.writeText(text)
-                      setCopyStatus('Copied pair reference')
-                      setTimeout(() => setCopyStatus(null), 1200)
+                      await copyPair.copy(text, 'Copied pair reference')
                     }}
                     style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
                   >
                     Copy reference
                   </button>
-                  {copyStatus ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyStatus}</div> : null}
+                  {copyPair.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyPair.status}</div> : null}
                 </div>
                 {pairSubtitle(selectedDetail) ? (
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>
                 ) : null}
+                <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
+                    confidence: {selectedDetail.identity.matchConfidence} · score {Number(selectedDetail.identity.matchScore).toFixed(2)}
+                  </div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
+                    depth {selectedDetail.identity.depthA} → {selectedDetail.identity.depthB}
+                  </div>
+                </div>
                 {(() => {
                   const lines = joinSideSummaryLinesForPair(selectedDetail, byIdA, byIdB)
                   if (!lines.length) return null
@@ -452,9 +620,6 @@ export default function ComparePage() {
                         </div>
                       </>
                     ) : null}
-                <div style={{ marginTop: 10, fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
-                  confidence: {selectedDetail.identity.matchConfidence} · score {Number(selectedDetail.identity.matchScore).toFixed(2)}
-                </div>
                 <details style={{ marginTop: 8 }}>
                   <summary style={{ cursor: 'pointer' }}>Debug ids</summary>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9, marginTop: 6 }}>
@@ -749,6 +914,7 @@ export default function ComparePage() {
                 Select an improved/worsened node or diff finding to inspect a matched pair.
               </p>
             )}
+          </div>
           </div>
         </section>
       ) : null}

@@ -17,46 +17,10 @@ export function computeSearchHits(base: AnalyzeGraph, termRaw: string): AnalyzeG
 
   const hits: AnalyzeGraphSearchHit[] = []
 
-  const byId = new Map(base.nodes.map((n) => [n.id, n.data as AnalyzeGraphNodeData]))
-  const parent = new Map<string, string>()
-  for (const e of base.edges) parent.set(e.target, e.source)
-
-  function depth(id: string): number {
-    let d = 0
-    let cur = id
-    while (parent.has(cur) && d < 50) {
-      cur = parent.get(cur)!
-      d++
-    }
-    return d
-  }
-
-  function subtitleFor(id: string): string | null {
-    // Prefer nearest meaningful boundary (join/aggregate/sort); fallback to parent/depth.
-    let cur = id
-    let steps = 0
-    while (parent.has(cur) && steps < 50) {
-      const p = parent.get(cur)!
-      const pl = byId.get(p)?.label
-      const pst = String(byId.get(p)?.searchText ?? '').toLowerCase()
-      const pIsJoin = pst.includes(' join') || pst.includes('nested loop') || String(pl ?? '').toLowerCase().includes(' join') || String(pl ?? '').toLowerCase() === 'nested loop'
-      const pIsBoundary = pst.includes('aggregate') || pst.includes('sort') || String(pl ?? '').toLowerCase().includes('aggregate') || String(pl ?? '').toLowerCase().includes('sort')
-      if (pl && (pIsJoin || pIsBoundary)) return `under ${pl}`
-      cur = p
-      steps++
-    }
-
-    const p = parent.get(id)
-    const dep = depth(id)
-    const pl = p ? byId.get(p)?.label : null
-    if (pl) return `under ${pl} · depth ${dep}`
-    return dep ? `depth ${dep}` : null
-  }
-
   for (const n of base.nodes) {
     const d = n.data
     const hay = `${d.label} ${(d.searchText ?? '')}`.toLowerCase()
-    if (hay.includes(term)) hits.push({ nodeId: d.nodeId, label: d.label, subtitle: subtitleFor(d.nodeId) })
+    if (hay.includes(term)) hits.push({ nodeId: d.nodeId, label: d.label, subtitle: d.refSubtitle ?? null })
   }
   return hits
 }

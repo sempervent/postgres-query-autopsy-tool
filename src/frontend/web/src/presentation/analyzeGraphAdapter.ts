@@ -2,11 +2,13 @@ import dagre from '@dagrejs/dagre'
 import type { Edge, Node } from 'reactflow'
 import type { AnalyzedPlanNode, PlanAnalysisResult } from '../api/types'
 import { nodeShortLabel } from './nodeLabels'
+import { nearestMeaningfulAncestorSubtitle } from './nodeReferences'
 
 export type AnalyzeGraphNodeData = {
   nodeId: string
   label: string
   searchText?: string
+  refSubtitle?: string | null
   kindChips: string[]
   isHotExclusive: boolean
   isHotSubtree: boolean
@@ -72,6 +74,7 @@ export function buildAnalyzeGraph(analysis: PlanAnalysisResult): AnalyzeGraph {
         nodeId: n.nodeId,
         label,
         searchText: [op, rel, idx].filter(Boolean).join(' '),
+        refSubtitle: nearestMeaningfulAncestorSubtitle(n.nodeId, byId),
         kindChips: chips.slice(0, 3),
         isHotExclusive: hotExclusive.has(n.nodeId),
         isHotSubtree: hotSubtree.has(n.nodeId),
