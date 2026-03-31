@@ -1,0 +1,26 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "events",
+      "Schema": "public",
+      "Alias": "events",
+      "Startup Cost": 0.0,
+      "Total Cost": 20000.0,
+      "Plan Rows": 800000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 310.0,
+      "Actual Rows": 12000,
+      "Actual Loops": 1,
+      "Filter": "(tenant_id = 42 AND created_at > (now() - '7 days'::interval))",
+      "Buffers": {
+        "Shared Hit Blocks": 200,
+        "Shared Read Blocks": 18000,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]
+

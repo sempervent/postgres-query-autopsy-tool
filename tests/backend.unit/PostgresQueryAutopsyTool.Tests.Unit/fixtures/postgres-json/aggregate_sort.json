@@ -1,0 +1,56 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Aggregate",
+      "Strategy": "Hashed",
+      "Startup Cost": 200.0,
+      "Total Cost": 250.0,
+      "Plan Rows": 10,
+      "Plan Width": 16,
+      "Actual Startup Time": 2.0,
+      "Actual Total Time": 12.0,
+      "Actual Rows": 8,
+      "Actual Loops": 1,
+      "Group Key": ["region"],
+      "Plans": [
+        {
+          "Node Type": "Sort",
+          "Startup Cost": 180.0,
+          "Total Cost": 200.0,
+          "Plan Rows": 100,
+          "Plan Width": 12,
+          "Actual Startup Time": 1.5,
+          "Actual Total Time": 10.0,
+          "Actual Rows": 100,
+          "Actual Loops": 1,
+          "Sort Key": ["region"],
+          "Buffers": {
+            "Shared Hit Blocks": 10,
+            "Shared Read Blocks": 2,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "events",
+              "Schema": "public",
+              "Alias": "events",
+              "Startup Cost": 0.0,
+              "Total Cost": 150.0,
+              "Plan Rows": 100,
+              "Plan Width": 12,
+              "Actual Startup Time": 0.1,
+              "Actual Total Time": 8.0,
+              "Actual Rows": 100,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+

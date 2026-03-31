@@ -1,0 +1,46 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Incremental Sort",
+      "Startup Cost": 200.0,
+      "Total Cost": 2200.0,
+      "Plan Rows": 150000,
+      "Plan Width": 64,
+      "Actual Startup Time": 2.0,
+      "Actual Total Time": 60.0,
+      "Actual Rows": 150000,
+      "Actual Loops": 1,
+      "Sort Key": ["orders.created_at DESC"],
+      "Buffers": {
+        "Shared Hit Blocks": 450,
+        "Shared Read Blocks": 1600,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Index Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Index Name": "orders_created_at_idx",
+          "Startup Cost": 0.1,
+          "Total Cost": 1700.0,
+          "Plan Rows": 150000,
+          "Plan Width": 64,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 35.0,
+          "Actual Rows": 150000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 250,
+            "Shared Read Blocks": 900,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]
+

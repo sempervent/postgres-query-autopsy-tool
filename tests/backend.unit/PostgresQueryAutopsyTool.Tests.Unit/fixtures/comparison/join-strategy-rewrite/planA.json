@@ -1,0 +1,70 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.0,
+      "Total Cost": 25000.0,
+      "Plan Rows": 500000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.2,
+      "Actual Total Time": 420.0,
+      "Actual Rows": 120000,
+      "Actual Loops": 1,
+      "Join Filter": "(users.id = orders.user_id)",
+      "Buffers": {
+        "Shared Hit Blocks": 5000,
+        "Shared Read Blocks": 12000,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "users",
+          "Schema": "public",
+          "Alias": "users",
+          "Startup Cost": 0.0,
+          "Total Cost": 500.0,
+          "Plan Rows": 50000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 15.0,
+          "Actual Rows": 50000,
+          "Actual Loops": 1,
+          "Filter": "(status = 'active'::text)",
+          "Buffers": {
+            "Shared Hit Blocks": 50,
+            "Shared Read Blocks": 600,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Index Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Index Name": "orders_user_id_idx",
+          "Startup Cost": 0.1,
+          "Total Cost": 0.5,
+          "Plan Rows": 20,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.002,
+          "Actual Total Time": 0.006,
+          "Actual Rows": 3,
+          "Actual Loops": 50000,
+          "Index Cond": "(orders.user_id = users.id)",
+          "Filter": "(orders.created_at > (now() - '30 days'::interval))",
+          "Buffers": {
+            "Shared Hit Blocks": 4500,
+            "Shared Read Blocks": 11000,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]
+

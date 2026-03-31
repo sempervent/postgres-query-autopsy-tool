@@ -1,0 +1,46 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Sort",
+      "Startup Cost": 100.0,
+      "Total Cost": 2000.0,
+      "Plan Rows": 300000,
+      "Plan Width": 64,
+      "Actual Startup Time": 10.0,
+      "Actual Total Time": 120.0,
+      "Actual Rows": 300000,
+      "Actual Loops": 1,
+      "Sort Key": ["t.created_at DESC"],
+      "Sort Method": "external merge",
+      "Sort Space Used": 204800,
+      "Sort Space Type": "Disk",
+      "Peak Memory Usage": 4096,
+      "Disk Usage": 204800,
+      "Buffers": {
+        "Shared Hit Blocks": 1000,
+        "Shared Read Blocks": 5000
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "t",
+          "Schema": "public",
+          "Alias": "t",
+          "Startup Cost": 0.0,
+          "Total Cost": 1500.0,
+          "Plan Rows": 300000,
+          "Plan Width": 64,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 40.0,
+          "Actual Rows": 300000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 200,
+            "Shared Read Blocks": 1200
+          }
+        }
+      ]
+    }
+  }
+]
+

@@ -1,0 +1,71 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Startup Cost": 100.0,
+      "Total Cost": 8000.0,
+      "Plan Rows": 120000,
+      "Plan Width": 64,
+      "Actual Startup Time": 5.0,
+      "Actual Total Time": 220.0,
+      "Actual Rows": 120000,
+      "Actual Loops": 1,
+      "Hash Cond": "(a.id = b.a_id)",
+      "Buffers": { "Shared Hit Blocks": 2000, "Shared Read Blocks": 3500 },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "b",
+          "Schema": "public",
+          "Alias": "b",
+          "Startup Cost": 0.0,
+          "Total Cost": 5000.0,
+          "Plan Rows": 400000,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 120.0,
+          "Actual Rows": 380000,
+          "Actual Loops": 1,
+          "Buffers": { "Shared Hit Blocks": 500, "Shared Read Blocks": 2500 }
+        },
+        {
+          "Node Type": "Hash",
+          "Startup Cost": 80.0,
+          "Total Cost": 1200.0,
+          "Plan Rows": 50000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.3,
+          "Actual Total Time": 60.0,
+          "Actual Rows": 50000,
+          "Actual Loops": 1,
+          "Hash Buckets": 65536,
+          "Original Hash Buckets": 16384,
+          "Hash Batches": 8,
+          "Original Hash Batches": 1,
+          "Peak Memory Usage": 8192,
+          "Disk Usage": 65536,
+          "Buffers": { "Shared Hit Blocks": 1500, "Shared Read Blocks": 1000 },
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "a",
+              "Schema": "public",
+              "Alias": "a",
+              "Startup Cost": 0.0,
+              "Total Cost": 500.0,
+              "Plan Rows": 50000,
+              "Plan Width": 32,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 30.0,
+              "Actual Rows": 50000,
+              "Actual Loops": 1,
+              "Buffers": { "Shared Hit Blocks": 800, "Shared Read Blocks": 200 }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+

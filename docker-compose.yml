@@ -1,0 +1,20 @@
+services:
+  api:
+    build:
+      context: ./src/backend
+      dockerfile: PostgresQueryAutopsyTool.Api/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Production
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: ./src/frontend/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+

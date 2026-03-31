@@ -1,0 +1,39 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Gather",
+      "Startup Cost": 0.0,
+      "Total Cost": 5000.0,
+      "Plan Rows": 200000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.5,
+      "Actual Total Time": 80.0,
+      "Actual Rows": 200000,
+      "Actual Loops": 1,
+      "Workers Planned": 4,
+      "Workers Launched": 2,
+      "Parallel Aware": true,
+      "Plans": [
+        {
+          "Node Type": "Parallel Seq Scan",
+          "Relation Name": "events",
+          "Schema": "public",
+          "Alias": "events",
+          "Startup Cost": 0.0,
+          "Total Cost": 4500.0,
+          "Plan Rows": 200000,
+          "Plan Width": 64,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 70.0,
+          "Actual Rows": 200000,
+          "Actual Loops": 1,
+          "Parallel Aware": true,
+          "Rows Removed by Filter": 900000,
+          "Filter": "(tenant_id = 42)",
+          "Buffers": { "Shared Hit Blocks": 200, "Shared Read Blocks": 1800 }
+        }
+      ]
+    }
+  }
+]
+

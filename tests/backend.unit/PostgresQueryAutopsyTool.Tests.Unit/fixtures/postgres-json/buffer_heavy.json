@@ -1,0 +1,47 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Sort",
+      "Startup Cost": 100.0,
+      "Total Cost": 500.0,
+      "Plan Rows": 100000,
+      "Plan Width": 32,
+      "Actual Startup Time": 5.0,
+      "Actual Total Time": 250.0,
+      "Actual Rows": 1000,
+      "Actual Loops": 1,
+      "Sort Key": ["created_at DESC"],
+      "Buffers": {
+        "Shared Hit Blocks": 50,
+        "Shared Read Blocks": 8000,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0,
+        "Temp Read Blocks": 120,
+        "Temp Written Blocks": 300
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "events_big",
+          "Schema": "public",
+          "Alias": "events_big",
+          "Startup Cost": 0.0,
+          "Total Cost": 400.0,
+          "Plan Rows": 100000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.5,
+          "Actual Total Time": 200.0,
+          "Actual Rows": 1000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 40,
+            "Shared Read Blocks": 7000,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]
+

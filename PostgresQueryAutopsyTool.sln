@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3D06C1DA-5950-4B6C-A85C-0F44614AAAC2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{A5BD0384-043F-4985-8458-F4D4C2ED419D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostgresQueryAutopsyTool.Api", "src\backend\PostgresQueryAutopsyTool.Api\PostgresQueryAutopsyTool.Api.csproj", "{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostgresQueryAutopsyTool.Core", "src\backend\PostgresQueryAutopsyTool.Core\PostgresQueryAutopsyTool.Core.csproj", "{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CE5B07C1-8431-4BDB-BA16-244DD823656F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend.unit", "backend.unit", "{F877C524-BA7D-4573-B762-A8C2E5B77CA9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostgresQueryAutopsyTool.Tests.Unit", "tests\backend.unit\PostgresQueryAutopsyTool.Tests.Unit\PostgresQueryAutopsyTool.Tests.Unit.csproj", "{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A5BD0384-043F-4985-8458-F4D4C2ED419D} = {3D06C1DA-5950-4B6C-A85C-0F44614AAAC2}
+		{04B498B4-82D2-4EAB-B9BA-0EB68FE39F03} = {A5BD0384-043F-4985-8458-F4D4C2ED419D}
+		{0BAC4AC7-B89B-466F-A5CF-B4633252AAE9} = {A5BD0384-043F-4985-8458-F4D4C2ED419D}
+		{F877C524-BA7D-4573-B762-A8C2E5B77CA9} = {CE5B07C1-8431-4BDB-BA16-244DD823656F}
+		{3C8A40F1-39D7-46EC-8209-CAEECBF4B8EF} = {F877C524-BA7D-4573-B762-A8C2E5B77CA9}
+	EndGlobalSection
+EndGlobal

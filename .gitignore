@@ -52,3 +52,22 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# ----------------------------
+# Node / frontend
+# ----------------------------
+node_modules/
+src/frontend/web/node_modules/
+src/frontend/web/dist/
+src/frontend/web/coverage/
+src/frontend/web/.vite/
+src/frontend/web/.env*
+src/frontend/web/*.log
+
+# ----------------------------
+# Mac / editor
+# ----------------------------
+.DS_Store
+.vscode/
+.idea/
+*.swp

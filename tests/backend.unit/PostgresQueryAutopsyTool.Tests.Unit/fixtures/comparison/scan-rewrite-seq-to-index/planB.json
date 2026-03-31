@@ -1,0 +1,27 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Index Scan",
+      "Relation Name": "products",
+      "Schema": "public",
+      "Alias": "products",
+      "Index Name": "products_category_id_idx",
+      "Startup Cost": 0.1,
+      "Total Cost": 300.0,
+      "Plan Rows": 800,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 18.0,
+      "Actual Rows": 800,
+      "Actual Loops": 1,
+      "Index Cond": "(category_id = 10)",
+      "Buffers": {
+        "Shared Hit Blocks": 120,
+        "Shared Read Blocks": 300,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]
+

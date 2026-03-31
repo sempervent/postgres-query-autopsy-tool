@@ -1,0 +1,88 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.0,
+      "Total Cost": 15000.0,
+      "Plan Rows": 20000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.2,
+      "Actual Total Time": 160.0,
+      "Actual Rows": 20000,
+      "Actual Loops": 1,
+      "Join Filter": "(a.id = b.a_id)",
+      "Buffers": {
+        "Shared Hit Blocks": 2000,
+        "Shared Read Blocks": 2500,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Index Scan",
+          "Relation Name": "a",
+          "Schema": "public",
+          "Alias": "a",
+          "Index Name": "a_pkey",
+          "Startup Cost": 0.2,
+          "Total Cost": 50.0,
+          "Plan Rows": 5000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 10.0,
+          "Actual Rows": 5000,
+          "Actual Loops": 1,
+          "Index Cond": "(id > 0)",
+          "Buffers": {
+            "Shared Hit Blocks": 200,
+            "Shared Read Blocks": 300,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Materialize",
+          "Startup Cost": 0.0,
+          "Total Cost": 1300.0,
+          "Plan Rows": 20,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.003,
+          "Actual Total Time": 0.004,
+          "Actual Rows": 4,
+          "Actual Loops": 5000,
+          "Buffers": {
+            "Shared Hit Blocks": 1600,
+            "Shared Read Blocks": 2000,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          },
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "b",
+              "Schema": "public",
+              "Alias": "b",
+              "Startup Cost": 0.0,
+              "Total Cost": 1200.0,
+              "Plan Rows": 20,
+              "Plan Width": 48,
+              "Actual Startup Time": 0.002,
+              "Actual Total Time": 0.008,
+              "Actual Rows": 4,
+              "Actual Loops": 1,
+              "Filter": "(b.created_at > (now() - '1 day'::interval))",
+              "Buffers": {
+                "Shared Hit Blocks": 1400,
+                "Shared Read Blocks": 1800,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+

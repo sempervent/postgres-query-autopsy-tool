@@ -1,0 +1,86 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Startup Cost": 100.0,
+      "Total Cost": 9000.0,
+      "Plan Rows": 500000,
+      "Plan Width": 64,
+      "Actual Startup Time": 2.0,
+      "Actual Total Time": 140.0,
+      "Actual Rows": 12000,
+      "Actual Loops": 1,
+      "Hash Cond": "(customers.id = invoices.customer_id)",
+      "Buffers": {
+        "Shared Hit Blocks": 2000,
+        "Shared Read Blocks": 2200,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "invoices",
+          "Schema": "public",
+          "Alias": "invoices",
+          "Startup Cost": 0.0,
+          "Total Cost": 5000.0,
+          "Plan Rows": 200000,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 85.0,
+          "Actual Rows": 12000,
+          "Actual Loops": 1,
+          "Filter": "(status = 'open'::text)",
+          "Buffers": {
+            "Shared Hit Blocks": 1000,
+            "Shared Read Blocks": 1800,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Hash",
+          "Startup Cost": 80.0,
+          "Total Cost": 1200.0,
+          "Plan Rows": 50000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.2,
+          "Actual Total Time": 18.0,
+          "Actual Rows": 50000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 900,
+            "Shared Read Blocks": 400,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          },
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "customers",
+              "Schema": "public",
+              "Alias": "customers",
+              "Startup Cost": 0.0,
+              "Total Cost": 500.0,
+              "Plan Rows": 50000,
+              "Plan Width": 32,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 15.0,
+              "Actual Rows": 50000,
+              "Actual Loops": 1,
+              "Buffers": {
+                "Shared Hit Blocks": 800,
+                "Shared Read Blocks": 200,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+

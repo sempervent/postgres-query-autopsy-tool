@@ -1,0 +1,26 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "users",
+      "Schema": "public",
+      "Alias": "users",
+      "Startup Cost": 0.0,
+      "Total Cost": 431.2,
+      "Plan Rows": 100,
+      "Plan Width": 8,
+      "Actual Startup Time": 0.012,
+      "Actual Total Time": 10.5,
+      "Actual Rows": 5,
+      "Actual Loops": 1,
+      "Filter": "(status = 'active')",
+      "Buffers": {
+        "Shared Hit Blocks": 100,
+        "Shared Read Blocks": 20,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]
+

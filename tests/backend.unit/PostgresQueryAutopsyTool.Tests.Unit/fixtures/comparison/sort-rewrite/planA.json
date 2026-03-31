@@ -1,0 +1,45 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Sort",
+      "Startup Cost": 200.0,
+      "Total Cost": 2200.0,
+      "Plan Rows": 150000,
+      "Plan Width": 64,
+      "Actual Startup Time": 5.0,
+      "Actual Total Time": 95.0,
+      "Actual Rows": 150000,
+      "Actual Loops": 1,
+      "Sort Key": ["orders.created_at DESC"],
+      "Buffers": {
+        "Shared Hit Blocks": 400,
+        "Shared Read Blocks": 2500,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Startup Cost": 0.0,
+          "Total Cost": 1800.0,
+          "Plan Rows": 150000,
+          "Plan Width": 64,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 40.0,
+          "Actual Rows": 150000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 200,
+            "Shared Read Blocks": 1200,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]
+

@@ -1,0 +1,87 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Startup Cost": 100.0,
+      "Total Cost": 8000.0,
+      "Plan Rows": 120000,
+      "Plan Width": 64,
+      "Actual Startup Time": 5.0,
+      "Actual Total Time": 160.0,
+      "Actual Rows": 120000,
+      "Actual Loops": 1,
+      "Hash Cond": "(users.id = orders.user_id)",
+      "Buffers": {
+        "Shared Hit Blocks": 9000,
+        "Shared Read Blocks": 3000,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Startup Cost": 0.0,
+          "Total Cost": 6500.0,
+          "Plan Rows": 400000,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 105.0,
+          "Actual Rows": 380000,
+          "Actual Loops": 1,
+          "Filter": "(orders.created_at > (now() - '30 days'::interval))",
+          "Buffers": {
+            "Shared Hit Blocks": 6000,
+            "Shared Read Blocks": 2500,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Hash",
+          "Startup Cost": 80.0,
+          "Total Cost": 1200.0,
+          "Plan Rows": 50000,
+          "Plan Width": 32,
+          "Actual Startup Time": 0.3,
+          "Actual Total Time": 20.0,
+          "Actual Rows": 50000,
+          "Actual Loops": 1,
+          "Buffers": {
+            "Shared Hit Blocks": 3000,
+            "Shared Read Blocks": 500,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          },
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "users",
+              "Schema": "public",
+              "Alias": "users",
+              "Startup Cost": 0.0,
+              "Total Cost": 500.0,
+              "Plan Rows": 50000,
+              "Plan Width": 32,
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 15.0,
+              "Actual Rows": 50000,
+              "Actual Loops": 1,
+              "Filter": "(status = 'active'::text)",
+              "Buffers": {
+                "Shared Hit Blocks": 2000,
+                "Shared Read Blocks": 200,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
+
