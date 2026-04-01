@@ -1,4 +1,6 @@
 import type { PlanComparisonResult } from '../api/types'
+import { relatedFindingRuleHints } from './compareIndexLinks'
+import { formatIndexInsightDiffKind } from './indexInsightPresentation'
 
 export type CompareIntroCopy = {
   title: string
@@ -52,6 +54,7 @@ export function compareIntroCopy(): CompareIntroCopy {
       'Twin branch context (path + children) for the selected pair',
       'Findings changes + context diffs',
       'Inspectable pair details + confidence',
+      'Index posture + bounded index insight diffs (new/resolved/shifted)',
     ],
     inputHints: ['Best input: `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)`', '`ANALYZE` improves runtime deltas; `BUFFERS` improves read deltas', 'If evidence is missing, sections will degrade gracefully'],
   }
@@ -129,6 +132,51 @@ export function compareWhatChangedMostCopy() {
   return {
     title: 'What changed most',
     subtitle: 'Start here. Pick one improved and one worsened area, then inspect the selected pair panel for context and confidence.',
+  }
+}
+
+export type CompareIndexSectionRow = {
+  diffIndex: number
+  kindLabel: string
+  summary: string
+  relatedFindingIndexes: number[]
+  relatedFindingHints: string[]
+}
+
+export type CompareIndexSectionModel = {
+  headlineNew: string | null
+  headlineResolved: string | null
+  overviewLines: string[]
+  topInsightDiffs: CompareIndexSectionRow[]
+  chunkedNuance: boolean
+}
+
+export function buildCompareIndexSectionModel(c: PlanComparisonResult | null): CompareIndexSectionModel | null {
+  const idx = c?.indexComparison
+  if (!idx) return null
+  const diffs = idx.insightDiffs ?? []
+  const interesting = diffs
+    .map((d, diffIndex) => ({ d, diffIndex }))
+    .filter(({ d }) => formatIndexInsightDiffKind(d.kind) !== 'Unchanged')
+  const firstNew = interesting.find(({ d }) => formatIndexInsightDiffKind(d.kind) === 'New')
+  const firstResolved = interesting.find(({ d }) => formatIndexInsightDiffKind(d.kind) === 'Resolved')
+  return {
+    headlineNew: firstNew?.d.summary ?? null,
+    headlineResolved: firstResolved?.d.summary ?? null,
+    overviewLines: idx.overviewLines ?? [],
+    topInsightDiffs: interesting
+      .slice(0, 6)
+      .map(({ d, diffIndex }) => {
+        const relatedFindingIndexes = (d.relatedFindingDiffIndexes ?? []).slice(0, 4)
+        return {
+          diffIndex,
+          kindLabel: formatIndexInsightDiffKind(d.kind),
+          summary: d.summary,
+          relatedFindingIndexes,
+          relatedFindingHints: relatedFindingRuleHints(c, relatedFindingIndexes),
+        }
+      }),
+    chunkedNuance: Boolean(idx.eitherPlanSuggestsChunkedBitmapWorkload),
   }
 }
 

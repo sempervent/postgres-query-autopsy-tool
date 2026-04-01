@@ -16,6 +16,8 @@ Mapping confidence is emitted per pair. Treat low-confidence pairs as “suspect
 After a compare run, start at the top:
 
 - **Summary cards**: total runtime, shared reads, severe findings, node count, max depth (Plan B value + delta vs Plan A).
+- **Index changes** (Phase 30+31): plan-level scan-mix deltas, chunked-bitmap posture lines when applicable, and a short list of **bounded index insight diffs**. Each insight row can show **Supported by N finding change(s)** with rule tails and a **Highlight finding** control; indices are cross-linked to `findingsDiff.items` by **array index** (stable after server-side ranking).
+- **Findings ↔ index deltas** (Phase 31): finding diff rows can show **Related index change** / **N related index deltas** with **Index Δ #k** buttons (stop propagation) to outline the matching row in **Index changes**. The selected pair panel adds **Finding ↔ index corroboration** when structured links exist on that mapped pair. Links are **heuristic** (node ids, relation evidence, rule id ↔ `signalKinds` alignment)—not proof of causality.
 - **What changed most**: quick-jump to the top worsened and top improved mapped pairs.
 
 ### Navigator: improved / worsened lists + “what changed most”
@@ -30,6 +32,7 @@ Each row uses human-readable pair labels and may include badges:
 
 - generic context badges (hash pressure, scan waste, sort spill, memoize, nested loop)
 - **side-aware join badges** when the evidence is explicitly side-scoped (build side / inner side)
+- optional **`index Δ`** chip when the mapped pair has non-empty **index delta cues** (access-path family change and/or pair-scoped index insight diff summaries)
 
 ### Branch context (twin path strip)
 
@@ -47,6 +50,7 @@ Above **Selected node pair**, the **Branch context** section is the visual count
 The selected pair shows:
 
 - readable pair heading + join branch subtitle (when applicable)
+- **Access path / index delta** (Phase 30): bullets from `pairDetails[].indexDeltaCues` when present (human-readable access-path family change + pair-matched index insight diff lines); if cues are empty but families still differ, a single fallback line is shown
 - a **Copy reference** action for sharing a human-readable pair reference
 - **Join side change summary** when supported (hash build / inner waste)
 - context change summary highlights

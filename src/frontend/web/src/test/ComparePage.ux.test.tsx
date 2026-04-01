@@ -38,7 +38,13 @@ vi.mock('../api/client', () => {
           ...basePlan,
           nodes: [
             { nodeId: 'b1', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Hash Join' }, metrics: {} },
-            { nodeId: 'b2', parentNodeId: 'b1', childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} },
+            {
+              nodeId: 'b2',
+              parentNodeId: 'b1',
+              childNodeIds: [],
+              node: { nodeType: 'Index Scan', relationName: 'users', indexName: 'users_pkey' },
+              metrics: {},
+            },
           ],
         },
         summary: {
@@ -74,7 +80,7 @@ vi.mock('../api/client', () => {
             matchScore: 0.9,
             matchConfidence: 'High',
             nodeTypeA: 'Seq Scan',
-            nodeTypeB: 'Seq Scan',
+            nodeTypeB: 'Index Scan',
             relationName: 'users',
             indexName: null,
             inclusiveTimeMs: { a: 10, b: 30, delta: 20, deltaPct: 2 },
@@ -107,17 +113,38 @@ vi.mock('../api/client', () => {
             loops: { a: 1, b: 1, delta: 0, deltaPct: 0 },
           },
         ],
+        indexComparison: {
+          overviewLines: ['Sequential scans decreased from 2 to 1.'],
+          insightDiffs: [
+            {
+              kind: 'resolved',
+              summary: 'Missing-index-style cue cleared on users',
+              nodeIdA: 'a2',
+              nodeIdB: 'b2',
+              relatedFindingDiffIndexes: [0],
+            },
+            {
+              kind: 'new',
+              summary: 'Index path still read-heavy on line_items',
+              nodeIdA: null,
+              nodeIdB: null,
+              relatedFindingDiffIndexes: [],
+            },
+          ],
+          narrativeBullets: [],
+          eitherPlanSuggestsChunkedBitmapWorkload: false,
+        },
         pairDetails: [
           {
             identity: {
               nodeIdA: 'a2',
               nodeIdB: 'b2',
               nodeTypeA: 'Seq Scan',
-              nodeTypeB: 'Seq Scan',
+              nodeTypeB: 'Index Scan',
               relationNameA: 'users',
               relationNameB: 'users',
               indexNameA: null,
-              indexNameB: null,
+              indexNameB: 'users_pkey',
               joinTypeA: null,
               joinTypeB: null,
               depthA: 1,
@@ -125,6 +152,8 @@ vi.mock('../api/client', () => {
               matchConfidence: 'High',
               matchScore: 0.9,
               scoreBreakdown: {},
+              accessPathFamilyA: 'seqScan',
+              accessPathFamilyB: 'indexScan',
             },
             rawFields: {},
             metrics: [],
@@ -132,6 +161,8 @@ vi.mock('../api/client', () => {
             contextEvidenceA: null,
             contextEvidenceB: null,
             contextDiff: null,
+            indexDeltaCues: ['Access path family: Seq Scan → Index Scan', 'Improved index posture: test cue'],
+            corroborationCues: ['Corroborated: seq-scan-concern (Resolved) ↔ index delta (resolved)'],
           },
           {
             identity: {
@@ -157,6 +188,8 @@ vi.mock('../api/client', () => {
             contextEvidenceA: null,
             contextEvidenceB: null,
             contextDiff: null,
+            indexDeltaCues: [],
+            corroborationCues: [],
           },
         ],
         findingsDiff: {
@@ -170,6 +203,7 @@ vi.mock('../api/client', () => {
               severityB: 3,
               title: 't',
               summary: 's',
+              relatedIndexDiffIndexes: [0],
             },
             {
               changeType: 'New',
@@ -227,7 +261,17 @@ test('compare page renders summary + what changed most and allows selecting a to
 
   const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
   const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
-  expect(within(selectedPrimary).getByText(/Seq Scan on users → Seq Scan on users/)).toBeInTheDocument()
+  expect(within(selectedPrimary).getByText(/Seq Scan on users → Index Scan on users/)).toBeInTheDocument()
+
+  expect(screen.getByText('Index changes')).toBeInTheDocument()
+  expect(screen.getByText(/Sequential scans decreased/i)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Access path / index delta' })).toBeInTheDocument()
+  expect(screen.getByText(/Access path family: Seq Scan → Index Scan/)).toBeInTheDocument()
+  expect(screen.getByText('index Δ')).toBeInTheDocument()
+  expect(screen.getByText('Related index change')).toBeInTheDocument()
+  expect(screen.getByText(/1 related index delta/)).toBeInTheDocument()
+  expect(screen.getByText(/Supported by 1 finding change/)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Finding ↔ index corroboration' })).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
   expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
@@ -295,9 +339,7 @@ test('branch context shows twin paths and clicking a mapped ancestor updates sel
   expect(screen.getByText('Plan A — path to selected')).toBeInTheDocument()
 
   const hashJoinA = screen.getByRole('button', { name: /Plan A branch row: Hash Join/i })
-  expect(screen.getByRole('button', { name: /Plan A branch row: Seq Scan on users/i }).getAttribute('aria-pressed')).toBe(
-    'true',
-  )
+  expect(screen.getByRole('button', { name: /Plan A branch row: Seq Scan on users/i }).getAttribute('aria-pressed')).toBe('true')
 
   fireEvent.click(hashJoinA)
   const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })

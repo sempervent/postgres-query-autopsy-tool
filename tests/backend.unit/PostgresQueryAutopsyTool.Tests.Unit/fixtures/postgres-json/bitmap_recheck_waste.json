@@ -1,0 +1,20 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Bitmap Heap Scan",
+      "Relation Name": "wide_table",
+      "Recheck Cond": "((value > 100) AND (region = 'us'::text))",
+      "Rows Removed by Index Recheck": 1200,
+      "Heap Fetches": 15000,
+      "Startup Cost": 10.0,
+      "Total Cost": 5000.0,
+      "Plan Rows": 50000,
+      "Plan Width": 120,
+      "Actual Startup Time": 2.0,
+      "Actual Total Time": 180.0,
+      "Actual Rows": 8000,
+      "Actual Loops": 1,
+      "Shared Read Blocks": 6000
+    }
+  }
+]

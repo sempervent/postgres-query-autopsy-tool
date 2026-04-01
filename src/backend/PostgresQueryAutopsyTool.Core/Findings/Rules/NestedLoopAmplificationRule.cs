@@ -1,3 +1,4 @@
+using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 
 namespace PostgresQueryAutopsyTool.Core.Findings.Rules;
@@ -71,6 +72,7 @@ public sealed class NestedLoopAmplificationRule : IFindingRule
                     ["innerScanWaste_relationName"] = waste?.RelationName,
                     ["innerScanWaste_rowsRemovedByFilter"] = waste?.RowsRemovedByFilter,
                     ["innerScanWaste_removedRowsShareApprox"] = waste?.RemovedRowsShareApprox,
+                    ["innerAccessPathFamily"] = IndexSignalAnalyzer.AccessPathFamily(inner.Node.NodeType),
                 },
                 Suggestion:
                 "Inspect join predicates and cardinality. Consider whether a hash/merge join is viable, or whether the inner side needs stronger index support. " +

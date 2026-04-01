@@ -5,7 +5,16 @@ import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presenta
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel, pairShortLabel } from '../presentation/nodeLabels'
 import { joinSideBadgesForPair, joinSideSummaryLinesForPair } from '../presentation/joinPainHints'
 import { findingReferenceText, pairReferenceText } from '../presentation/nodeReferences'
-import { buildCompareSummaryCards, compareCoverageLine, compareEmptyStateCopy, compareIntroCopy, compareWhatChangedMostCopy } from '../presentation/comparePresentation'
+import { relatedIndexDeltaCue, relatedFindingChangesCue } from '../presentation/compareIndexLinks'
+import {
+  buildCompareIndexSectionModel,
+  buildCompareSummaryCards,
+  compareCoverageLine,
+  compareEmptyStateCopy,
+  compareIntroCopy,
+  compareWhatChangedMostCopy,
+} from '../presentation/comparePresentation'
+import { accessPathChangeCue } from '../presentation/indexInsightPresentation'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { CompareBranchStrip } from '../components/CompareBranchStrip'
 import { ClickableRow } from '../components/ClickableRow'
@@ -37,6 +46,8 @@ export default function ComparePage() {
   }, [improved, worsened])
 
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null)
+  const [highlightFindingIdx, setHighlightFindingIdx] = useState<number | null>(null)
+  const [highlightIndexDiffIdx, setHighlightIndexDiffIdx] = useState<number | null>(null)
   const copyPair = useCopyFeedback()
   const copyFinding = useCopyFeedback()
   const copyNav = useCopyFeedback()
@@ -108,6 +119,7 @@ export default function ComparePage() {
   const whatChangedMost = compareWhatChangedMostCopy()
   const coverage = compareCoverageLine(comparison)
   const summaryCards = buildCompareSummaryCards(comparison)
+  const indexSection = comparison ? buildCompareIndexSectionModel(comparison) : null
   const findingsNewCount = diffItems.filter((i) => String(i.changeType) === 'New').length
   const findingsResolvedCount = diffItems.filter((i) => String(i.changeType) === 'Resolved').length
 
@@ -121,6 +133,8 @@ export default function ComparePage() {
       const result = await comparePlansWithDiagnostics(a, b, includeDiagnostics)
       setComparison(result)
       setSelectedPair(null)
+      setHighlightFindingIdx(null)
+      setHighlightIndexDiffIdx(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -293,6 +307,80 @@ export default function ComparePage() {
                   </div>
                 ))}
               </div>
+              {indexSection && (indexSection.overviewLines.length > 0 || indexSection.topInsightDiffs.length > 0) ? (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 12,
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: 'color-mix(in srgb, var(--accent-bg) 10%, transparent)',
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 6 }}>Index changes</div>
+                  {indexSection.headlineResolved ? (
+                    <div style={{ fontSize: 13, marginBottom: 6, opacity: 0.92 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.8 }}>Resolved highlight · </span>
+                      {indexSection.headlineResolved}
+                    </div>
+                  ) : null}
+                  {indexSection.headlineNew ? (
+                    <div style={{ fontSize: 13, marginBottom: 6, opacity: 0.92 }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.8 }}>New highlight · </span>
+                      {indexSection.headlineNew}
+                    </div>
+                  ) : null}
+                  {indexSection.overviewLines.length ? (
+                    <ul style={{ margin: '0 0 8px 0', paddingLeft: 18, fontSize: 13, opacity: 0.9 }}>
+                      {indexSection.overviewLines.slice(0, 5).map((line) => (
+                        <li key={line} style={{ marginBottom: 4 }}>
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {indexSection.topInsightDiffs.length ? (
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                      {indexSection.topInsightDiffs.map((row) => (
+                        <li
+                          key={`${row.diffIndex}-${row.kindLabel}-${row.summary.slice(0, 40)}`}
+                          style={{
+                            marginBottom: 6,
+                            padding: '4px 0',
+                            borderRadius: 8,
+                            outline: highlightIndexDiffIdx === row.diffIndex ? '2px solid var(--accent-border)' : 'none',
+                            outlineOffset: 2,
+                          }}
+                        >
+                          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.85 }}>{row.kindLabel} · </span>
+                          {row.summary}
+                          {row.relatedFindingHints.length ? (
+                            <div style={{ marginTop: 4, fontSize: 11, opacity: 0.88, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                              <span>{relatedFindingChangesCue(row.relatedFindingIndexes.length)}</span>
+                              <span style={{ opacity: 0.85 }}>({row.relatedFindingHints.join(' · ')})</span>
+                              {row.relatedFindingIndexes[0] != null ? (
+                                <button
+                                  type="button"
+                                  style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
+                                  onClick={() => setHighlightFindingIdx(row.relatedFindingIndexes[0]!)}
+                                >
+                                  Highlight finding
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {indexSection.chunkedNuance ? (
+                    <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
+                      Timescale-style chunked bitmap plans: indexes may already be in play; heavy I/O can still be a pruning/selectivity/shape
+                      problem—not only “add an index.”
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
                   findings: +{findingsNewCount} new · -{findingsResolvedCount} resolved
@@ -422,6 +510,7 @@ export default function ComparePage() {
                       (() => {
                         const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
                         const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
+                        const indexCue = pair?.indexDeltaCues?.length
                         const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                         const subtitle = pair ? pairSubtitle(pair) : null
                         return (
@@ -434,7 +523,23 @@ export default function ComparePage() {
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 900 }}>{label}</div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ fontWeight: 900 }}>{label}</div>
+                                  {indexCue ? (
+                                    <span
+                                      style={{
+                                        fontFamily: 'var(--mono)',
+                                        fontSize: 10,
+                                        padding: '2px 8px',
+                                        borderRadius: 999,
+                                        border: '1px solid var(--border)',
+                                        opacity: 0.9,
+                                      }}
+                                    >
+                                      index Δ
+                                    </span>
+                                  ) : null}
+                                </div>
                                 {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
                               </div>
                               {pair ? (
@@ -495,6 +600,7 @@ export default function ComparePage() {
                       (() => {
                         const pair = pairForDelta(d.nodeIdA, d.nodeIdB)
                         const badges = pair ? joinSideBadgesForPair(pair, byIdA, byIdB, 3) : []
+                        const indexCue = pair?.indexDeltaCues?.length
                         const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
                         const subtitle = pair ? pairSubtitle(pair) : null
                         return (
@@ -507,7 +613,23 @@ export default function ComparePage() {
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 900 }}>{label}</div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ fontWeight: 900 }}>{label}</div>
+                                  {indexCue ? (
+                                    <span
+                                      style={{
+                                        fontFamily: 'var(--mono)',
+                                        fontSize: 10,
+                                        padding: '2px 8px',
+                                        borderRadius: 999,
+                                        border: '1px solid var(--border)',
+                                        opacity: 0.9,
+                                      }}
+                                    >
+                                      index Δ
+                                    </span>
+                                  ) : null}
+                                </div>
                                 {subtitle ? <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{subtitle}</div> : null}
                               </div>
                               {pair ? (
@@ -571,7 +693,10 @@ export default function ComparePage() {
                     </select>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {filteredDiffItems.slice(0, 30).map((i, idx) => (
+                    {filteredDiffItems.slice(0, 30).map((i, idx) => {
+                      const globalFindingIdx = comparison.findingsDiff.items.indexOf(i)
+                      const relIdx = i.relatedIndexDiffIndexes ?? []
+                      return (
                       <ClickableRow
                         key={`${i.ruleId}-${idx}`}
                         selected={(() => {
@@ -583,7 +708,14 @@ export default function ComparePage() {
                           const r = resolveFindingDiffPair(i, comparison.matches)
                           if (r) setSelectedPair(r)
                         }}
-                        style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)', background: 'transparent' }}
+                        style={{
+                          padding: 10,
+                          borderRadius: 12,
+                          border: '1px solid var(--border)',
+                          background: 'transparent',
+                          outline: globalFindingIdx >= 0 && highlightFindingIdx === globalFindingIdx ? '2px solid var(--accent-border)' : 'none',
+                          outlineOffset: 2,
+                        }}
                       >
                         <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
                           {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
@@ -605,8 +737,29 @@ export default function ComparePage() {
                           />
                         </div>
                         <div style={{ fontSize: 13 }}>{i.summary}</div>
+                        {relIdx.length ? (
+                          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.85 }}>Related index change</span>
+                            <span style={{ fontSize: 11, opacity: 0.85 }}>{relatedIndexDeltaCue(relIdx.length)}</span>
+                            {relIdx.map((ix) => (
+                              <button
+                                key={ix}
+                                type="button"
+                                style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setHighlightIndexDiffIdx(ix)
+                                  setHighlightFindingIdx(null)
+                                }}
+                              >
+                                Index Δ #{ix}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </ClickableRow>
-                    ))}
+                      )
+                    })}
                   </div>
                   {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
                 </div>
@@ -668,6 +821,42 @@ export default function ComparePage() {
                 </div>
                 {pairSubtitle(selectedDetail) ? (
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>
+                ) : null}
+                {(() => {
+                  const cues = selectedDetail.indexDeltaCues?.filter(Boolean) ?? []
+                  const fallback = accessPathChangeCue(
+                    selectedDetail.identity.accessPathFamilyA,
+                    selectedDetail.identity.accessPathFamilyB,
+                  )
+                  if (!cues.length && !fallback) return null
+                  return (
+                    <div style={{ marginTop: 10 }} aria-label="Access path and index delta">
+                      <h4 style={{ marginTop: 0, marginBottom: 6 }}>Access path / index delta</h4>
+                      {cues.length ? (
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, opacity: 0.92 }}>
+                          {cues.map((c) => (
+                            <li key={c} style={{ marginBottom: 4 }}>
+                              {c}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div style={{ fontSize: 13, opacity: 0.9 }}>{fallback}</div>
+                      )}
+                    </div>
+                  )
+                })()}
+                {selectedDetail.corroborationCues?.length ? (
+                  <div style={{ marginTop: 10 }} aria-label="Finding and index delta corroboration">
+                    <h4 style={{ marginTop: 0, marginBottom: 6 }}>Finding ↔ index corroboration</h4>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, opacity: 0.9 }}>
+                      {selectedDetail.corroborationCues.map((c) => (
+                        <li key={c} style={{ marginBottom: 4 }}>
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
                 <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>

@@ -24,7 +24,9 @@ public sealed record FindingDiffItem(
     string Title,
     string Summary,
     IReadOnlyDictionary<string, object?> EvidenceA,
-    IReadOnlyDictionary<string, object?> EvidenceB);
+    IReadOnlyDictionary<string, object?> EvidenceB,
+    /// <summary>Indices into <c>FindingsDiff.Items</c> companion list are N/A; these index <see cref="IndexComparisonSummary.InsightDiffs"/>.</summary>
+    IReadOnlyList<int> RelatedIndexDiffIndexes);
 
 public sealed record FindingsDiff(
     IReadOnlyList<FindingDiffItem> Items);

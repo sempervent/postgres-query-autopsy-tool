@@ -149,3 +149,47 @@ This file documents the Phase 3 MVP rule catalog, including triggering logic, ev
   - join predicates (`hashCond`/`mergeCond`/`joinFilter`) when present
 - Limitations: fan-out may be real; rule does not claim predicates are wrong—only that impact is high.
 
+## Rule P — `P.append-chunk-bitmap-workload`
+
+- Purpose: distinguish **indexes already in use per chunk** from a naive “missing index” story on TimescaleDB-style plans.
+- Trigger: at least one `Append`, many `Bitmap Heap Scan` nodes (≥6), meaningful root shared reads, buffers present.
+- Evidence: append/bitmap counts, `rootSharedReadBlocks`, optional `chunkedWorkloadNote` aligned with `PlanIndexOverview`.
+- Limitations: does not diagnose chunk pruning or SQL shape—only frames investigation.
+
+## Rule Q — `Q.nl-inner-index-support`
+
+- Purpose: nested loop inner side repeats with **seq scan or bitmap heap** and non-trivial inner subtree cost (index-alignment angle).
+- Trigger: `Nested Loop`, inner loops in \[15, 999\], inner access family seq/bitmap, inner time or read share thresholds.
+- Evidence: inner/outer ids, loops, filters/index conds, `innerAccessPathFamily`.
+- Limitations: complements `E.nested-loop-amplification` (different loop band and framing).
+
+## Rule R — `R.index-access-still-heavy`
+
+- Purpose: **index path exists** (Index Scan, Index Only Scan, or non-chunk-suppressed Bitmap Heap) but reads, heap fetches, or recheck volume remain high.
+- Evidence: `accessPathFamily`, relation/index names, `heapFetches`, `rowsRemovedByIndexRecheck`, read/time shares, `isBitmapHeap`.
+- Limitations: suppressed for per-chunk bitmap noise when `Append` + many bitmap heaps (see P).
+
+## Rule S — `S.bitmap-recheck-attention`
+
+- Purpose: bitmap heap with **recheck expression or recheck-row removal** worth reviewing (lossy/coarse bitmap narrative).
+- Trigger: `Bitmap Heap Scan` with recheck signals and non-trivial heap/read/recheck counts; **not** emitted for each chunk when the P pattern applies.
+- Evidence: `recheckCond`, `rowsRemovedByIndexRecheck`, `heapFetches`, read share.
+- Limitations: recheck can be normal; phrased as investigation.
+
+### Phase 29 cross-rule notes
+
+- **F** / **J**: seq-scan investigation vs stronger indexing-opportunity wording; evidence now includes `accessPathFamily`.
+- **K**: when `sortKey` is present, suggestion and evidence call out **index-aligned ordering** as an investigation angle (`sortOrderIndexInvestigation`, `indexSignal_sortOrderSupport`).
+- **E**: evidence includes `innerAccessPathFamily` for compare/UI continuity.
+
+### Phase 30 — Compare index deltas vs findings (F/J/P/Q/R/S)
+
+- **Findings diff** still anchors on `ruleId` + mapped nodes; **index comparison** diffs structured `indexOverview` + `indexInsights` independently.
+- When a **Resolved** finding on **F**, **J**, **R**, **S**, or **Q** appears alongside **Resolved** / **Improved** index insight changes, the compare narrative may add a single **corroboration** line (heuristic mapping—not proof).
+- **P** (chunked bitmap workload) pairs with compare overview lines and UI copy: indexes may already be in use; **missing index** is not assumed as the only lever.
+
+### Phase 31 — Structured finding ↔ index-diff links
+
+- API exposes **`relatedIndexDiffIndexes`** on each finding diff item and **`relatedFindingDiffIndexes`** on each index insight diff item (array positions, capped).
+- UI and markdown reports surface these links compactly; **do not** treat them as DDL prescriptions or guaranteed causal chains.
+

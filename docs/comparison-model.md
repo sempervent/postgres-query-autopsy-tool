@@ -49,12 +49,27 @@ This is intentionally readable and tunable.
 ## Pair detail model (Phase 7+)
 
 For each mapped node pair, the compare result includes a `pairDetails[]` entry that contains:
-- identity/mapping: node ids, node types, relation/index/join type, depths, confidence, match score, score breakdown
+- identity/mapping: node ids, node types, relation/index/join type, depths, confidence, match score, score breakdown, coarse **access path families** (`accessPathFamilyA` / `accessPathFamilyB`, Phase 29+)
 - raw operator fields (best-effort when available): filter/index cond/join filter/hash/merge cond/sort key/group key/strategy/parallel-aware
 - derived metrics side-by-side with deltas and directionality (time, reads, buffer share, estimate divergence, loops, subtree size)
 - per-pair findings view: findings on A, findings on B, and diff items related to the pair
+- **index delta cues** (Phase 30): compact strings derived from plan-level index comparison + pair mapping (`indexDeltaCues`)
 
-This is the primary data source for “forensic inspection” in the UI.
+## Plan-level index comparison (Phase 30)
+
+`IndexComparisonAnalyzer` diffs `indexOverview` and bounded `indexInsights` between the two analyzed plans:
+
+- **Overview lines**: evidence-based count deltas (seq / index / bitmap operators) and chunked-bitmap posture transitions.
+- **Insight diffs**: matched using mapped node ids first, then structured fingerprints (`signalKinds` + relation + index + access-path family), then soft relation + signal overlap. Each item is classified as `New`, `Resolved`, `Improved`, `Worsened`, `Changed`, or `Unchanged`—without comparing free-form `headline` text for equality.
+
+The compare **narrative** adds a conservative index/access-path paragraph. When **`FindingIndexDiffLinker`** produces structured overlaps, **`LinkedNarrativeLines`** may add one or two corroboration sentences (e.g. resolved seq-scan / indexing finding ↔ resolved or improved missing-index-style index delta); otherwise a generic overlap line may still appear.
+
+### Finding ↔ index cross-links (Phase 31)
+
+- **`FindingIndexDiffLinker.Apply`** runs after `DiffFindings` + `IndexComparisonAnalyzer.Analyze`, before pair details and narrative.
+- **Matching (conservative):** mapped node overlap (`nodeIdA`/`nodeIdB`) and/or **relation** alignment from finding **evidence** (`relationName`, `primaryRelationName`) vs insight `relationName`; plus **rule ↔ signal** alignment (e.g. F/J ↔ `missingIndexInvestigation`, R ↔ `indexPathStillCostly`, S ↔ `bitmapRecheckOrHeapHeavy`, K ↔ `sortOrderSupportOpportunity`, Q ↔ `joinInnerIndexSupport`). **P.append-chunk-bitmap-workload** uses plan-level chunked heuristic + bitmap/index-heavy index diffs without requiring the same node id.
+- **Payload:** at most **four** reciprocal indexes per item; no duplicated embedded objects.
+- **Limitation:** indexes refer to **ranked** `findingsDiff.items` and the current `insightDiffs` array order—stable for a given compare response, not a permanent id across sessions.
 
 ## Operator-specific pair detail (Phase 9)
 

@@ -1,3 +1,5 @@
+using PostgresQueryAutopsyTool.Core.Domain;
+
 namespace PostgresQueryAutopsyTool.Core.Analysis;
 
 public static class PlanSummaryBuilder
@@ -15,7 +17,7 @@ public static class PlanSummaryBuilder
         var maxDepth = nodes.Count == 0 ? 0 : nodes.Max(n => n.Metrics.Depth);
 
         var hasActualTiming = nodes.Any(n => n.Metrics.InclusiveActualTimeMs is not null);
-        var hasBuffers = nodes.Any(n => n.Node.SharedReadBlocks is not null || n.Node.SharedHitBlocks is not null);
+        var hasBuffers = nodes.Any(n => PlanBufferStats.NodeHasAnyBufferCounter(n.Node));
 
         var warnings = new List<string>();
         if (!hasActualTiming)

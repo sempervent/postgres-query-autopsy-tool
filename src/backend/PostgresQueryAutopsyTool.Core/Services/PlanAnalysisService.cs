@@ -26,9 +26,13 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             new SubtreeRuntimeHotspotRule(),
             new BufferReadHotspotRule(),
             new NestedLoopAmplificationRule(),
+            new NestedLoopInnerIndexSupportRule(),
             new SequentialScanConcernRule(),
             new PotentialStatisticsIssueRule(),
             new PotentialIndexingOpportunityRule(),
+            new IndexAccessStillHeavyRule(),
+            new BitmapRecheckAttentionRule(),
+            new AppendChunkedBitmapWorkloadRule(),
             new PlanComplexityConcernRule(),
             new RepeatedExpensiveSubtreeRule(),
             new SortCostConcernRule(),
@@ -61,6 +65,9 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         var rankedFindings = _findingsEngine.EvaluateAndRank(root.NodeId, analyzedNodes);
         var summary = PlanSummaryBuilder.Build(root.NodeId, analyzedNodes, rankedFindings);
         var narrative = NarrativeGenerator.From(summary, analyzedNodes, rankedFindings);
+        var findingCtx = new FindingEvaluationContext(root.NodeId, analyzedNodes);
+        var indexOverview = IndexSignalAnalyzer.BuildOverview(analyzedNodes, findingCtx);
+        var indexInsights = IndexSignalAnalyzer.BuildInsights(analyzedNodes, findingCtx, indexOverview);
 
         // Keep async boundary for future CPU-heavy traversal.
         await Task.Yield();
@@ -72,7 +79,9 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             Nodes: analyzedNodes,
             Findings: rankedFindings,
             Narrative: narrative,
-            Summary: summary
+            Summary: summary,
+            IndexOverview: indexOverview,
+            IndexInsights: indexInsights
         );
     }
 
@@ -253,6 +262,17 @@ ComparisonId: {comparison.ComparisonId}
 ## Narrative
 {comparison.Narrative}
 
+## Index comparison (posture + bounded insights)
+{(comparison.IndexComparison.OverviewLines.Count == 0 ? "- No plan-level index posture deltas surfaced." : string.Join("\n", comparison.IndexComparison.OverviewLines.Select(l => $"- {l}")))}
+{(comparison.IndexComparison.InsightDiffs.Count == 0 ? "\n- No index insight diffs (lists may be empty or unchanged)." : string.Join("", comparison.IndexComparison.InsightDiffs.Take(12).Select(d =>
+{
+    var link = d.RelatedFindingDiffIndexes.Count > 0
+        ? $" _(related findings diff #{string.Join(", #", d.RelatedFindingDiffIndexes)})_"
+        : "";
+    return $"\n- **{d.Kind}**{link}: {d.Summary}";
+})))}
+{(comparison.IndexComparison.EitherPlanSuggestsChunkedBitmapWorkload ? "\n- Note: at least one plan matches the chunked Append+bitmap-heuristic; treat heavy I/O as potentially a pruning/shape problem, not only missing indexes." : "")}
+
 ## Top worsened pair
 {(worst is null ? "- n/a" : FormatTop(worst))}
 
@@ -261,10 +281,22 @@ ComparisonId: {comparison.ComparisonId}
 
 ## Key findings changes
 ### New / worsened
-{(newOrWorse.Length == 0 ? "- none" : string.Join("\n", newOrWorse.Select(i => $"- **{i.ChangeType}** `{i.RuleId}`: {i.Summary}")))}
+{(newOrWorse.Length == 0 ? "- none" : string.Join("\n", newOrWorse.Select(i =>
+{
+    var ix = i.RelatedIndexDiffIndexes.Count > 0
+        ? $" _(related index insight diff #{string.Join(", #", i.RelatedIndexDiffIndexes)})_"
+        : "";
+    return $"- **{i.ChangeType}** `{i.RuleId}`{ix}: {i.Summary}";
+})))}
 
 ### Resolved
-{(resolved.Length == 0 ? "- none" : string.Join("\n", resolved.Select(i => $"- **Resolved** `{i.RuleId}`: {i.Summary}")))}
+{(resolved.Length == 0 ? "- none" : string.Join("\n", resolved.Select(i =>
+{
+    var ix = i.RelatedIndexDiffIndexes.Count > 0
+        ? $" _(related index insight diff #{string.Join(", #", i.RelatedIndexDiffIndexes)})_"
+        : "";
+    return $"- **Resolved** `{i.RuleId}`{ix}: {i.Summary}";
+})))}
 
 ## Uncertainty / limitations
 - Node-to-node correspondence is heuristic (greedy matching); treat low-confidence matches as investigative leads.

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { AnalysisFinding, AnalyzedPlanNode, PlanAnalysisResult } from '../api/types'
 import { analyzePlanWithQuery, exportHtml, exportJson, exportMarkdown } from '../api/client'
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel } from '../presentation/nodeLabels'
@@ -7,6 +8,13 @@ import { buildHotspots } from '../presentation/hotspotPresentation'
 import { buildAnalyzeGraph } from '../presentation/analyzeGraphAdapter'
 import { AnalyzePlanGraph } from '../components/AnalyzePlanGraph'
 import { applyGraphView, revealPath, shouldAutoFitOnVisibilityChange, toggleCollapsed } from '../presentation/analyzeGraphState'
+import { bufferCounterRowsForApiNode, planNodeApiHasAnyBufferCounter } from '../presentation/bufferFieldsPresentation'
+import { getWorkersFromPlanNode, workerSummaryCue, workerTableRows } from '../presentation/workerPresentation'
+import {
+  formatAccessPathSummaryLine,
+  indexInsightsForNodeId,
+  indexOverviewSummaryLine,
+} from '../presentation/indexInsightPresentation'
 import { findingReferenceText, hotspotReferenceText, nodeReferenceText } from '../presentation/nodeReferences'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { ClickableRow } from '../components/ClickableRow'
@@ -328,6 +336,15 @@ export default function AnalyzePage() {
                 </ul>
               </div>
             ) : null}
+            {(() => {
+              const line = indexOverviewSummaryLine(analysis.indexOverview ?? null)
+              if (!line) return null
+              return (
+                <div style={{ marginTop: 10, fontSize: 12, fontFamily: 'var(--mono)', opacity: 0.9 }} aria-label="Plan index overview">
+                  <b>Index posture:</b> {line}
+                </div>
+              )
+            })()}
           </div>
         ) : null}
 
@@ -526,6 +543,9 @@ export default function AnalyzePage() {
         <h2>Findings</h2>
         {analysis ? (
           <>
+            <div style={{ marginBottom: 10, fontSize: 11, opacity: 0.8 }}>
+              Index-related rules include seq-scan / indexing opportunities (J, F), heavy index paths (R), bitmap recheck (S), chunk+bitmap plans (P), nested-loop inner support (Q), hash join pressure (L), materialize loops (M), and sort cost (K).
+            </div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
               <input
                 value={findingSearch}
@@ -620,6 +640,37 @@ export default function AnalyzePage() {
                   if (!js?.subtitle) return null
                   return <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{js.subtitle}</div>
                 })()}
+                {(() => {
+                  const ws = getWorkersFromPlanNode(selectedNode.node)
+                  const cue = workerSummaryCue(ws)
+                  if (!cue) return null
+                  return (
+                    <div style={{ marginTop: 8, fontSize: 12, fontFamily: 'var(--mono)', opacity: 0.9 }} aria-label="Worker summary">
+                      {cue}
+                    </div>
+                  )
+                })()}
+                {(() => {
+                  const insights = indexInsightsForNodeId(analysis, selectedNode.nodeId)
+                  if (!insights.length) return null
+                  return (
+                    <div style={{ marginTop: 10 }} aria-label="Access path index insight">
+                      <b>Access path / index insight</b>
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {insights.map((ins) => (
+                          <div
+                            key={`${ins.nodeId}-${ins.headline}-${ins.signalKinds.join(',')}`}
+                            style={{ fontSize: 12, lineHeight: 1.45, padding: 8, borderRadius: 10, border: '1px solid var(--border)' }}
+                          >
+                            <div style={{ fontFamily: 'var(--mono)', opacity: 0.9, marginBottom: 4 }}>{formatAccessPathSummaryLine(ins)}</div>
+                            <div>{ins.headline}</div>
+                            <div style={{ marginTop: 4, fontSize: 11, opacity: 0.75 }}>Signals: {ins.signalKinds.join(', ')}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                   <button
                     onClick={async () => {
@@ -637,6 +688,62 @@ export default function AnalyzePage() {
                   <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9, marginTop: 6 }}>{selectedNode.nodeId}</div>
                 </details>
+                {planNodeApiHasAnyBufferCounter(selectedNode.node) ? (
+                  <div style={{ marginTop: 10 }}>
+                    <b>Buffer I/O</b>
+                    <div style={{ marginTop: 6, fontSize: 12, fontFamily: 'var(--mono)', lineHeight: 1.5 }}>
+                      {bufferCounterRowsForApiNode(selectedNode.node).map((r) => (
+                        <div key={r.label}>
+                          {r.label}: {r.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : analysis.summary.hasBuffers ? (
+                  <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
+                    This operator has no buffer counters in the payload (often normal for parents); check hotter children or a
+                    worker-merged parent.
+                  </div>
+                ) : null}
+                {(() => {
+                  const ws = getWorkersFromPlanNode(selectedNode.node)
+                  if (!ws.length) return null
+                  const rows = workerTableRows(ws)
+                  const cols =
+                    'minmax(0,0.5fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr)'
+                  const cell: CSSProperties = { fontSize: 11, fontFamily: 'var(--mono)' }
+                  return (
+                    <div style={{ marginTop: 12 }}>
+                      <b>Workers</b>
+                      <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
+                        Per-worker stats from EXPLAIN JSON (parent row above is the leader aggregate when present).
+                      </div>
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }} aria-label="Parallel workers">
+                        <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '6px 10px', ...cell, fontWeight: 800, opacity: 0.85 }}>
+                          <div>#</div>
+                          <div>Total time</div>
+                          <div>Rows</div>
+                          <div>Shared hit</div>
+                          <div>Shared read</div>
+                          <div>Temp read / write</div>
+                        </div>
+                        {rows.map((r) => (
+                          <div
+                            key={r.workerNumber}
+                            style={{ display: 'grid', gridTemplateColumns: cols, gap: '6px 10px', ...cell }}
+                          >
+                            <div>{r.workerNumber}</div>
+                            <div>{r.totalTime}</div>
+                            <div>{r.rows}</div>
+                            <div>{r.sharedHit}</div>
+                            <div>{r.sharedRead}</div>
+                            <div>{r.temp}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
                 <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>
                   <b>Key fields</b>
                   <pre style={{ marginTop: 6, overflow: 'auto' }}>{JSON.stringify(selectedNode.node, null, 2)}</pre>
@@ -670,7 +777,22 @@ export default function AnalyzePage() {
               <h3>Where to inspect next</h3>
               {(() => {
                 const hs = buildHotspots(analysis)
-                if (!hs.length) return <div style={{ opacity: 0.85 }}>No hotspots available (missing timing/buffer fields).</div>
+                if (!hs.length) {
+                  const s = analysis.summary
+                  const hotspotIdCount =
+                    (s.topExclusiveTimeHotspotNodeIds?.length ?? 0) +
+                    (s.topInclusiveTimeHotspotNodeIds?.length ?? 0) +
+                    (s.topSharedReadHotspotNodeIds?.length ?? 0)
+                  const anyIds = hotspotIdCount > 0
+                  const msg = anyIds
+                    ? 'Summary listed hotspot ids but none resolved in the current node list.'
+                    : !s.hasActualTiming && !s.hasBuffers
+                      ? 'No hotspots available. Use EXPLAIN (ANALYZE, BUFFERS) so timing and shared-read lists can be built.'
+                      : s.hasBuffers && !s.hasActualTiming
+                        ? 'No timing-based hotspots; buffer counters were detected—check shared-read hotspot ids if any.'
+                        : 'No hotspot node ids were produced for this plan (sparse timing or read data).'
+                  return <div style={{ opacity: 0.85 }}>{msg}</div>
+                }
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
                     {hs.slice(0, 10).map((h) => (

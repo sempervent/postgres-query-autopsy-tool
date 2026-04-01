@@ -1,4 +1,5 @@
 using PostgresQueryAutopsyTool.Core.Analysis;
+using PostgresQueryAutopsyTool.Core.Domain;
 
 namespace PostgresQueryAutopsyTool.Core.Findings;
 
@@ -28,7 +29,7 @@ public sealed class FindingEvaluationContext
         RootSharedReadBlocks = root.Metrics.SubtreeSharedReadBlocks ?? 0;
 
         HasActualTiming = nodes.Any(n => n.Metrics.InclusiveActualTimeMs is not null);
-        HasBuffers = nodes.Any(n => n.Node.SharedReadBlocks is not null || n.Node.SharedHitBlocks is not null);
+        HasBuffers = nodes.Any(n => PlanBufferStats.NodeHasAnyBufferCounter(n.Node));
 
         NodeTypeCounts = nodes
             .GroupBy(n => n.Node.NodeType ?? "Unknown", StringComparer.Ordinal)

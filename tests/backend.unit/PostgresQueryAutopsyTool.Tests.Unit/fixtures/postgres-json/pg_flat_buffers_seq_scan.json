@@ -1,0 +1,29 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "probe_data",
+      "Schema": "public",
+      "Alias": "pd",
+      "Startup Cost": 0.0,
+      "Total Cost": 250000.0,
+      "Plan Rows": 5000000,
+      "Plan Width": 40,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 8423.12,
+      "Actual Rows": 4200000,
+      "Actual Loops": 1,
+      "Filter": "((time >= '2025-12-11 21:57:27.213+00'::timestamp with time zone) AND (time <= '2026-03-29 20:57:27.213+00'::timestamp with time zone) AND (probe_uuid = ANY ('{a131b859-4297-440c-8b81-767c005ed4be}'::text[])))",
+      "Shared Hit Blocks": 125000,
+      "Shared Read Blocks": 980000,
+      "Shared Dirtied Blocks": 0,
+      "Shared Written Blocks": 0,
+      "Local Hit Blocks": 0,
+      "Local Read Blocks": 0,
+      "Local Dirtied Blocks": 0,
+      "Local Written Blocks": 0,
+      "Temp Read Blocks": 2048,
+      "Temp Written Blocks": 512
+    }
+  }
+]

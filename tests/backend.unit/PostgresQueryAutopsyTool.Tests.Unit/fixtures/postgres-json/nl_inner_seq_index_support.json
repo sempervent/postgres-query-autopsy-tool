@@ -1,0 +1,40 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 1.0,
+      "Total Cost": 9000.0,
+      "Plan Rows": 500,
+      "Plan Width": 24,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 350.0,
+      "Actual Rows": 40,
+      "Actual Loops": 1,
+      "Shared Read Blocks": 80000,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "drivers",
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 5.0,
+          "Actual Rows": 40,
+          "Actual Loops": 1,
+          "Shared Read Blocks": 100
+        },
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "shipments",
+          "Filter": "(shipments.driver_id = drivers.id)",
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 8.0,
+          "Actual Rows": 200,
+          "Actual Loops": 40,
+          "Shared Read Blocks": 20000
+        }
+      ]
+    }
+  }
+]

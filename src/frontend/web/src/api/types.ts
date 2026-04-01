@@ -22,7 +22,31 @@ export type AnalysisNarrative = {
   whatProbablyDoesNotMatter: string
 }
 
-export type NormalizedPlanNode = Record<string, unknown>
+/** Mirrors backend `PlanWorkerStats` (camelCase in JSON). */
+export type PlanWorkerStats = {
+  workerNumber?: number | null
+  actualStartupTimeMs?: number | null
+  actualTotalTimeMs?: number | null
+  actualRows?: number | null
+  actualLoops?: number | null
+  sharedHitBlocks?: number | null
+  sharedReadBlocks?: number | null
+  sharedDirtiedBlocks?: number | null
+  sharedWrittenBlocks?: number | null
+  localHitBlocks?: number | null
+  localReadBlocks?: number | null
+  localDirtiedBlocks?: number | null
+  localWrittenBlocks?: number | null
+  tempReadBlocks?: number | null
+  tempWrittenBlocks?: number | null
+  sortMethod?: string | null
+  sortSpaceUsedKb?: number | null
+  sortSpaceType?: string | null
+}
+
+export type NormalizedPlanNode = Record<string, unknown> & {
+  workers?: PlanWorkerStats[] | null
+}
 
 export type DerivedNodeMetrics = Record<string, unknown>
 
@@ -48,6 +72,30 @@ export type PlanSummary = {
   warnings: string[]
 }
 
+/** Plan-level rollup for access-path / index posture (camelCase from API). */
+export type PlanIndexOverview = {
+  seqScanCount: number
+  indexScanCount: number
+  indexOnlyScanCount: number
+  bitmapHeapScanCount: number
+  bitmapIndexScanCount: number
+  hasAppendOperator: boolean
+  suggestsChunkedBitmapWorkload: boolean
+  chunkedWorkloadNote?: string | null
+}
+
+/** Node-level index investigation hints (camelCase from API). */
+export type PlanIndexInsight = {
+  nodeId: string
+  accessPathFamily: string
+  nodeType?: string | null
+  relationName?: string | null
+  indexName?: string | null
+  signalKinds: string[]
+  headline: string
+  facts: Record<string, unknown>
+}
+
 export type PlanAnalysisResult = {
   analysisId: string
   rootNodeId: string
@@ -56,6 +104,9 @@ export type PlanAnalysisResult = {
   findings: AnalysisFinding[]
   narrative: AnalysisNarrative
   summary: PlanSummary
+  /** Present when analyzed with Phase 29+ backend; treat as empty when absent. */
+  indexOverview?: PlanIndexOverview | null
+  indexInsights?: PlanIndexInsight[] | null
 }
 
 export type PlanComparisonFindingDelta = {
@@ -102,6 +153,8 @@ export type FindingDiffItem = {
   severityB?: number | null
   title: string
   summary: string
+  /** Indices into `indexComparison.insightDiffs` (Phase 31). */
+  relatedIndexDiffIndexes?: number[] | null
 }
 
 export type FindingsDiff = {
@@ -133,6 +186,9 @@ export type NodePairIdentity = {
   matchConfidence: 'Low' | 'Medium' | 'High' | number
   matchScore: number
   scoreBreakdown: Record<string, number>
+  /** Coarse access-path bucket for index/compare deltas (Phase 29). */
+  accessPathFamilyA?: string | null
+  accessPathFamilyB?: string | null
 }
 
 export type NodePairRawFields = {
@@ -210,6 +266,27 @@ export type PairFindingsView = {
   relatedDiffItems: FindingDiffItem[]
 }
 
+export type IndexInsightDiffItem = {
+  /** Lowercase string from API (`new`, `resolved`, …) or legacy numeric enum. */
+  kind: string | number
+  summary: string
+  insightA?: PlanIndexInsight | null
+  insightB?: PlanIndexInsight | null
+  nodeIdA?: string | null
+  nodeIdB?: string | null
+  accessPathFamilyA?: string | null
+  accessPathFamilyB?: string | null
+  /** Indices into `findingsDiff.items` (Phase 31). */
+  relatedFindingDiffIndexes?: number[] | null
+}
+
+export type IndexComparisonSummary = {
+  overviewLines: string[]
+  insightDiffs: IndexInsightDiffItem[]
+  narrativeBullets: string[]
+  eitherPlanSuggestsChunkedBitmapWorkload: boolean
+}
+
 export type NodePairDetail = {
   identity: NodePairIdentity
   rawFields: NodePairRawFields
@@ -218,6 +295,10 @@ export type NodePairDetail = {
   contextDiff?: OperatorContextEvidenceDiff | null
   metrics: MetricDeltaDetail[]
   findings: PairFindingsView
+  /** Compare index/access-path cues for this pair (Phase 30). */
+  indexDeltaCues?: string[] | null
+  /** Finding ↔ index-delta corroboration for this pair (Phase 31). */
+  corroborationCues?: string[] | null
 }
 
 export type EvidenceChangeDirection =
@@ -398,6 +479,7 @@ export type PlanComparisonResult = {
   topWorsenedNodes: NodeDelta[]
   pairDetails: NodePairDetail[]
   findingsDiff: FindingsDiff
+  indexComparison?: IndexComparisonSummary | null
   narrative: string
   diagnostics?: DiagnosticsPayload | null
 }

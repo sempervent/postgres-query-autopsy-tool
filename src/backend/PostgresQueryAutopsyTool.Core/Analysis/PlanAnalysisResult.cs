@@ -9,5 +9,7 @@ public sealed record PlanAnalysisResult(
     IReadOnlyList<AnalyzedPlanNode> Nodes,
     IReadOnlyList<AnalysisFinding> Findings,
     AnalysisNarrative Narrative,
-    PlanSummary Summary);
+    PlanSummary Summary,
+    PlanIndexOverview IndexOverview,
+    IReadOnlyList<PlanIndexInsight> IndexInsights);
 

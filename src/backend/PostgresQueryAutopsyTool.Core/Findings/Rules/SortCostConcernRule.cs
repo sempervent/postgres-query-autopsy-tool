@@ -1,3 +1,4 @@
+using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 
 namespace PostgresQueryAutopsyTool.Core.Findings.Rules;
@@ -51,6 +52,7 @@ public sealed class SortCostConcernRule : IFindingRule
                 FindingSeverity.Low;
 
             var confidence = (n.Node.SortKey is not null || method is not null) ? FindingConfidence.High : FindingConfidence.Medium;
+            var orderIndexHint = !string.IsNullOrWhiteSpace(n.Node.SortKey);
 
             yield return new AnalysisFinding(
                 FindingId: $"{RuleId}:{n.NodeId}",
@@ -80,11 +82,18 @@ public sealed class SortCostConcernRule : IFindingRule
                     ["presortedKey"] = n.Node.PresortedKey,
                     ["actualRowsTotal"] = n.Metrics.ActualRowsTotal,
                     ["estimatedRowsPerLoop"] = n.Node.PlanRows,
+                    ["sortOrderIndexInvestigation"] = orderIndexHint,
+                    ["indexSignal_sortOrderSupport"] = orderIndexHint && (looksExternal || share.Value >= 0.15)
+                        ? IndexSignalAnalyzer.SignalSortOrderSupportOpportunity
+                        : null,
                 },
                 Suggestion:
                 (looksExternal
                     ? "This sort looks disk-backed. If possible, reduce rows flowing into the sort (push filters earlier, reduce join fan-out) or consider increasing work_mem for this workload. "
                     : "If this sort is expected, consider whether an index can satisfy the ordering, or whether a LIMIT can be applied earlier. ") +
+                (orderIndexHint
+                    ? " With an explicit sort key, also investigate whether an index-aligned scan could provide the needed order and shrink sort input. "
+                    : " ") +
                 "Verify row counts feeding the sort and whether ordering can be satisfied earlier in the plan.",
                 RankScore: null
             );

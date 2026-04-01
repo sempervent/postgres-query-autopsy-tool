@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Text.Json;
 using PostgresQueryAutopsyTool.Core.Domain;
@@ -30,7 +31,7 @@ public sealed class PostgresJsonExplainParser : IPlanParser
     {
         var nodeType = TryGetString(node, "Node Type") ?? "Unknown";
 
-        var buffers = node.TryGetProperty("Buffers", out var buffersElement) && buffersElement.ValueKind == JsonValueKind.Object
+        var buffersNested = node.TryGetProperty("Buffers", out var buffersElement) && buffersElement.ValueKind == JsonValueKind.Object
             ? buffersElement
             : default;
 
@@ -50,6 +51,8 @@ public sealed class PostgresJsonExplainParser : IPlanParser
         var sortKey = TryGetStringArrayJoined(node, "Sort Key");
         var groupKey = TryGetStringArrayJoined(node, "Group Key");
         var presortedKey = TryGetStringArrayJoined(node, "Presorted Key");
+
+        var workersParsed = ParseWorkersList(node);
 
         return new NormalizedPlanNode
         {
@@ -113,21 +116,64 @@ public sealed class PostgresJsonExplainParser : IPlanParser
             CacheEvictions = TryGetLong(node, "Cache Evictions"),
             CacheOverflows = TryGetLong(node, "Cache Overflows"),
 
-            SharedHitBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Shared Hit Blocks") : null,
-            SharedReadBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Shared Read Blocks") : null,
-            SharedDirtiedBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Shared Dirtied Blocks") : null,
-            SharedWrittenBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Shared Written Blocks") : null,
+            SharedHitBlocks = ReadEffectiveBufferLong(node, buffersNested, "Shared Hit Blocks"),
+            SharedReadBlocks = ReadEffectiveBufferLong(node, buffersNested, "Shared Read Blocks"),
+            SharedDirtiedBlocks = ReadEffectiveBufferLong(node, buffersNested, "Shared Dirtied Blocks"),
+            SharedWrittenBlocks = ReadEffectiveBufferLong(node, buffersNested, "Shared Written Blocks"),
 
-            LocalHitBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Local Hit Blocks") : null,
-            LocalReadBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Local Read Blocks") : null,
-            LocalDirtiedBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Local Dirtied Blocks") : null,
-            LocalWrittenBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Local Written Blocks") : null,
+            LocalHitBlocks = ReadEffectiveBufferLong(node, buffersNested, "Local Hit Blocks"),
+            LocalReadBlocks = ReadEffectiveBufferLong(node, buffersNested, "Local Read Blocks"),
+            LocalDirtiedBlocks = ReadEffectiveBufferLong(node, buffersNested, "Local Dirtied Blocks"),
+            LocalWrittenBlocks = ReadEffectiveBufferLong(node, buffersNested, "Local Written Blocks"),
 
-            TempReadBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Temp Read Blocks") : null,
-            TempWrittenBlocks = buffers.ValueKind == JsonValueKind.Object ? TryGetLong(buffers, "Temp Written Blocks") : null,
+            TempReadBlocks = ReadEffectiveBufferLong(node, buffersNested, "Temp Read Blocks"),
+            TempWrittenBlocks = ReadEffectiveBufferLong(node, buffersNested, "Temp Written Blocks"),
 
+            Workers = workersParsed,
             Children = children,
         };
+    }
+
+    private static IReadOnlyList<PlanWorkerStats> ParseWorkersList(JsonElement planNode)
+    {
+        if (!planNode.TryGetProperty("Workers", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<PlanWorkerStats>();
+
+        var list = new List<PlanWorkerStats>();
+        foreach (var w in arr.EnumerateArray())
+        {
+            if (w.ValueKind != JsonValueKind.Object) continue;
+            list.Add(ParseWorkerElement(w));
+        }
+
+        return list;
+    }
+
+    private static PlanWorkerStats ParseWorkerElement(JsonElement w)
+    {
+        var wb = w.TryGetProperty("Buffers", out var be) && be.ValueKind == JsonValueKind.Object
+            ? be
+            : default;
+
+        return new PlanWorkerStats(
+            WorkerNumber: TryGetInt(w, "Worker Number"),
+            ActualStartupTimeMs: TryGetDouble(w, "Actual Startup Time"),
+            ActualTotalTimeMs: TryGetDouble(w, "Actual Total Time"),
+            ActualRows: TryGetDouble(w, "Actual Rows"),
+            ActualLoops: TryGetLong(w, "Actual Loops"),
+            SharedHitBlocks: ReadBufferLong(w, wb, "Shared Hit Blocks"),
+            SharedReadBlocks: ReadBufferLong(w, wb, "Shared Read Blocks"),
+            SharedDirtiedBlocks: ReadBufferLong(w, wb, "Shared Dirtied Blocks"),
+            SharedWrittenBlocks: ReadBufferLong(w, wb, "Shared Written Blocks"),
+            LocalHitBlocks: ReadBufferLong(w, wb, "Local Hit Blocks"),
+            LocalReadBlocks: ReadBufferLong(w, wb, "Local Read Blocks"),
+            LocalDirtiedBlocks: ReadBufferLong(w, wb, "Local Dirtied Blocks"),
+            LocalWrittenBlocks: ReadBufferLong(w, wb, "Local Written Blocks"),
+            TempReadBlocks: ReadBufferLong(w, wb, "Temp Read Blocks"),
+            TempWrittenBlocks: ReadBufferLong(w, wb, "Temp Written Blocks"),
+            SortMethod: TryGetString(w, "Sort Method"),
+            SortSpaceUsedKb: TryGetLong(w, "Sort Space Used"),
+            SortSpaceType: TryGetString(w, "Sort Space Type"));
     }
 
     private static string? TryGetString(JsonElement element, string propertyName)
@@ -221,6 +267,50 @@ public sealed class PostgresJsonExplainParser : IPlanParser
             return v;
 
         return null;
+    }
+
+    /// <summary>
+    /// Reads a buffer counter from (1) nested <c>Buffers</c> object if present, else (2) flat keys on the plan node
+    /// (PostgreSQL's default JSON shape with <c>EXPLAIN (BUFFERS)</c>), else (3) sums the same key across <c>Workers</c>
+    /// when the leader node omitted aggregates.
+    /// </summary>
+    private static long? ReadEffectiveBufferLong(JsonElement planNode, JsonElement buffersNested, string key)
+    {
+        var direct = ReadBufferLong(planNode, buffersNested, key);
+        if (direct is not null)
+            return direct;
+        return SumWorkersBufferLong(planNode, key);
+    }
+
+    private static long? ReadBufferLong(JsonElement planNode, JsonElement buffersNested, string key)
+    {
+        if (buffersNested.ValueKind == JsonValueKind.Object)
+        {
+            var fromNested = TryGetLong(buffersNested, key);
+            if (fromNested is not null)
+                return fromNested;
+        }
+
+        return TryGetLong(planNode, key);
+    }
+
+    private static long? SumWorkersBufferLong(JsonElement planNode, string key)
+    {
+        if (!planNode.TryGetProperty("Workers", out var workers) || workers.ValueKind != JsonValueKind.Array)
+            return null;
+
+        long sum = 0;
+        var any = false;
+        foreach (var w in workers.EnumerateArray())
+        {
+            if (w.ValueKind != JsonValueKind.Object) continue;
+            var v = TryGetLong(w, key);
+            if (v is null) continue;
+            sum += v.Value;
+            any = true;
+        }
+
+        return any ? sum : null;
     }
 }
 

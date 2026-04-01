@@ -1,3 +1,4 @@
+using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 
 namespace PostgresQueryAutopsyTool.Core.Findings.Rules;
@@ -48,6 +49,7 @@ public sealed class PotentialIndexingOpportunityRule : IFindingRule
                 Evidence: new Dictionary<string, object?>
                 {
                     ["nodeId"] = n.NodeId,
+                    ["accessPathFamily"] = IndexSignalAnalyzer.AccessPathFamily(n.Node.NodeType),
                     ["relationName"] = n.Node.RelationName,
                     ["filter"] = n.Node.Filter,
                     ["subtreeTimeShareOfPlan"] = context.SubtreeTimeShareOfPlan(n),

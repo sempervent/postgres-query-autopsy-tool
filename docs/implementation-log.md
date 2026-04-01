@@ -539,4 +539,110 @@ Verified:
 - Docs: `mkdocs build --strict` passes.
 - Docker: `docker compose up --build -d` and `/api/health` pass.
 
+## Phase 26 — PostgreSQL BUFFERS JSON parsing + detection (complete)
+
+Implemented:
+- **Parser** (`PostgresJsonExplainParser`): reads buffer counters from nested `Buffers` **or** flat per-node keys (PostgreSQL default). Sums matching keys across `Workers` when the plan node omits that counter (parallel plans).
+- **Detection** (`PlanBufferStats`): `hasBuffers` / findings context use any shared, local, or temp buffer field (null = absent; zero still counts).
+- **Plan summary + narrative**: aligned with new detection; narrative distinguishes “counters present but no read hotspot list” vs “no counters detected”.
+- **Frontend**: `bufferFieldsPresentation.ts` + **Buffer I/O** block on Analyze selected node; clearer empty-state copy for hotspot lists.
+
+Tests:
+- Fixtures `pg_flat_buffers_seq_scan.json`, `pg_workers_flat_buffers.json` (+ SQL companions).
+- Parser, `PlanBufferStats`, findings/summary integration, frontend unit tests.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — 43 passed.
+- Frontend: `npx vitest run` — 37 passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET /api/health` OK.
+
+## Phase 27 — Typed worker stats + parallel-plan UI (complete)
+
+Implemented:
+- **Domain**: `PlanWorkerStats` on `NormalizedPlanNode.Workers`; `PlanWorkerStatsHelper` for ranges and conservative unevenness/temp I/O checks.
+- **Parser**: `PostgresJsonExplainParser` fills typed `Workers` from JSON while keeping existing parent merge when leader omits buffer counters (no double-count in summaries).
+- **Narrative**: mentions parallel per-worker stats when present; optional line when shared reads are clearly uneven across workers.
+- **API**: camelCase JSON includes `node.workers` on analyzed nodes (System.Text.Json on `PlanAnalysisResult`).
+- **Frontend**: `workerPresentation.ts` (summary cue + table rows); Analyze **Selected node** shows worker summary line and **Workers** grid next to Buffer I/O.
+- **Tests**: parser/fixtures (`pg_workers_flat_buffers`), helper tests, findings/narrative integration, `workerPresentation.test.ts`, `AnalyzePage.interaction.test.tsx` (with/without workers).
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — 47 passed.
+- Frontend: `npx vitest run` — 45 passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET /api/health` OK.
+
+**Limitation (by design):** worker-aware narrative and UI cues are display- and conservative-threshold oriented; deeper worker-skew analysis is not a separate rules catalog yet.
+
+## Phase 28 — `complex_timescaledb_query` fixture integration (complete)
+
+Implemented:
+- **Fixture classification**: large TimescaleDB-style plan with flat buffer keys, temp I/O, Gather Merge, partial/finalize aggregates, nested `Workers` (buffers + sort spill fields), external merge sort, Append + many bitmap heap/index scans over chunks.
+- **Parser regression** (`PostgresJsonExplainParserTests`): root/gather merge buffers, partial-aggregate worker rows vs parent totals, sort worker sort-space fields, Append + bitmap scan counts; shared `Descendants()` helper (file-local) for tree queries.
+- **Analysis regression** (`FindingsEngineTests`): `hasBuffers`, non-empty read hotspots, buffer-read finding, narrative does not claim bufferless plan, `PlanWorkerStatsHelper` read/temp ranges on real partial-aggregate workers, parallel narrative cue.
+- **Frontend**: `workerPresentation.test.ts` regression case aligned to fixture worker read pair.
+- **Docs**: `docs/fixtures.md` section for `complex_timescaledb_query`; SQL companion header explains illustrative vs JSON source of truth.
+- **Hygiene**: existing `FixtureSqlCompanionTests` already requires `complex_timescaledb_query.sql` next to `.json` (no change required).
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — 49 passed.
+- Frontend: `npx vitest run` — 46 passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` OK.
+
+## Phase 29 — Index opportunity analysis + index-usage explainability (complete)
+
+Implemented:
+- **`IndexSignalAnalyzer`** + `PlanIndexOverview` / `PlanIndexInsight` on `PlanAnalysisResult` (camelCase JSON): bounded node insights (missing-index angle, costly index/bitmap, sort order hint, NL inner support) with **suppression** of per-chunk bitmap spam when Append + many bitmap heaps (Timescale pattern).
+- **Findings**: **P** append/chunk bitmap workload, **Q** nested-loop inner index support, **R** index path still heavy, **S** bitmap recheck attention (IDs chosen to avoid collision with existing **L** hash-join and **M** materialize rules).
+- **Rule polish**: F/J evidence `accessPathFamily`; K sort suggestion + evidence for index-order investigation; E evidence `innerAccessPathFamily`.
+- **Compare groundwork**: `NodePairIdentity.AccessPathFamilyA/B`; Compare selected-pair **access path change** cue; full analyses carry `indexOverview`/`indexInsights` for future diffs.
+- **Analyze UI**: plan **Index posture** line; findings legend; selected-node **Access path / index insight** cards; `indexInsightPresentation.ts` + tests.
+- **Fixtures + tests**: `index_scan_heap_heavy`, `bitmap_recheck_waste`, `nl_inner_seq_index_support` (+ SQL); `IndexAnalysisTests` + `complex_timescaledb_query` regression (P fires; S and per-chunk R suppressed; sort insights present).
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — 54 passed.
+- Frontend: `npx vitest run` — 51 passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` OK.
+
+**Limitations:** index insights do not rank like findings; no automatic index DDL. Compare-mode index diffs were added in Phase 30 (below).
+
+## Phase 30 — Compare-mode index deltas + index-aware narrative (complete)
+
+Implemented:
+- **`IndexComparisonAnalyzer`** + **`IndexComparisonSummary`** / **`IndexInsightDiffItem`**: plan-level `indexOverview` diff lines; bounded **`indexInsights`** diff with **`New` / `Resolved` / `Improved` / `Worsened` / `Changed` / `Unchanged`** via mapped-node match, fingerprint (`signalKinds` + relation + index + family), then soft relation+signal overlap; stress proxy comparison on matched facts when fingerprints match.
+- **`PlanComparisonResultV2.IndexComparison`**; **`NodePairDetail.IndexDeltaCues`** for selected-pair UI; **`ComparisonEngine` narrative** adds access-path family count, overview/insight bullets, chunked-bitmap nuance, and optional findings/index corroboration line.
+- **Compare markdown report**: “Index comparison” section.
+- **Web**: **Index changes** summary block; navigator **`index Δ`** chip; **Access path / index delta** panel; `buildCompareIndexSectionModel` + `formatIndexInsightDiffKind` for numeric enum; intro bullet for index diffs.
+- **Tests**: `IndexComparisonAnalyzerTests` (seq→index fixtures + **`complex_timescaledb_query` vs `simple_seq_scan`**); `ComparisonEngineTests` / `ComparisonHardCaseTests` build real `indexOverview`/`indexInsights`; frontend `indexInsightPresentation.test.ts` + extended `ComparePage.ux.test.tsx`.
+- **Docs**: `compare-workflow`, `api-and-reports`, `comparison-model`, `fixtures`, `architecture`, `findings-catalog`.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **57** passed.
+- Frontend: `npx vitest run` — **49** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** Phase 31 changed compare JSON: `indexComparison.insightDiffs[].kind` is a lowercase string (`new`, `resolved`, …). Insight matching remains heuristic when node mapping is weak; unchanged-insight pairs may still carry verbose “unchanged” summaries internally (filtered from primary UI lists).
+
+## Phase 31 — Compare findings ↔ index-delta cross-linking + enum polish (complete)
+
+Implemented:
+- **`FindingIndexDiffLinker`**: reciprocal **`RelatedIndexDiffIndexes`** / **`RelatedFindingDiffIndexes`** on **`FindingDiffItem`** / **`IndexInsightDiffItem`** (capped at 4); conservative matching via nodes, relation evidence, rule id ↔ **`signalKinds`**; special case for **P.append-chunk-bitmap-workload** vs chunked/bitmap-heavy index diffs.
+- **`NodePairDetail.CorroborationCues`**: pair-scoped corroboration lines when linked items share the mapped pair.
+- **`IndexInsightDiffKindJsonConverter`**: JSON strings **`new`**, **`resolved`**, **`improved`**, **`worsened`**, **`changed`**, **`unchanged`** (enum attribute on type).
+- **Narrative / markdown**: **`LinkedNarrativeLines`** when structured links yield explanatory sentences; compare markdown lists related finding/index indices on key rows.
+- **Web**: findings diff **Related index change** + **Index Δ #n**; index section **Supported by** + **Highlight finding**; highlights outline linked rows; selected-pair **Finding ↔ index corroboration**; **`compareIndexLinks.ts`** helpers; **`formatIndexInsightDiffKind`** accepts lowercase API strings.
+- **Tests**: **`FindingIndexDiffLinkerTests`** (links + JSON + narrative helper); frontend **`compareIndexLinks.test.ts`**, extended **`ComparePage.ux.test.tsx`** and **`indexInsightPresentation.test.ts`**.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **60** passed.
+- Frontend: `npx vitest run` — **53** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** link indices are positions in the current response payload, not durable ids; some findings or index diffs may have no links when overlap rules do not fire.
+
 

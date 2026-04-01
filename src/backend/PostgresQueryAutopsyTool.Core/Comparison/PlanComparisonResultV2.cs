@@ -15,6 +15,7 @@ public sealed record PlanComparisonResultV2(
     IReadOnlyList<NodeDelta> TopWorsenedNodes,
     IReadOnlyList<NodePairDetail> PairDetails,
     FindingsDiff FindingsDiff,
+    IndexComparisonSummary IndexComparison,
     string Narrative,
     ComparisonDiagnostics? Diagnostics = null);
 

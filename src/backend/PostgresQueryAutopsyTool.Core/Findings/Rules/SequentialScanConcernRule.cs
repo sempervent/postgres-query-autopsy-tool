@@ -1,3 +1,4 @@
+using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 
 namespace PostgresQueryAutopsyTool.Core.Findings.Rules;
@@ -50,6 +51,7 @@ public sealed class SequentialScanConcernRule : IFindingRule
                 {
                     ["nodeId"] = n.NodeId,
                     ["nodeType"] = n.Node.NodeType,
+                    ["accessPathFamily"] = IndexSignalAnalyzer.AccessPathFamily(n.Node.NodeType),
                     ["relationName"] = n.Node.RelationName,
                     ["filter"] = n.Node.Filter,
                     ["inclusiveTimeMs"] = n.Metrics.InclusiveActualTimeMs,

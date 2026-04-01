@@ -1,6 +1,7 @@
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 using PostgresQueryAutopsyTool.Core.OperatorEvidence;
+using IndexSig = PostgresQueryAutopsyTool.Core.Analysis.IndexSignalAnalyzer;
 
 namespace PostgresQueryAutopsyTool.Core.Comparison;
 
@@ -40,11 +41,13 @@ public sealed class ComparisonEngine
 
         var summary = BuildSummary(a, b);
         var findingsDiff = DiffFindings(a, b, matches);
+        var indexComparison = IndexComparisonAnalyzer.Analyze(a, b, matches);
+        var (findingsLinked, indexLinked) = FindingIndexDiffLinker.Apply(findingsDiff, indexComparison);
 
         var pairDetails = matches.Select(m =>
-            BuildPairDetail(a, b, m, byIdA[m.NodeIdA], byIdB[m.NodeIdB], findingsDiff)).ToArray();
+            BuildPairDetail(a, b, m, byIdA[m.NodeIdA], byIdB[m.NodeIdB], findingsLinked, indexLinked)).ToArray();
 
-        var narrative = BuildNarrative(summary, improved, worsened, pairDetails, findingsDiff);
+        var narrative = BuildNarrative(summary, improved, worsened, pairDetails, findingsLinked, indexLinked);
 
         return new PlanComparisonResultV2(
             ComparisonId: Guid.NewGuid().ToString("n"),
@@ -58,7 +61,8 @@ public sealed class ComparisonEngine
             TopImprovedNodes: improved,
             TopWorsenedNodes: worsened,
             PairDetails: pairDetails,
-            FindingsDiff: findingsDiff,
+            FindingsDiff: findingsLinked,
+            IndexComparison: indexLinked,
             Narrative: narrative,
             Diagnostics: diagnostics
         );
@@ -70,7 +74,8 @@ public sealed class ComparisonEngine
         NodeMatch match,
         AnalyzedPlanNode a,
         AnalyzedPlanNode b,
-        FindingsDiff findingsDiff)
+        FindingsDiff findingsDiff,
+        IndexComparisonSummary indexComparison)
     {
         var identity = new NodePairIdentity(
             NodeIdA: a.NodeId,
@@ -87,7 +92,9 @@ public sealed class ComparisonEngine
             DepthB: b.Metrics.Depth,
             MatchConfidence: match.Confidence,
             MatchScore: match.MatchScore,
-            ScoreBreakdown: match.ScoreBreakdown);
+            ScoreBreakdown: match.ScoreBreakdown,
+            AccessPathFamilyA: IndexSig.AccessPathFamily(a.Node.NodeType),
+            AccessPathFamilyB: IndexSig.AccessPathFamily(b.Node.NodeType));
 
         var raw = new NodePairRawFields(
             FilterA: a.Node.Filter,
@@ -177,6 +184,9 @@ public sealed class ComparisonEngine
         var findingsB = planB.Findings.Where(f => (f.NodeIds ?? Array.Empty<string>()).Contains(b.NodeId)).ToArray();
         var relatedDiff = findingsDiff.Items.Where(i => i.NodeIdA == a.NodeId || i.NodeIdB == b.NodeId).ToArray();
 
+        var indexCues = IndexComparisonAnalyzer.IndexDeltaCuesForPair(a.NodeId, b.NodeId, identity, indexComparison);
+        var corroboration = FindingIndexDiffLinker.CorroborationCuesForPair(a.NodeId, b.NodeId, findingsDiff, indexComparison);
+
         return new NodePairDetail(
             Identity: identity,
             RawFields: raw,
@@ -184,7 +194,9 @@ public sealed class ComparisonEngine
             ContextEvidenceB: b.ContextEvidence,
             ContextDiff: ContextEvidenceDiffSummarizer.Diff(a.ContextEvidence, b.ContextEvidence),
             Metrics: metrics,
-            Findings: new PairFindingsView(findingsA, findingsB, relatedDiff));
+            Findings: new PairFindingsView(findingsA, findingsB, relatedDiff),
+            IndexDeltaCues: indexCues,
+            CorroborationCues: corroboration);
     }
 
     private static MetricDeltaDetail Metric(string key, double? a, double? b, bool? betterWhenLower)
@@ -323,8 +335,8 @@ public sealed class ComparisonEngine
                     Title: ai.Finding.Title,
                     Summary: ai.Finding.Summary,
                     EvidenceA: ai.Finding.Evidence,
-                    EvidenceB: new Dictionary<string, object?>()
-                ));
+                    EvidenceB: new Dictionary<string, object?>(),
+                    RelatedIndexDiffIndexes: Array.Empty<int>()));
                 continue;
             }
 
@@ -344,8 +356,8 @@ public sealed class ComparisonEngine
                 Title: matchedB.Title,
                 Summary: matchedB.Summary,
                 EvidenceA: ai.Finding.Evidence,
-                EvidenceB: matchedB.Evidence
-            ));
+                EvidenceB: matchedB.Evidence,
+                RelatedIndexDiffIndexes: Array.Empty<int>()));
         }
 
         // Remaining B findings are new (or unmapped).
@@ -364,8 +376,8 @@ public sealed class ComparisonEngine
                 Title: bi.Finding.Title,
                 Summary: bi.Finding.Summary,
                 EvidenceA: new Dictionary<string, object?>(),
-                EvidenceB: bi.Finding.Evidence
-            ));
+                EvidenceB: bi.Finding.Evidence,
+                RelatedIndexDiffIndexes: Array.Empty<int>()));
         }
 
         // Rank diff findings: worsened/new first, then resolved, then improved.
@@ -391,7 +403,8 @@ public sealed class ComparisonEngine
         IReadOnlyList<NodeDelta> improved,
         IReadOnlyList<NodeDelta> worsened,
         IReadOnlyList<NodePairDetail> pairDetails,
-        FindingsDiff findingsDiff)
+        FindingsDiff findingsDiff,
+        IndexComparisonSummary indexComparison)
     {
         var sections = new List<string>();
 
@@ -434,6 +447,32 @@ public sealed class ComparisonEngine
         if (driverLines.Count > 0)
             sections.Add(string.Join(" ", driverLines));
 
+        // 2b) Index / access-path story (structured deltas; conservative wording)
+        {
+            var idx = new List<string>();
+            var famShift = pairDetails
+                .Select(p => (p.Identity.AccessPathFamilyA, p.Identity.AccessPathFamilyB))
+                .Count(t => t.AccessPathFamilyA is not null && t.AccessPathFamilyB is not null &&
+                            !string.Equals(t.AccessPathFamilyA, t.AccessPathFamilyB, StringComparison.Ordinal));
+            if (famShift > 0)
+                idx.Add($"{famShift} mapped pair(s) show a coarse access-path family change (for example seq scan vs index/bitmap).");
+
+            foreach (var line in indexComparison.OverviewLines.Take(3))
+                idx.Add(line);
+
+            foreach (var d in indexComparison.InsightDiffs
+                         .Where(i => i.Kind != IndexInsightDiffKind.Unchanged)
+                         .Take(3))
+                idx.Add($"{d.Kind}: {d.Summary}");
+
+            if (indexComparison.EitherPlanSuggestsChunkedBitmapWorkload &&
+                indexComparison.InsightDiffs.Any(i => i.Kind != IndexInsightDiffKind.Unchanged))
+                idx.Add("Chunked bitmap access can remain dominant even when indexes exist per chunk; treat heavy I/O as a shape/selectivity problem, not only a missing-index story.");
+
+            if (idx.Count > 0)
+                sections.Add(string.Join(" ", idx));
+        }
+
         // 3) Findings changes
         var changeLines = new List<string>();
         var majorNew = findingsDiff.Items.FirstOrDefault(i => i.ChangeType is FindingChangeType.New or FindingChangeType.Worsened);
@@ -446,6 +485,23 @@ public sealed class ComparisonEngine
 
         if (changeLines.Count > 0)
             sections.Add(string.Join(" ", changeLines));
+
+        var linkedNarrative = FindingIndexDiffLinker.LinkedNarrativeLines(findingsDiff, indexComparison, maxLines: 2);
+        if (linkedNarrative.Count > 0)
+            sections.Add(string.Join(" ", linkedNarrative));
+        else
+        {
+            var indexInsightResolved = indexComparison.InsightDiffs.Any(i => i.Kind == IndexInsightDiffKind.Resolved);
+            var indexCorrelatedFinding = findingsDiff.Items.Any(i =>
+                i.ChangeType == FindingChangeType.Resolved &&
+                (i.RuleId.Contains("seq-scan", StringComparison.OrdinalIgnoreCase) ||
+                 i.RuleId.Contains("potential-indexing", StringComparison.OrdinalIgnoreCase) ||
+                 i.RuleId.Contains("index-access-still-heavy", StringComparison.OrdinalIgnoreCase) ||
+                 i.RuleId.Contains("bitmap-recheck", StringComparison.OrdinalIgnoreCase) ||
+                 i.RuleId.Contains("nl-inner-index", StringComparison.OrdinalIgnoreCase)));
+            if (indexInsightResolved && indexCorrelatedFinding)
+                sections.Add("Some resolved findings overlap with cleared or shifted index investigation cues—use as corroboration; mapping remains heuristic.");
+        }
 
         // 4) Investigation guidance
         var guidance = new List<string>();

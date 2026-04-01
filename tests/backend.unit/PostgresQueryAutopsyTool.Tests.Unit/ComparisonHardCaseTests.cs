@@ -115,6 +115,9 @@ public sealed class ComparisonHardCaseTests
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);
         var narrative = NarrativeGenerator.From(summary, metrics, findings);
+        var findingCtx = new FindingEvaluationContext(root.NodeId, metrics);
+        var indexOverview = IndexSignalAnalyzer.BuildOverview(metrics, findingCtx);
+        var indexInsights = IndexSignalAnalyzer.BuildInsights(metrics, findingCtx, indexOverview);
 
         return new PlanAnalysisResult(
             AnalysisId: "test",
@@ -123,7 +126,9 @@ public sealed class ComparisonHardCaseTests
             Nodes: metrics,
             Findings: findings,
             Narrative: narrative,
-            Summary: summary
+            Summary: summary,
+            IndexOverview: indexOverview,
+            IndexInsights: indexInsights
         );
     }
 

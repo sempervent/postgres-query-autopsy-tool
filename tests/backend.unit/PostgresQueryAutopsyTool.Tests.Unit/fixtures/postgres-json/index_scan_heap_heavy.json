@@ -1,0 +1,21 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Index Scan",
+      "Relation Name": "events",
+      "Index Name": "events_ts_idx",
+      "Index Cond": "(ts > '2020-01-01'::timestamp)",
+      "Startup Cost": 0.5,
+      "Total Cost": 50000.0,
+      "Plan Rows": 100000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 420.0,
+      "Actual Rows": 90000,
+      "Actual Loops": 1,
+      "Shared Hit Blocks": 1000,
+      "Shared Read Blocks": 25000,
+      "Heap Fetches": 95000
+    }
+  }
+]

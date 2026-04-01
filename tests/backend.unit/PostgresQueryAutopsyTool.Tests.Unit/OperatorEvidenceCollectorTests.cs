@@ -70,7 +70,9 @@ public sealed class OperatorEvidenceCollectorTests
             Nodes: metrics,
             Findings: findings,
             Narrative: narrative,
-            Summary: summary
+            Summary: summary,
+            IndexOverview: AnalysisTestDefaults.EmptyIndexOverview,
+            IndexInsights: AnalysisTestDefaults.EmptyIndexInsights
         );
     }
 

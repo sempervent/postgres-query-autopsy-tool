@@ -10,7 +10,8 @@ The backend is organized as a modular monolith:
   - Raw plan DTO shapes (Postgres JSON schema)
   - Normalized plan node model
   - Analysis pipeline:
-    - Parser (`EXPLAIN (FORMAT JSON)` → `NormalizedPlanNode`)
+    - Parser (`EXPLAIN (FORMAT JSON)` → `NormalizedPlanNode`; BUFFERS counters from flat node keys and/or nested `Buffers`, plus conservative `Workers` merge onto the parent when a counter is missing there, while still storing each worker line as `PlanWorkerStats` on `NormalizedPlanNode.Workers`)
+    - Index posture (`IndexSignalAnalyzer` → `PlanIndexOverview` + bounded `PlanIndexInsight[]` on `PlanAnalysisResult`; feeds Analyze UI and complements findings **P/Q/R/S** without duplicating rule ranking)
     - Derived metrics (`DerivedMetricsEngine` → per-node metrics + shares)
     - Findings (`FindingsEngine` + rules → ranked evidence-based findings)
     - Summary + narrative (`PlanSummaryBuilder`, `NarrativeGenerator`)
@@ -33,6 +34,8 @@ The UI uses a small presentation helper layer to keep human-readable labeling co
 - `src/frontend/web/src/presentation/contextBadges.ts`: contextDiff-driven badges for scanability
 - `src/frontend/web/src/presentation/comparePresentation.ts`: compare intro copy, summary/coverage phrases, and top-change callouts
 - `src/frontend/web/src/presentation/compareBranchContext.ts`: builds the selected-pair **branch view model** (paths, children, mapping/unmatched flags, focal cues) from `PlanComparisonResult` + `matches`
+- `src/frontend/web/src/presentation/workerPresentation.ts`: worker summary line + table row shaping for parallel `workers[]` on Analyze selected node
+- `src/frontend/web/src/presentation/indexInsightPresentation.ts`: plan overview line, per-node insight cards, compare **access path family** cue (`identity.accessPathFamilyA/B` from API)
 - `src/frontend/web/src/components/CompareBranchStrip.tsx`: compact twin-column UI wired to the same selection state as the navigator and findings diff
 - `src/frontend/web/src/components/ClickableRow.tsx` + `ReferenceCopyButton.tsx`: shared row navigation + copy affordances without nested `<button>` markup; `ClickableRow` supports `selected` + `selectedEmphasis` (`fill` vs `accent-bar`) for Compare rows that sit on tinted backgrounds
 
@@ -160,8 +163,8 @@ This keeps summaries bounded and avoids dumping raw context into prose.
 Plan A JSON + Plan B JSON
 → analyze A + analyze B (same pipeline as above)
 → `NodeMappingEngine` (heuristic mapping + confidence)
-→ `ComparisonEngine` (per-node deltas, improved/worsened areas, findings diff, evidence-based narrative, pair details)
-→ `PlanComparisonResultV2` (API response, UI model, compare report input)
+→ `ComparisonEngine` (per-node deltas, improved/worsened areas, findings diff, **index comparison** via `IndexComparisonAnalyzer`, **`FindingIndexDiffLinker`** for reciprocal indexes + pair **corroboration cues**, evidence-based narrative, pair details with **index delta cues**)
+→ `PlanComparisonResultV2` (API response, UI model, compare report input; includes `IndexComparison` summary)
 
 Diagnostics mode (optional):
 - `POST /api/compare?diagnostics=1` includes bounded candidate + decision diagnostics (winner factors + near-misses).

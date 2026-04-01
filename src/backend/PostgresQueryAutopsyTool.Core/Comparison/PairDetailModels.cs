@@ -34,7 +34,10 @@ public sealed record NodePairIdentity(
     int DepthB,
     MatchConfidence MatchConfidence,
     double MatchScore,
-    IReadOnlyDictionary<string, double> ScoreBreakdown);
+    IReadOnlyDictionary<string, double> ScoreBreakdown,
+    /// <summary>Coarse access-path bucket from <see cref="Analysis.IndexSignalAnalyzer"/> (compare deltas).</summary>
+    string? AccessPathFamilyA = null,
+    string? AccessPathFamilyB = null);
 
 public sealed record NodePairRawFields(
     string? FilterA,
@@ -116,5 +119,9 @@ public sealed record NodePairDetail(
     PostgresQueryAutopsyTool.Core.OperatorEvidence.OperatorContextEvidence? ContextEvidenceB,
     PostgresQueryAutopsyTool.Core.OperatorEvidence.OperatorContextEvidenceDiff? ContextDiff,
     IReadOnlyList<MetricDeltaDetail> Metrics,
-    PairFindingsView Findings);
+    PairFindingsView Findings,
+    /// <summary>Compact index/access-path compare cues for this mapped pair (Phase 30).</summary>
+    IReadOnlyList<string> IndexDeltaCues,
+    /// <summary>Finding ↔ index-delta corroboration for this pair when cross-links exist (Phase 31).</summary>
+    IReadOnlyList<string> CorroborationCues);
 

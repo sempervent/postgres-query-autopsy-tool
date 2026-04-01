@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace PostgresQueryAutopsyTool.Core.Domain;
@@ -86,6 +87,9 @@ public sealed class NormalizedPlanNode
 
     public long? TempReadBlocks { get; init; }
     public long? TempWrittenBlocks { get; init; }
+
+    /// <summary>Parallel query worker lines from JSON <c>Workers</c>; empty when not a parallel parent.</summary>
+    public IReadOnlyList<PlanWorkerStats> Workers { get; init; } = Array.Empty<PlanWorkerStats>();
 
     // Child nodes
     public IReadOnlyList<NormalizedPlanNode> Children { get; init; } = new List<NormalizedPlanNode>();
