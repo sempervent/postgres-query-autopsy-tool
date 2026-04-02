@@ -49,6 +49,7 @@ This is intentionally readable and tunable.
 ## Pair detail model (Phase 7+)
 
 For each mapped node pair, the compare result includes a `pairDetails[]` entry that contains:
+- **`pairArtifactId`** (Phase 33): stable comparison-scoped id (`pair_*`) for UI, reports, and `?pair=` deep links
 - identity/mapping: node ids, node types, relation/index/join type, depths, confidence, match score, score breakdown, coarse **access path families** (`accessPathFamilyA` / `accessPathFamilyB`, Phase 29+)
 - raw operator fields (best-effort when available): filter/index cond/join filter/hash/merge cond/sort key/group key/strategy/parallel-aware
 - derived metrics side-by-side with deltas and directionality (time, reads, buffer share, estimate divergence, loops, subtree size)
@@ -68,8 +69,9 @@ The compare **narrative** adds a conservative index/access-path paragraph. When 
 
 - **`FindingIndexDiffLinker.Apply`** runs after `DiffFindings` + `IndexComparisonAnalyzer.Analyze`, before pair details and narrative.
 - **Matching (conservative):** mapped node overlap (`nodeIdA`/`nodeIdB`) and/or **relation** alignment from finding **evidence** (`relationName`, `primaryRelationName`) vs insight `relationName`; plus **rule ↔ signal** alignment (e.g. F/J ↔ `missingIndexInvestigation`, R ↔ `indexPathStillCostly`, S ↔ `bitmapRecheckOrHeapHeavy`, K ↔ `sortOrderSupportOpportunity`, Q ↔ `joinInnerIndexSupport`). **P.append-chunk-bitmap-workload** uses plan-level chunked heuristic + bitmap/index-heavy index diffs without requiring the same node id.
-- **Payload:** at most **four** reciprocal indexes per item; no duplicated embedded objects.
-- **Limitation:** indexes refer to **ranked** `findingsDiff.items` and the current `insightDiffs` array order—stable for a given compare response, not a permanent id across sessions.
+- **Payload:** at most **four** reciprocal links per item; no duplicated embedded objects.
+- **Phase 33 ids:** each item also carries **`diffId`** (`fd_*`) / **`insightDiffId`** (`ii_*`) and parallel **`relatedIndexDiffIds`** / **`relatedFindingDiffIds`**. Legacy **`relatedIndexDiffIndexes`** / **`relatedFindingDiffIndexes`** remain for compatibility; **prefer ids** for UI, exports, and documentation.
+- **Limitation:** ids are **scoped to `comparisonId` + structured identity**; they do not survive arbitrary plan swaps or a new comparison run. Heuristic linking can still miss or mis-link when mapping is weak.
 
 ## Operator-specific pair detail (Phase 9)
 

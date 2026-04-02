@@ -39,18 +39,21 @@ public sealed class ComparisonEngine
             .Take(8)
             .ToArray();
 
+        var comparisonId = Guid.NewGuid().ToString("n");
         var summary = BuildSummary(a, b);
-        var findingsDiff = DiffFindings(a, b, matches);
-        var indexComparison = IndexComparisonAnalyzer.Analyze(a, b, matches);
-        var (findingsLinked, indexLinked) = FindingIndexDiffLinker.Apply(findingsDiff, indexComparison);
+        var findingsDiffRaw = DiffFindings(a, b, matches);
+        var findingsDiff = CompareArtifactIds.AssignFindingDiffIds(comparisonId, findingsDiffRaw);
+        var indexRaw = IndexComparisonAnalyzer.Analyze(a, b, matches);
+        var indexWithIds = CompareArtifactIds.AssignInsightDiffIds(comparisonId, indexRaw);
+        var (findingsLinked, indexLinked) = FindingIndexDiffLinker.Apply(findingsDiff, indexWithIds);
 
         var pairDetails = matches.Select(m =>
-            BuildPairDetail(a, b, m, byIdA[m.NodeIdA], byIdB[m.NodeIdB], findingsLinked, indexLinked)).ToArray();
+            BuildPairDetail(comparisonId, a, b, m, byIdA[m.NodeIdA], byIdB[m.NodeIdB], findingsLinked, indexLinked)).ToArray();
 
         var narrative = BuildNarrative(summary, improved, worsened, pairDetails, findingsLinked, indexLinked);
 
-        return new PlanComparisonResultV2(
-            ComparisonId: Guid.NewGuid().ToString("n"),
+        var core = new PlanComparisonResultV2(
+            ComparisonId: comparisonId,
             PlanA: a,
             PlanB: b,
             Summary: summary,
@@ -64,11 +67,17 @@ public sealed class ComparisonEngine
             FindingsDiff: findingsLinked,
             IndexComparison: indexLinked,
             Narrative: narrative,
-            Diagnostics: diagnostics
-        );
+            CompareOptimizationSuggestions: Array.Empty<OptimizationSuggestion>(),
+            Diagnostics: diagnostics);
+
+        return core with
+        {
+            CompareOptimizationSuggestions = CompareOptimizationSuggestionEngine.Build(core)
+        };
     }
 
     private static NodePairDetail BuildPairDetail(
+        string comparisonId,
         PlanAnalysisResult planA,
         PlanAnalysisResult planB,
         NodeMatch match,
@@ -188,6 +197,7 @@ public sealed class ComparisonEngine
         var corroboration = FindingIndexDiffLinker.CorroborationCuesForPair(a.NodeId, b.NodeId, findingsDiff, indexComparison);
 
         return new NodePairDetail(
+            PairArtifactId: CompareArtifactIds.PairId(comparisonId, a.NodeId, b.NodeId),
             Identity: identity,
             RawFields: raw,
             ContextEvidenceA: a.ContextEvidence,

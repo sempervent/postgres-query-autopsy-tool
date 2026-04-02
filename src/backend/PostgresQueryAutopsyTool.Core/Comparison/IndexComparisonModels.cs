@@ -25,8 +25,12 @@ public sealed record IndexInsightDiffItem(
     string? NodeIdB,
     string? AccessPathFamilyA,
     string? AccessPathFamilyB,
-    /// <summary>Indices into <see cref="IndexComparisonSummary.InsightDiffs"/> are not needed; these index <c>FindingsDiff.Items</c> after ranking.</summary>
-    IReadOnlyList<int> RelatedFindingDiffIndexes);
+    /// <summary>Legacy indices into ranked <c>FindingsDiff.Items</c>; prefer <see cref="RelatedFindingDiffIds"/>.</summary>
+    IReadOnlyList<int> RelatedFindingDiffIndexes,
+    /// <summary>Stable comparison-scoped id (e.g. <c>ii_*</c>).</summary>
+    string InsightDiffId = "",
+    /// <summary>Stable ids of related finding diff rows (Phase 33).</summary>
+    IReadOnlyList<string>? RelatedFindingDiffIds = null);
 
 /// <summary>Plan-level index posture delta plus ranked insight-level diff for Compare.</summary>
 public sealed record IndexComparisonSummary(

@@ -1,5 +1,5 @@
 import type { PlanComparisonResult } from '../api/types'
-import { relatedFindingRuleHints } from './compareIndexLinks'
+import { relatedFindingRuleHints, relatedFindingRuleHintsByDiffIds } from './compareIndexLinks'
 import { formatIndexInsightDiffKind } from './indexInsightPresentation'
 
 export type CompareIntroCopy = {
@@ -137,9 +137,11 @@ export function compareWhatChangedMostCopy() {
 
 export type CompareIndexSectionRow = {
   diffIndex: number
+  insightDiffId: string
   kindLabel: string
   summary: string
   relatedFindingIndexes: number[]
+  relatedFindingDiffIds: string[]
   relatedFindingHints: string[]
 }
 
@@ -168,12 +170,19 @@ export function buildCompareIndexSectionModel(c: PlanComparisonResult | null): C
       .slice(0, 6)
       .map(({ d, diffIndex }) => {
         const relatedFindingIndexes = (d.relatedFindingDiffIndexes ?? []).slice(0, 4)
+        const relatedFindingDiffIds = (d.relatedFindingDiffIds ?? []).slice(0, 4)
+        const relatedFindingHints =
+          relatedFindingDiffIds.length > 0
+            ? relatedFindingRuleHintsByDiffIds(c, relatedFindingDiffIds)
+            : relatedFindingRuleHints(c, relatedFindingIndexes)
         return {
           diffIndex,
+          insightDiffId: d.insightDiffId ?? '',
           kindLabel: formatIndexInsightDiffKind(d.kind),
           summary: d.summary,
           relatedFindingIndexes,
-          relatedFindingHints: relatedFindingRuleHints(c, relatedFindingIndexes),
+          relatedFindingDiffIds,
+          relatedFindingHints,
         }
       }),
     chunkedNuance: Boolean(idx.eitherPlanSuggestsChunkedBitmapWorkload),

@@ -72,7 +72,8 @@ public sealed class OperatorEvidenceCollectorTests
             Narrative: narrative,
             Summary: summary,
             IndexOverview: AnalysisTestDefaults.EmptyIndexOverview,
-            IndexInsights: AnalysisTestDefaults.EmptyIndexInsights
+            IndexInsights: AnalysisTestDefaults.EmptyIndexInsights,
+            OptimizationSuggestions: Array.Empty<OptimizationSuggestion>()
         );
     }
 

@@ -645,4 +645,36 @@ Verified:
 
 **Limitations:** link indices are positions in the current response payload, not durable ids; some findings or index diffs may have no links when overlap rules do not fire.
 
+## Phase 32 — Actionable optimization suggestions engine (complete)
+
+Implemented:
+- **Models**: `OptimizationSuggestion`, `OptimizationSuggestionCategory`, `SuggestedActionType`, `SuggestionConfidenceLevel`, `SuggestionPriorityLevel` on `PlanAnalysisResult.optimizationSuggestions`; JSON string enums via `Serialization/OptimizationSuggestionEnumConverters.cs`.
+- **Engines**: `OptimizationSuggestionEngine` (analyze: findings + index insights + operator evidence + worker skew + temp/sort spill; suppresses naive seq-scan/J index bullets under chunked **P** posture); `CompareOptimizationSuggestionEngine` → `PlanComparisonResultV2.compareOptimizationSuggestions`.
+- **Reports**: analyze markdown/HTML **Optimization suggestions**; compare markdown **Next steps after this change (compare)**.
+- **Web**: Analyze **Optimization suggestions** cards (top 5, pills, validate line, node jump, expandable rationale/cautions); selected-node **Related optimization suggestion**; Compare **Next steps after this change** + pair-scoped **Related compare next step**; `optimizationSuggestionsPresentation.ts` + tests.
+- **Tests**: `OptimizationSuggestionEngineTests` (seq scan, hash join, sort spill, stats, index heavy, NL inner, **complex_timescaledb_query** non-naive guardrail); `CompareOptimizationSuggestionEngineTests`; frontend `AnalyzePage.interaction.test.tsx` + `ComparePage.ux.test.tsx` + presentation test.
+- **Docs**: `analyze-workflow`, `compare-workflow`, `findings-catalog`, `fixtures`, `architecture`, `api-and-reports`.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **68** passed.
+- Frontend: `npm test` (vitest `--run`) — **57** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** suggestions remain heuristics; compare “carry” items reuse plan B titles and may overlap thematically with the compact list. `suggestionId` is a stable content hash for dedupe, not a cross-session durable key.
+
+## Phase 33 — Stable artifact IDs + deep-linkable references (complete)
+
+Implemented:
+- **Backend**: `CompareArtifactIds` (`fd_*`, `ii_*`, `pair_*`) assigned in `ComparisonEngine`; `FindingDiffItem` / `IndexInsightDiffItem` carry **`diffId`** / **`insightDiffId`** and **`relatedIndexDiffIds`** / **`relatedFindingDiffIds`** (legacy index arrays retained); `NodePairDetail.pairArtifactId`; `FindingIndexDiffLinker` fills id arrays; `OptimizationSuggestion` / compare engine use **`sg_*`** `suggestionId` with optional **`relatedFindingDiffIds`** / **`relatedIndexInsightDiffIds`**; markdown reports bracket **`[fd_*]`**, **`[ii_*]`**, **`[sg_*]`**, pair refs where useful.
+- **Frontend**: `api/types.ts` aligned; **`presentation/artifactLinks.ts`** (query keys, deep-link builders, `scrollArtifactIntoView`); Compare **`?pair=`**, **`?finding=`**, **`?indexDiff=`**, **`?suggestion=`** sync + one-time highlight hydrate per `comparisonId`; Analyze **`?node=`** hydrate once per `analysisId`; **`data-artifact`** on rows; **Copy link** beside reference copy on selected pair / Analyze node; related navigation prefers stable ids.
+- **Tests**: `CompareArtifactIdsTests`, linker/report/assertion updates; `artifactLinks.test.ts`; Compare/Analyze UX tests with `MemoryRouter` deep links and `afterEach(cleanup)` where needed.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **71** passed.
+- Frontend: `npm test` (vitest `--run`) — **60** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** artifact ids are **deterministic within a given comparison/analysis payload** (scoped by `comparisonId` / structured identity); swapping plan A↔B or re-running analyze produces a new id namespace. Analyze does not continuously mirror every node click into the URL (only initial `node=` hydrate + **Copy link**). Weak node mapping still limits cross-panel focus for some suggestions.
 

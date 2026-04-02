@@ -33,11 +33,19 @@ public static class FindingIndexDiffLinker
         }
 
         var newFindings = fList
-            .Select((f, i) => f with { RelatedIndexDiffIndexes = DistinctTake(fToI[i], MaxLinksPerItem) })
+            .Select((f, i) => f with
+            {
+                RelatedIndexDiffIndexes = DistinctTake(fToI[i], MaxLinksPerItem),
+                RelatedIndexDiffIds = IdsFromInsightIndexes(fToI[i], iList, MaxLinksPerItem)
+            })
             .ToArray();
 
         var newInsights = iList
-            .Select((item, i) => item with { RelatedFindingDiffIndexes = DistinctTake(iToF[i], MaxLinksPerItem) })
+            .Select((item, i) => item with
+            {
+                RelatedFindingDiffIndexes = DistinctTake(iToF[i], MaxLinksPerItem),
+                RelatedFindingDiffIds = IdsFromFindingIndexes(iToF[i], fList, MaxLinksPerItem)
+            })
             .ToArray();
 
         return (new FindingsDiff(newFindings), index with { InsightDiffs = newInsights });
@@ -55,10 +63,8 @@ public static class FindingIndexDiffLinker
         {
             var f = findings.Items[fi];
             if (!SameMappedPair(f, nodeIdA, nodeIdB)) continue;
-            foreach (var ii in f.RelatedIndexDiffIndexes)
+            foreach (var idx in LinkedInsightsForFinding(f, index))
             {
-                if ((uint)ii >= (uint)index.InsightDiffs.Count) continue;
-                var idx = index.InsightDiffs[ii];
                 if (!string.Equals(idx.NodeIdA, nodeIdA, StringComparison.Ordinal) ||
                     !string.Equals(idx.NodeIdB, nodeIdB, StringComparison.Ordinal))
                     continue;
@@ -77,11 +83,10 @@ public static class FindingIndexDiffLinker
         var lines = new List<string>();
         foreach (var f in findings.Items)
         {
-            if (f.RelatedIndexDiffIndexes.Count == 0) continue;
-            foreach (var ii in f.RelatedIndexDiffIndexes.Take(2))
+            var linked = LinkedInsightsForFinding(f, index).Take(2).ToArray();
+            if (linked.Length == 0) continue;
+            foreach (var idx in linked)
             {
-                if ((uint)ii >= (uint)index.InsightDiffs.Count) continue;
-                var idx = index.InsightDiffs[ii];
                 if (idx.Kind == IndexInsightDiffKind.Unchanged) continue;
 
                 var line = TryBuildCorroborationSentence(f, idx);
@@ -267,6 +272,64 @@ public static class FindingIndexDiffLinker
         IndexInsightDiffKind.Changed => "changed",
         _ => "unchanged"
     };
+
+    private static IEnumerable<IndexInsightDiffItem> LinkedInsightsForFinding(
+        FindingDiffItem f,
+        IndexComparisonSummary index)
+    {
+        if (f.RelatedIndexDiffIds is { Count: > 0 })
+        {
+            foreach (var id in f.RelatedIndexDiffIds)
+            {
+                foreach (var d in index.InsightDiffs)
+                {
+                    if (string.Equals(d.InsightDiffId, id, StringComparison.Ordinal))
+                    {
+                        yield return d;
+                        break;
+                    }
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (var ii in f.RelatedIndexDiffIndexes)
+        {
+            if ((uint)ii >= (uint)index.InsightDiffs.Count) continue;
+            yield return index.InsightDiffs[ii];
+        }
+    }
+
+    private static string[] IdsFromInsightIndexes(List<int> indexes, IReadOnlyList<IndexInsightDiffItem> iList, int max)
+    {
+        var ids = new List<string>();
+        foreach (var ii in indexes)
+        {
+            if ((uint)ii >= (uint)iList.Count) continue;
+            var id = iList[ii].InsightDiffId;
+            if (!string.IsNullOrEmpty(id) && !ids.Contains(id, StringComparer.Ordinal))
+                ids.Add(id);
+            if (ids.Count >= max) break;
+        }
+
+        return ids.ToArray();
+    }
+
+    private static string[] IdsFromFindingIndexes(List<int> indexes, IReadOnlyList<FindingDiffItem> fList, int max)
+    {
+        var ids = new List<string>();
+        foreach (var fi in indexes)
+        {
+            if ((uint)fi >= (uint)fList.Count) continue;
+            var id = fList[fi].DiffId;
+            if (!string.IsNullOrEmpty(id) && !ids.Contains(id, StringComparer.Ordinal))
+                ids.Add(id);
+            if (ids.Count >= max) break;
+        }
+
+        return ids.ToArray();
+    }
 
     private static int[] DistinctTake(List<int> source, int max)
     {

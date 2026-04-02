@@ -113,6 +113,8 @@ public sealed record PairFindingsView(
     IReadOnlyList<FindingDiffItem> RelatedDiffItems);
 
 public sealed record NodePairDetail(
+    /// <summary>Stable comparison-scoped id for this mapped pair (e.g. <c>pair_*</c>).</summary>
+    string PairArtifactId,
     NodePairIdentity Identity,
     NodePairRawFields RawFields,
     PostgresQueryAutopsyTool.Core.OperatorEvidence.OperatorContextEvidence? ContextEvidenceA,

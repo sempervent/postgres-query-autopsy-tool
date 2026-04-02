@@ -128,7 +128,8 @@ public sealed class ComparisonHardCaseTests
             Narrative: narrative,
             Summary: summary,
             IndexOverview: indexOverview,
-            IndexInsights: indexInsights
+            IndexInsights: indexInsights,
+            OptimizationSuggestions: Array.Empty<OptimizationSuggestion>()
         );
     }
 

@@ -72,7 +72,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         // Keep async boundary for future CPU-heavy traversal.
         await Task.Yield();
 
-        return new PlanAnalysisResult(
+        var analysisCore = new PlanAnalysisResult(
             AnalysisId: Guid.NewGuid().ToString("n"),
             RootNodeId: root.NodeId,
             QueryText: string.IsNullOrWhiteSpace(queryText) ? null : queryText,
@@ -81,8 +81,13 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             Narrative: narrative,
             Summary: summary,
             IndexOverview: indexOverview,
-            IndexInsights: indexInsights
-        );
+            IndexInsights: indexInsights,
+            OptimizationSuggestions: Array.Empty<OptimizationSuggestion>());
+
+        return analysisCore with
+        {
+            OptimizationSuggestions = OptimizationSuggestionEngine.Build(analysisCore)
+        };
     }
 
     public async Task<PlanComparisonResultV2> CompareAsync(JsonElement postgresExplainAJson, JsonElement postgresExplainBJson, CancellationToken cancellationToken, bool includeDiagnostics = false)
@@ -162,7 +167,12 @@ AnalysisId: {analysis.AnalysisId}
 - Root inclusive time (ms): {(analysis.Summary.RootInclusiveActualTimeMs?.ToString("F2") ?? "n/a")}
 
 ## Headline Findings ({findings})
-{string.Join("\n", analysis.Findings.Take(12).Select(f => $"- **[{f.Severity}] [{f.Confidence}] {f.Category}** {f.Title}: {f.Summary}{ContextHint(f, byId)}"))}
+{string.Join("\n", analysis.Findings.Take(12).Select(f => $"- `[{f.FindingId}]` **[{f.Severity}] [{f.Confidence}] {f.Category}** {f.Title}: {f.Summary}{ContextHint(f, byId)}"))}
+
+## Optimization suggestions (investigation-oriented)
+{(analysis.OptimizationSuggestions.Count == 0 ? "- none generated for this plan snapshot" : string.Join("\n", analysis.OptimizationSuggestions.Take(8).Select(s =>
+    $"- `[{s.SuggestionId}]` **[{s.Priority}] [{s.Confidence}] {s.Category}** {s.Title}: {s.Summary}\n  - Validate: {string.Join("; ", s.ValidationSteps.Take(2))}")))}
+{(analysis.OptimizationSuggestions.Count > 0 ? "\nThese are evidence-linked next steps, not guaranteed fixes. Use validation steps and EXPLAIN (ANALYZE, BUFFERS) before production changes." : "")}
 
 ## Limitations
 {(analysis.Summary.Warnings.Count == 0 ? "- none observed" : string.Join("\n", analysis.Summary.Warnings.Select(w => $"- {w}")))}
@@ -174,7 +184,7 @@ AnalysisId: {analysis.AnalysisId}
 {analysis.Narrative.WhatProbablyDoesNotMatter}
 
 ## Findings Appendix
-{string.Join("\n", analysis.Findings.Select(f => $"- `{f.RuleId}` **[{f.Severity}] [{f.Confidence}]** {f.Title} (nodes: {NodeListLabels(f.NodeIds ?? Array.Empty<string>())})"))}
+{string.Join("\n", analysis.Findings.Select(f => $"- `[{f.FindingId}]` `{f.RuleId}` **[{f.Severity}] [{f.Confidence}]** {f.Title} (nodes: {NodeListLabels(f.NodeIds ?? Array.Empty<string>())})"))}
 ";
     }
 
@@ -212,6 +222,14 @@ AnalysisId: {analysis.AnalysisId}
     <p>{System.Net.WebUtility.HtmlEncode(analysis.Narrative.WhereTimeWent)}</p>
     <h2>Headine Findings ({analysis.Findings.Count})</h2>
     {findingsHtml}
+    <h2>Optimization suggestions</h2>
+    <p style=""opacity:.85"">Investigation-oriented next steps from the Phase 32 engine. Not prescriptions.</p>
+    <ul>
+      {(analysis.OptimizationSuggestions.Count == 0
+        ? "<li>none for this snapshot</li>"
+        : string.Join("", analysis.OptimizationSuggestions.Take(8).Select(s =>
+            $"<li><b>[{s.Priority}] [{s.Confidence}] {s.Category}</b> {System.Net.WebUtility.HtmlEncode(s.Title)}<br/>{System.Net.WebUtility.HtmlEncode(s.Summary)}</li>")))}
+    </ul>
     <h2>Limitations</h2>
     <ul>
       {(analysis.Summary.Warnings.Count == 0 ? "<li>none observed</li>" : string.Join("", analysis.Summary.Warnings.Select(w => $"<li>{System.Net.WebUtility.HtmlEncode(w)}</li>")))}
@@ -238,7 +256,11 @@ AnalysisId: {analysis.AnalysisId}
             if (cd?.Highlights.Count > 0)
                 ctxHint = $" (ctx: {string.Join("; ", cd.Highlights.Take(2))})";
 
-            return $"- **{d.NodeTypeA} → {d.NodeTypeB}{rel}** (conf {d.MatchConfidence}, score {d.MatchScore:F2}): time Δ {time}, reads Δ {reads}{ctxHint}";
+            var pairRef = pair is not null && !string.IsNullOrEmpty(pair.PairArtifactId)
+                ? $" `[{pair.PairArtifactId}]`"
+                : "";
+
+            return $"- **{d.NodeTypeA} → {d.NodeTypeB}{rel}**{pairRef} (conf {d.MatchConfidence}, score {d.MatchScore:F2}): time Δ {time}, reads Δ {reads}{ctxHint}";
         }
 
         var s = comparison.Summary;
@@ -266,10 +288,14 @@ ComparisonId: {comparison.ComparisonId}
 {(comparison.IndexComparison.OverviewLines.Count == 0 ? "- No plan-level index posture deltas surfaced." : string.Join("\n", comparison.IndexComparison.OverviewLines.Select(l => $"- {l}")))}
 {(comparison.IndexComparison.InsightDiffs.Count == 0 ? "\n- No index insight diffs (lists may be empty or unchanged)." : string.Join("", comparison.IndexComparison.InsightDiffs.Take(12).Select(d =>
 {
-    var link = d.RelatedFindingDiffIndexes.Count > 0
-        ? $" _(related findings diff #{string.Join(", #", d.RelatedFindingDiffIndexes)})_"
-        : "";
-    return $"\n- **{d.Kind}**{link}: {d.Summary}";
+    var byId = d.RelatedFindingDiffIds is { Count: > 0 }
+        ? string.Join(", ", d.RelatedFindingDiffIds.Select(id => $"[{id}]"))
+        : d.RelatedFindingDiffIndexes.Count > 0
+            ? string.Join(", ", d.RelatedFindingDiffIndexes.Select(i => $"#{i}"))
+            : "";
+    var link = byId.Length > 0 ? $" _(related findings: {byId})_" : "";
+    var idPart = string.IsNullOrEmpty(d.InsightDiffId) ? "" : $" `[{d.InsightDiffId}]`";
+    return $"\n- **{d.Kind}**{idPart}{link}: {d.Summary}";
 })))}
 {(comparison.IndexComparison.EitherPlanSuggestsChunkedBitmapWorkload ? "\n- Note: at least one plan matches the chunked Append+bitmap-heuristic; treat heavy I/O as potentially a pruning/shape problem, not only missing indexes." : "")}
 
@@ -283,20 +309,37 @@ ComparisonId: {comparison.ComparisonId}
 ### New / worsened
 {(newOrWorse.Length == 0 ? "- none" : string.Join("\n", newOrWorse.Select(i =>
 {
-    var ix = i.RelatedIndexDiffIndexes.Count > 0
-        ? $" _(related index insight diff #{string.Join(", #", i.RelatedIndexDiffIndexes)})_"
-        : "";
-    return $"- **{i.ChangeType}** `{i.RuleId}`{ix}: {i.Summary}";
+    var byId = i.RelatedIndexDiffIds is { Count: > 0 }
+        ? string.Join(", ", i.RelatedIndexDiffIds.Select(id => $"[{id}]"))
+        : i.RelatedIndexDiffIndexes.Count > 0
+            ? string.Join(", ", i.RelatedIndexDiffIndexes.Select(x => $"#{x}"))
+            : "";
+    var ix = byId.Length > 0 ? $" _(related index changes: {byId})_" : "";
+    var idPart = string.IsNullOrEmpty(i.DiffId) ? "" : $" `[{i.DiffId}]`";
+    return $"- **{i.ChangeType}**{idPart} `{i.RuleId}`{ix}: {i.Summary}";
 })))}
 
 ### Resolved
 {(resolved.Length == 0 ? "- none" : string.Join("\n", resolved.Select(i =>
 {
-    var ix = i.RelatedIndexDiffIndexes.Count > 0
-        ? $" _(related index insight diff #{string.Join(", #", i.RelatedIndexDiffIndexes)})_"
-        : "";
-    return $"- **Resolved** `{i.RuleId}`{ix}: {i.Summary}";
+    var byId = i.RelatedIndexDiffIds is { Count: > 0 }
+        ? string.Join(", ", i.RelatedIndexDiffIds.Select(id => $"[{id}]"))
+        : i.RelatedIndexDiffIndexes.Count > 0
+            ? string.Join(", ", i.RelatedIndexDiffIndexes.Select(x => $"#{x}"))
+            : "";
+    var ix = byId.Length > 0 ? $" _(related index changes: {byId})_" : "";
+    var idPart = string.IsNullOrEmpty(i.DiffId) ? "" : $" `[{i.DiffId}]`";
+    return $"- **Resolved**{idPart} `{i.RuleId}`{ix}: {i.Summary}";
 })))}
+
+## Next steps after this change (compare)
+{(comparison.CompareOptimizationSuggestions.Count == 0
+    ? "- No compare-scoped suggestions (or plans are very similar)."
+    : string.Join("\n", comparison.CompareOptimizationSuggestions.Take(6).Select(s =>
+        $"- `[{s.SuggestionId}]` **[{s.Priority}] [{s.Confidence}]** {s.Title}: {s.Summary}")))}
+{(comparison.CompareOptimizationSuggestions.Count > 0
+    ? "\nCompare suggestions emphasize what to try on plan B given the diff—not a repeat of the full analyze list."
+    : "")}
 
 ## Uncertainty / limitations
 - Node-to-node correspondence is heuristic (greedy matching); treat low-confidence matches as investigative leads.

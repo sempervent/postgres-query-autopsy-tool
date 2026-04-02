@@ -11,5 +11,6 @@ public sealed record PlanAnalysisResult(
     AnalysisNarrative Narrative,
     PlanSummary Summary,
     PlanIndexOverview IndexOverview,
-    IReadOnlyList<PlanIndexInsight> IndexInsights);
+    IReadOnlyList<PlanIndexInsight> IndexInsights,
+    IReadOnlyList<OptimizationSuggestion> OptimizationSuggestions);
 

@@ -30,6 +30,7 @@ public sealed class ComparisonNarrativeSideHintsTests
             Loops: new NumericDelta(null, null, null, null));
 
         var pair = new NodePairDetail(
+            PairArtifactId: "pair_unit_test",
             Identity: new NodePairIdentity(
                 NodeIdA: "a",
                 NodeIdB: "b",

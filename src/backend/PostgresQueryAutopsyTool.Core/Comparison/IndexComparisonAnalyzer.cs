@@ -430,7 +430,9 @@ public static class IndexComparisonAnalyzer
             null,
             ia.AccessPathFamily,
             null,
-            Array.Empty<int>());
+            Array.Empty<int>(),
+            "",
+            null);
 
     private static IndexInsightDiffItem NewOnly(PlanIndexInsight ib, IReadOnlyDictionary<string, string> mapBtoA)
     {
@@ -444,7 +446,9 @@ public static class IndexComparisonAnalyzer
             ib.NodeId,
             null,
             ib.AccessPathFamily,
-            Array.Empty<int>());
+            Array.Empty<int>(),
+            "",
+            null);
     }
 
     private static IndexInsightDiffItem Item(
@@ -456,5 +460,5 @@ public static class IndexComparisonAnalyzer
         string? nodeB,
         string? famA,
         string? famB)
-        => new(kind, summary, ia, ib, nodeA, nodeB, famA, famB, Array.Empty<int>());
+        => new(kind, summary, ia, ib, nodeA, nodeB, famA, famB, Array.Empty<int>(), "", null);
 }

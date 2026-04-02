@@ -28,3 +28,20 @@ export function relatedFindingRuleHints(c: PlanComparisonResult | null, findingI
   }
   return out
 }
+
+/** Rule tails from stable finding diff ids (`fd_*`). */
+export function relatedFindingRuleHintsByDiffIds(
+  c: PlanComparisonResult | null,
+  diffIds: string[] | undefined | null,
+): string[] {
+  const items = c?.findingsDiff?.items
+  if (!items?.length || !diffIds?.length) return []
+  const out: string[] = []
+  for (const id of diffIds) {
+    const f = items.find((x) => x.diffId === id)
+    if (!f?.ruleId) continue
+    out.push(findingRuleTail(f.ruleId))
+    if (out.length >= 3) break
+  }
+  return out
+}

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import type { CSSProperties } from 'react'
-import type { AnalysisFinding, AnalyzedPlanNode, PlanAnalysisResult } from '../api/types'
+import type { AnalysisFinding, AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../api/types'
 import { analyzePlanWithQuery, exportHtml, exportJson, exportMarkdown } from '../api/client'
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel } from '../presentation/nodeLabels'
 import { joinSideContextLineForNode } from '../presentation/joinPainHints'
@@ -16,6 +17,16 @@ import {
   indexOverviewSummaryLine,
 } from '../presentation/indexInsightPresentation'
 import { findingReferenceText, hotspotReferenceText, nodeReferenceText } from '../presentation/nodeReferences'
+import {
+  compareSuggestionsByPriority,
+  optimizationCategoryLabel,
+  suggestionConfidenceLabel,
+  suggestionPriorityLabel,
+} from '../presentation/optimizationSuggestionsPresentation'
+import {
+  analyzeDeepLinkPath,
+  buildAnalyzeDeepLinkSearchParams,
+} from '../presentation/artifactLinks'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { ClickableRow } from '../components/ClickableRow'
 import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
@@ -38,6 +49,8 @@ function downloadText(filename: string, text: string, mime: string) {
 }
 
 export default function AnalyzePage() {
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [input, setInput] = useState('')
   const [queryText, setQueryText] = useState('')
   const [analysis, setAnalysis] = useState<PlanAnalysisResult | null>(null)
@@ -53,6 +66,7 @@ export default function AnalyzePage() {
   const [nodeSearch, setNodeSearch] = useState('')
   const [findingSearch, setFindingSearch] = useState('')
   const [minSeverity, setMinSeverity] = useState<number>(1) // default: Low+
+  const [expandedOptimizationId, setExpandedOptimizationId] = useState<string | null>(null)
 
   const byId = useMemo(() => {
     if (!analysis) return new Map<string, AnalyzedPlanNode>()
@@ -70,6 +84,20 @@ export default function AnalyzePage() {
   const copyNode = useCopyFeedback()
   const copyHotspot = useCopyFeedback()
   const copyFinding = useCopyFeedback()
+  const copyAnalyzeLink = useCopyFeedback()
+  const hydratedAnalysisId = useRef<string | null>(null)
+
+  /** One-time hydrate from `?node=` when a new analysis result arrives (no continuous URL↔state sync — avoids router update loops). */
+  useLayoutEffect(() => {
+    if (!analysis) {
+      hydratedAnalysisId.current = null
+      return
+    }
+    if (hydratedAnalysisId.current === analysis.analysisId) return
+    hydratedAnalysisId.current = analysis.analysisId
+    const n = searchParams.get('node')
+    if (n && analysis.nodes.some((x) => x.nodeId === n)) setSelectedNodeId(n)
+  }, [analysis, searchParams])
 
   function nodeLabel(n: AnalyzedPlanNode) {
     return nodeShortLabel(n, byId)
@@ -89,6 +117,17 @@ export default function AnalyzePage() {
   const findingsForSelectedNode = useMemo(() => {
     if (!analysis || !selectedNodeId) return []
     return analysis.findings.filter((f) => (f.nodeIds ?? []).includes(selectedNodeId))
+  }, [analysis, selectedNodeId])
+
+  const topOptimizationSuggestions = useMemo(() => {
+    const raw = analysis?.optimizationSuggestions ?? []
+    return [...raw].sort(compareSuggestionsByPriority).slice(0, 5)
+  }, [analysis])
+
+  const relatedOptimizationForSelectedNode = useMemo((): OptimizationSuggestion | null => {
+    if (!analysis?.optimizationSuggestions?.length || !selectedNodeId) return null
+    const hits = analysis.optimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(selectedNodeId))
+    return hits.sort(compareSuggestionsByPriority)[0] ?? null
   }, [analysis, selectedNodeId])
 
   function matchesNodeSearch(n: AnalyzedPlanNode) {
@@ -540,6 +579,106 @@ export default function AnalyzePage() {
       </section>
 
       <aside style={{ minWidth: 0 }}>
+        {analysis && topOptimizationSuggestions.length > 0 ? (
+          <section style={{ marginBottom: 16 }} aria-label="Optimization suggestions">
+            <h2 style={{ marginTop: 0 }}>Optimization suggestions</h2>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 10 }}>
+              Evidence-linked next steps—not guaranteed fixes. Expand for rationale, cautions, and validation.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {topOptimizationSuggestions.map((s) => {
+                const expanded = expandedOptimizationId === s.suggestionId
+                const target = (s.targetNodeIds ?? [])[0]
+                return (
+                  <div
+                    key={s.suggestionId}
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      background: 'color-mix(in srgb, var(--accent-bg) 12%, transparent)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.35 }}>{s.title}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          border: '1px solid var(--border)',
+                          fontFamily: 'var(--mono)',
+                        }}
+                      >
+                        {optimizationCategoryLabel(s.category)}
+                      </span>
+                      <span style={{ fontSize: 11, opacity: 0.85 }}>{suggestionConfidenceLabel(s.confidence)}</span>
+                      <span style={{ fontSize: 11, opacity: 0.85 }}>{suggestionPriorityLabel(s.priority)}</span>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 13, opacity: 0.92 }}>{s.summary}</div>
+                    {s.validationSteps?.length ? (
+                      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.88 }}>
+                        <b>Validate by:</b> {s.validationSteps[0]}
+                        {s.validationSteps.length > 1 ? ` (+${s.validationSteps.length - 1} more)` : ''}
+                      </div>
+                    ) : null}
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {target ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNodeId(target)}
+                          style={{ fontSize: 12, padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                        >
+                          Show node {target}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedOptimizationId(expanded ? null : s.suggestionId)}
+                        style={{ fontSize: 12, padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                      >
+                        {expanded ? 'Hide detail' : 'Why + cautions'}
+                      </button>
+                    </div>
+                    {expanded ? (
+                      <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, opacity: 0.9 }}>
+                        <div style={{ marginBottom: 8 }}>
+                          <b>Rationale:</b> {s.rationale}
+                        </div>
+                        {s.details ? (
+                          <div style={{ marginBottom: 8, whiteSpace: 'pre-wrap' }}>
+                            <b>Details:</b> {s.details}
+                          </div>
+                        ) : null}
+                        {s.cautions?.length ? (
+                          <div style={{ marginBottom: 8 }}>
+                            <b>Cautions:</b>
+                            <ul style={{ margin: '4px 0 0 0', paddingLeft: 18 }}>
+                              {s.cautions.map((c) => (
+                                <li key={c}>{c}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {s.validationSteps?.length ? (
+                          <div>
+                            <b>Validation steps:</b>
+                            <ul style={{ margin: '4px 0 0 0', paddingLeft: 18 }}>
+                              {s.validationSteps.map((v) => (
+                                <li key={v}>{v}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <h2>Findings</h2>
         {analysis ? (
           <>
@@ -650,6 +789,13 @@ export default function AnalyzePage() {
                     </div>
                   )
                 })()}
+                {relatedOptimizationForSelectedNode ? (
+                  <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }} aria-label="Related optimization suggestion">
+                    <b>Related optimization suggestion</b>
+                    <div style={{ marginTop: 4, fontWeight: 700 }}>{relatedOptimizationForSelectedNode.title}</div>
+                    <div style={{ marginTop: 4, opacity: 0.9 }}>{relatedOptimizationForSelectedNode.summary}</div>
+                  </div>
+                ) : null}
                 {(() => {
                   const insights = indexInsightsForNodeId(analysis, selectedNode.nodeId)
                   if (!insights.length) return null
@@ -682,7 +828,19 @@ export default function AnalyzePage() {
                   >
                     Copy reference
                   </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!selectedNodeId) return
+                      const path = analyzeDeepLinkPath(location.pathname, buildAnalyzeDeepLinkSearchParams(selectedNodeId))
+                      await copyAnalyzeLink.copy(`${window.location.origin}${path}`, 'Copied deep link')
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                  >
+                    Copy link
+                  </button>
                   {copyNode.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyNode.status}</div> : null}
+                  {copyAnalyzeLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyAnalyzeLink.status}</div> : null}
                 </div>
                 <details style={{ marginTop: 6 }}>
                   <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>

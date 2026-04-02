@@ -44,7 +44,7 @@ Convention:
 
 ## Large real-world regression fixture
 
-- `complex_timescaledb_query.json` (+ `complex_timescaledb_query.sql`) — **TimescaleDB / chunk-heavy** plan shape used as an end-to-end regression asset (not a minimal synthetic). It includes:
+- `complex_timescaledb_query.json` (+ `complex_timescaledb_query.sql`) — **TimescaleDB / chunk-heavy** plan shape used as an end-to-end regression asset (not a minimal synthetic). **Phase 32** uses it as a guardrail for **optimization suggestions**: the engine should surface **workload-shape / chunk / window / ordering / aggregate** style guidance when the **P** chunked-bitmap heuristic applies, and must **not** reduce the story to naive standalone “add an index” bullets. It includes:
   - top-level and nested **flat** buffer keys (`Shared Read Blocks`, temp read/write, and local fields)
   - substantial **temp I/O** and **external merge** sort (`Sort Method` / `Sort Space Type` on operators and on **worker** rows)
   - **Gather Merge**, partial/finalize **Aggregate**, and many **`Workers[]`** entries with per-worker buffers and sort metadata

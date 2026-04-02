@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import type { NodePairDetail, PlanComparisonResult } from '../api/types'
 import { comparePlansWithDiagnostics } from '../api/client'
 import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presentation/compareBranchContext'
@@ -15,12 +16,26 @@ import {
   compareWhatChangedMostCopy,
 } from '../presentation/comparePresentation'
 import { accessPathChangeCue } from '../presentation/indexInsightPresentation'
+import {
+  compareSuggestionsByPriority,
+  optimizationCategoryLabel,
+  suggestionConfidenceLabel,
+  suggestionPriorityLabel,
+} from '../presentation/optimizationSuggestionsPresentation'
+import {
+  ArtifactDomKind,
+  buildCompareDeepLinkSearchParams,
+  compareDeepLinkPath,
+  scrollArtifactIntoView,
+} from '../presentation/artifactLinks'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { CompareBranchStrip } from '../components/CompareBranchStrip'
 import { ClickableRow } from '../components/ClickableRow'
 import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
 
 export default function ComparePage() {
+  const location = useLocation()
+  const [, setSearchParams] = useSearchParams()
   const [planA, setPlanA] = useState('')
   const [planB, setPlanB] = useState('')
   const [comparison, setComparison] = useState<PlanComparisonResult | null>(null)
@@ -45,14 +60,26 @@ export default function ComparePage() {
     return first ? { a: first.nodeIdA, b: first.nodeIdB } : null
   }, [improved, worsened])
 
+  const urlResolvedPair = useMemo(() => {
+    if (!comparison) return null
+    const q = new URLSearchParams(location.search).get('pair')
+    if (!q) return null
+    const pd = pairDetails.find((p) => p.pairArtifactId === q)
+    return pd ? { a: pd.identity.nodeIdA, b: pd.identity.nodeIdB } : null
+  }, [comparison, pairDetails, location.search])
+
   const [selectedPair, setSelectedPair] = useState<{ a: string; b: string } | null>(null)
-  const [highlightFindingIdx, setHighlightFindingIdx] = useState<number | null>(null)
-  const [highlightIndexDiffIdx, setHighlightIndexDiffIdx] = useState<number | null>(null)
+  const [highlightFindingDiffId, setHighlightFindingDiffId] = useState<string | null>(null)
+  const [highlightIndexInsightDiffId, setHighlightIndexInsightDiffId] = useState<string | null>(null)
+  const [highlightSuggestionId, setHighlightSuggestionId] = useState<string | null>(null)
   const copyPair = useCopyFeedback()
   const copyFinding = useCopyFeedback()
   const copyNav = useCopyFeedback()
+  const copyDeepLink = useCopyFeedback()
+  const lastSyncedCompareQs = useRef<string | null>(null)
+  const hydratedCompareHighlightFor = useRef<string | null>(null)
 
-  const effectivePair = selectedPair ?? selectedDefault
+  const effectivePair = selectedPair ?? urlResolvedPair ?? selectedDefault
   const pairSelected = (nodeIdA: string, nodeIdB: string) =>
     effectivePair != null && effectivePair.a === nodeIdA && effectivePair.b === nodeIdB
 
@@ -123,6 +150,143 @@ export default function ComparePage() {
   const findingsNewCount = diffItems.filter((i) => String(i.changeType) === 'New').length
   const findingsResolvedCount = diffItems.filter((i) => String(i.changeType) === 'Resolved').length
 
+  const compareOptimizationTop = useMemo(() => {
+    const raw = comparison?.compareOptimizationSuggestions ?? []
+    return [...raw].sort(compareSuggestionsByPriority).slice(0, 5)
+  }, [comparison])
+
+  const compareOptForPair = useMemo(() => {
+    if (!comparison?.compareOptimizationSuggestions?.length || !effectivePair) return null
+    const b = effectivePair.b
+    const hit = comparison.compareOptimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(b))
+    return hit.sort(compareSuggestionsByPriority)[0] ?? null
+  }, [comparison, effectivePair])
+
+  useLayoutEffect(() => {
+    if (!comparison) {
+      hydratedCompareHighlightFor.current = null
+      return
+    }
+    if (hydratedCompareHighlightFor.current === comparison.comparisonId) return
+    hydratedCompareHighlightFor.current = comparison.comparisonId
+
+    const finding = new URLSearchParams(location.search).get('finding')
+    const indexDiff = new URLSearchParams(location.search).get('indexDiff')
+    const suggestion = new URLSearchParams(location.search).get('suggestion')
+    if (finding && comparison.findingsDiff.items.some((x) => x.diffId === finding)) setHighlightFindingDiffId(finding)
+    else setHighlightFindingDiffId(null)
+    const insightDiffs = comparison.indexComparison?.insightDiffs ?? []
+    if (indexDiff && insightDiffs.some((x) => x.insightDiffId === indexDiff)) {
+      setHighlightIndexInsightDiffId(indexDiff)
+    } else setHighlightIndexInsightDiffId(null)
+    if (
+      suggestion &&
+      (comparison.compareOptimizationSuggestions ?? []).some((x) => x.suggestionId === suggestion)
+    ) {
+      setHighlightSuggestionId(suggestion)
+    } else setHighlightSuggestionId(null)
+  }, [comparison, location.search])
+
+  useEffect(() => {
+    lastSyncedCompareQs.current = null
+  }, [comparison?.comparisonId])
+
+  useEffect(() => {
+    if (!comparison) return
+    const urlPair = new URLSearchParams(location.search).get('pair')
+    const urlPairValid = Boolean(urlPair && pairDetails.some((p) => p.pairArtifactId === urlPair))
+
+    const pdExplicit =
+      selectedPair != null
+        ? pairDetails.find((p) => p.identity.nodeIdA === selectedPair.a && p.identity.nodeIdB === selectedPair.b)
+        : null
+    const pdEffective =
+      effectivePair != null
+        ? pairDetails.find((p) => p.identity.nodeIdA === effectivePair.a && p.identity.nodeIdB === effectivePair.b)
+        : null
+
+    const pairArtifactId =
+      selectedPair != null
+        ? pdExplicit?.pairArtifactId ?? null
+        : urlPairValid
+          ? urlPair!
+          : pdEffective?.pairArtifactId ?? null
+
+    const insightDiffs = comparison.indexComparison?.insightDiffs ?? []
+    const findingParam = new URLSearchParams(location.search).get('finding')
+    const findingDiffId =
+      highlightFindingDiffId ??
+      (findingParam && comparison.findingsDiff.items.some((x) => x.diffId === findingParam) ? findingParam : null)
+
+    const indexParam = new URLSearchParams(location.search).get('indexDiff')
+    const indexInsightDiffId =
+      highlightIndexInsightDiffId ??
+      (indexParam && insightDiffs.some((x) => x.insightDiffId === indexParam) ? indexParam : null)
+
+    const sugParam = new URLSearchParams(location.search).get('suggestion')
+    const suggestionId =
+      highlightSuggestionId ??
+      (sugParam && (comparison.compareOptimizationSuggestions ?? []).some((s) => s.suggestionId === sugParam)
+        ? sugParam
+        : null)
+
+    const next = buildCompareDeepLinkSearchParams({
+      pairArtifactId,
+      findingDiffId,
+      indexInsightDiffId,
+      suggestionId,
+    })
+    const nextQs = next.toString()
+    const curNorm = location.search.startsWith('?') ? location.search.slice(1) : location.search
+    if (nextQs === curNorm) {
+      lastSyncedCompareQs.current = nextQs
+      return
+    }
+    if (nextQs === lastSyncedCompareQs.current) return
+    lastSyncedCompareQs.current = nextQs
+    setSearchParams(next, { replace: true })
+  }, [
+    comparison,
+    comparison?.comparisonId,
+    effectivePair?.a,
+    effectivePair?.b,
+    selectedPair?.a,
+    selectedPair?.b,
+    pairDetails,
+    highlightFindingDiffId,
+    highlightIndexInsightDiffId,
+    highlightSuggestionId,
+    location.search,
+    setSearchParams,
+  ])
+
+  useEffect(() => {
+    if (!highlightFindingDiffId) return
+    const t = window.setTimeout(
+      () => scrollArtifactIntoView(ArtifactDomKind.findingDiff, highlightFindingDiffId),
+      60,
+    )
+    return () => window.clearTimeout(t)
+  }, [highlightFindingDiffId, comparison?.comparisonId])
+
+  useEffect(() => {
+    if (!highlightIndexInsightDiffId) return
+    const t = window.setTimeout(
+      () => scrollArtifactIntoView(ArtifactDomKind.indexInsightDiff, highlightIndexInsightDiffId),
+      60,
+    )
+    return () => window.clearTimeout(t)
+  }, [highlightIndexInsightDiffId, comparison?.comparisonId])
+
+  useEffect(() => {
+    if (!highlightSuggestionId) return
+    const t = window.setTimeout(
+      () => scrollArtifactIntoView(ArtifactDomKind.compareSuggestion, highlightSuggestionId),
+      60,
+    )
+    return () => window.clearTimeout(t)
+  }, [highlightSuggestionId, comparison?.comparisonId])
+
   async function onCompare() {
     setError(null)
     setLoading(true)
@@ -133,8 +297,9 @@ export default function ComparePage() {
       const result = await comparePlansWithDiagnostics(a, b, includeDiagnostics)
       setComparison(result)
       setSelectedPair(null)
-      setHighlightFindingIdx(null)
-      setHighlightIndexDiffIdx(null)
+      setHighlightFindingDiffId(null)
+      setHighlightIndexInsightDiffId(null)
+      setHighlightSuggestionId(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -341,36 +506,67 @@ export default function ComparePage() {
                   ) : null}
                   {indexSection.topInsightDiffs.length ? (
                     <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                      {indexSection.topInsightDiffs.map((row) => (
-                        <li
-                          key={`${row.diffIndex}-${row.kindLabel}-${row.summary.slice(0, 40)}`}
-                          style={{
-                            marginBottom: 6,
-                            padding: '4px 0',
-                            borderRadius: 8,
-                            outline: highlightIndexDiffIdx === row.diffIndex ? '2px solid var(--accent-border)' : 'none',
-                            outlineOffset: 2,
-                          }}
-                        >
-                          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.85 }}>{row.kindLabel} · </span>
-                          {row.summary}
-                          {row.relatedFindingHints.length ? (
-                            <div style={{ marginTop: 4, fontSize: 11, opacity: 0.88, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                              <span>{relatedFindingChangesCue(row.relatedFindingIndexes.length)}</span>
-                              <span style={{ opacity: 0.85 }}>({row.relatedFindingHints.join(' · ')})</span>
-                              {row.relatedFindingIndexes[0] != null ? (
-                                <button
-                                  type="button"
-                                  style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
-                                  onClick={() => setHighlightFindingIdx(row.relatedFindingIndexes[0]!)}
-                                >
-                                  Highlight finding
-                                </button>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </li>
-                      ))}
+                      {indexSection.topInsightDiffs.map((row) => {
+                        const rowHighlighted =
+                          Boolean(row.insightDiffId) && highlightIndexInsightDiffId === row.insightDiffId
+                        return (
+                          <li
+                            key={`${row.diffIndex}-${row.kindLabel}-${row.summary.slice(0, 40)}`}
+                            data-artifact={row.insightDiffId ? ArtifactDomKind.indexInsightDiff : undefined}
+                            data-artifact-id={row.insightDiffId || undefined}
+                            style={{
+                              marginBottom: 6,
+                              padding: '4px 0',
+                              borderRadius: 8,
+                              outline: rowHighlighted ? '2px solid var(--accent-border)' : 'none',
+                              outlineOffset: 2,
+                            }}
+                          >
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.85 }}>{row.kindLabel} · </span>
+                            {row.summary}
+                            {row.relatedFindingHints.length ? (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 11,
+                                  opacity: 0.88,
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  gap: 6,
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <span>{relatedFindingChangesCue(row.relatedFindingIndexes.length)}</span>
+                                <span style={{ opacity: 0.85 }}>({row.relatedFindingHints.join(' · ')})</span>
+                                {row.relatedFindingDiffIds[0] ? (
+                                  <button
+                                    type="button"
+                                    style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
+                                    onClick={() => {
+                                      setHighlightFindingDiffId(row.relatedFindingDiffIds[0]!)
+                                      setHighlightIndexInsightDiffId(null)
+                                    }}
+                                  >
+                                    Highlight finding
+                                  </button>
+                                ) : row.relatedFindingIndexes[0] != null && comparison ? (
+                                  <button
+                                    type="button"
+                                    style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
+                                    onClick={() => {
+                                      const item = comparison.findingsDiff.items[row.relatedFindingIndexes[0]!]
+                                      if (item?.diffId) setHighlightFindingDiffId(item.diffId)
+                                      setHighlightIndexInsightDiffId(null)
+                                    }}
+                                  >
+                                    Highlight finding
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </li>
+                        )
+                      })}
                     </ul>
                   ) : null}
                   {indexSection.chunkedNuance ? (
@@ -379,6 +575,68 @@ export default function ComparePage() {
                       problem—not only “add an index.”
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+              {compareOptimizationTop.length > 0 ? (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: 12,
+                    borderRadius: 12,
+                    border: '1px solid var(--border)',
+                    background: 'color-mix(in srgb, #6366f1 8%, transparent)',
+                  }}
+                  aria-label="Compare optimization suggestions"
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 6 }}>Next steps after this change</div>
+                  <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 8 }}>
+                    Compact cues from the compare engine (plan B + diff)—not the full analyze suggestion list.
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                    {compareOptimizationTop.map((s) => (
+                      <li
+                        key={s.suggestionId}
+                        data-artifact={ArtifactDomKind.compareSuggestion}
+                        data-artifact-id={s.suggestionId}
+                        style={{
+                          marginBottom: 8,
+                          padding: '4px 0',
+                          borderRadius: 8,
+                          outline:
+                            highlightSuggestionId === s.suggestionId ? '2px solid var(--accent-border)' : 'none',
+                          outlineOffset: 2,
+                        }}
+                      >
+                        <div
+                          style={{ fontWeight: 800, cursor: 'pointer' }}
+                          onClick={() => setHighlightSuggestionId(s.suggestionId)}
+                          title="Pin this suggestion for the shared link"
+                        >
+                          {s.title}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, fontSize: 11, opacity: 0.88 }}>
+                          <span style={{ fontFamily: 'var(--mono)' }}>{optimizationCategoryLabel(s.category)}</span>
+                          <span>{suggestionPriorityLabel(s.priority)}</span>
+                          <span>{suggestionConfidenceLabel(s.confidence)}</span>
+                        </div>
+                        <div style={{ marginTop: 4, opacity: 0.9 }}>{s.summary}</div>
+                        {(s.targetNodeIds ?? [])[0] && comparison ? (
+                          <button
+                            type="button"
+                            style={{ marginTop: 6, fontSize: 12, padding: '4px 8px', borderRadius: 8, cursor: 'pointer' }}
+                            onClick={() => {
+                              const targetB = (s.targetNodeIds ?? [])[0]
+                              const m = comparison.matches.find((x) => x.nodeIdB === targetB)
+                              if (m) setSelectedPair({ a: m.nodeIdA, b: m.nodeIdB })
+                              setHighlightSuggestionId(s.suggestionId)
+                            }}
+                          >
+                            Focus pair on node B {(s.targetNodeIds ?? [])[0]}
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
               <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -694,11 +952,21 @@ export default function ComparePage() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {filteredDiffItems.slice(0, 30).map((i, idx) => {
-                      const globalFindingIdx = comparison.findingsDiff.items.indexOf(i)
                       const relIdx = i.relatedIndexDiffIndexes ?? []
+                      const relIds = i.relatedIndexDiffIds ?? []
+                      const rowHighlighted = Boolean(i.diffId) && highlightFindingDiffId === i.diffId
                       return (
+                      <div
+                        key={i.diffId || `${i.ruleId}-${idx}`}
+                        data-artifact={i.diffId ? ArtifactDomKind.findingDiff : undefined}
+                        data-artifact-id={i.diffId || undefined}
+                        style={{
+                          borderRadius: 12,
+                          outline: rowHighlighted ? '2px solid var(--accent-border)' : 'none',
+                          outlineOffset: 2,
+                        }}
+                      >
                       <ClickableRow
-                        key={`${i.ruleId}-${idx}`}
                         selected={(() => {
                           const r = resolveFindingDiffPair(i, comparison.matches)
                           return r ? pairSelected(r.a, r.b) : false
@@ -707,14 +975,13 @@ export default function ComparePage() {
                         onActivate={() => {
                           const r = resolveFindingDiffPair(i, comparison.matches)
                           if (r) setSelectedPair(r)
+                          if (i.diffId) setHighlightFindingDiffId(i.diffId)
                         }}
                         style={{
                           padding: 10,
                           borderRadius: 12,
                           border: '1px solid var(--border)',
                           background: 'transparent',
-                          outline: globalFindingIdx >= 0 && highlightFindingIdx === globalFindingIdx ? '2px solid var(--accent-border)' : 'none',
-                          outlineOffset: 2,
                         }}
                       >
                         <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9 }}>
@@ -737,19 +1004,36 @@ export default function ComparePage() {
                           />
                         </div>
                         <div style={{ fontSize: 13 }}>{i.summary}</div>
-                        {relIdx.length ? (
+                        {relIds.length || relIdx.length ? (
                           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, opacity: 0.85 }}>Related index change</span>
-                            <span style={{ fontSize: 11, opacity: 0.85 }}>{relatedIndexDeltaCue(relIdx.length)}</span>
-                            {relIdx.map((ix) => (
+                            <span style={{ fontSize: 11, opacity: 0.85 }}>
+                              {relatedIndexDeltaCue(relIds.length || relIdx.length)}
+                            </span>
+                            {relIds.map((id) => (
                               <button
-                                key={ix}
+                                key={id}
                                 type="button"
                                 style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  setHighlightIndexDiffIdx(ix)
-                                  setHighlightFindingIdx(null)
+                                  setHighlightIndexInsightDiffId(id)
+                                  setHighlightFindingDiffId(null)
+                                }}
+                              >
+                                {id.length > 14 ? `${id.slice(0, 12)}…` : id}
+                              </button>
+                            ))}
+                            {relIdx.map((ix) => (
+                              <button
+                                key={`ix-${ix}`}
+                                type="button"
+                                style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8, cursor: 'pointer' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const id = comparison.indexComparison?.insightDiffs[ix]?.insightDiffId
+                                  if (id) setHighlightIndexInsightDiffId(id)
+                                  setHighlightFindingDiffId(null)
                                 }}
                               >
                                 Index Δ #{ix}
@@ -758,6 +1042,7 @@ export default function ComparePage() {
                           </div>
                         ) : null}
                       </ClickableRow>
+                      </div>
                       )
                     })}
                   </div>
@@ -817,7 +1102,24 @@ export default function ComparePage() {
                   >
                     Copy reference
                   </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const params = buildCompareDeepLinkSearchParams({
+                        pairArtifactId: selectedDetail.pairArtifactId ?? null,
+                        findingDiffId: highlightFindingDiffId,
+                        indexInsightDiffId: highlightIndexInsightDiffId,
+                        suggestionId: highlightSuggestionId,
+                      })
+                      const path = compareDeepLinkPath(location.pathname, params)
+                      await copyDeepLink.copy(`${window.location.origin}${path}`, 'Copied deep link')
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+                  >
+                    Copy link
+                  </button>
                   {copyPair.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyPair.status}</div> : null}
+                  {copyDeepLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyDeepLink.status}</div> : null}
                 </div>
                 {pairSubtitle(selectedDetail) ? (
                   <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>
@@ -856,6 +1158,13 @@ export default function ComparePage() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                ) : null}
+                {compareOptForPair ? (
+                  <div style={{ marginTop: 10, fontSize: 12, opacity: 0.92 }} aria-label="Compare suggestion for this pair">
+                    <b>Related compare next step</b>
+                    <div style={{ marginTop: 4, fontWeight: 700 }}>{compareOptForPair.title}</div>
+                    <div style={{ marginTop: 4 }}>{compareOptForPair.summary}</div>
                   </div>
                 ) : null}
                 <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>

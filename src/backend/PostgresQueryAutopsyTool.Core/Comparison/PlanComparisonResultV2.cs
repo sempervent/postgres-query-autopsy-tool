@@ -17,5 +17,6 @@ public sealed record PlanComparisonResultV2(
     FindingsDiff FindingsDiff,
     IndexComparisonSummary IndexComparison,
     string Narrative,
+    IReadOnlyList<OptimizationSuggestion> CompareOptimizationSuggestions,
     ComparisonDiagnostics? Diagnostics = null);
 

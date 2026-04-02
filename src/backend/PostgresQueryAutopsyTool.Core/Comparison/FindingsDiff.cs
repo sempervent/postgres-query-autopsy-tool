@@ -25,8 +25,12 @@ public sealed record FindingDiffItem(
     string Summary,
     IReadOnlyDictionary<string, object?> EvidenceA,
     IReadOnlyDictionary<string, object?> EvidenceB,
-    /// <summary>Indices into <c>FindingsDiff.Items</c> companion list are N/A; these index <see cref="IndexComparisonSummary.InsightDiffs"/>.</summary>
-    IReadOnlyList<int> RelatedIndexDiffIndexes);
+    /// <summary>Legacy positional links into <see cref="IndexComparisonSummary.InsightDiffs"/>; prefer <see cref="RelatedIndexDiffIds"/>.</summary>
+    IReadOnlyList<int> RelatedIndexDiffIndexes,
+    /// <summary>Stable comparison-scoped id (e.g. <c>fd_*</c>) for reports and deep links.</summary>
+    string DiffId = "",
+    /// <summary>Stable ids of related index insight diffs (Phase 33).</summary>
+    IReadOnlyList<string>? RelatedIndexDiffIds = null);
 
 public sealed record FindingsDiff(
     IReadOnlyList<FindingDiffItem> Items);

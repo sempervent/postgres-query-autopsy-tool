@@ -1,5 +1,5 @@
-import { expect, test, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 
@@ -122,6 +122,8 @@ vi.mock('../api/client', () => {
               nodeIdA: 'a2',
               nodeIdB: 'b2',
               relatedFindingDiffIndexes: [0],
+              insightDiffId: 'ii_mock_resolved',
+              relatedFindingDiffIds: ['fd_mock_buf'],
             },
             {
               kind: 'new',
@@ -129,6 +131,7 @@ vi.mock('../api/client', () => {
               nodeIdA: null,
               nodeIdB: null,
               relatedFindingDiffIndexes: [],
+              insightDiffId: 'ii_mock_new',
             },
           ],
           narrativeBullets: [],
@@ -136,6 +139,7 @@ vi.mock('../api/client', () => {
         },
         pairDetails: [
           {
+            pairArtifactId: 'pair_mock_worse',
             identity: {
               nodeIdA: 'a2',
               nodeIdB: 'b2',
@@ -165,6 +169,7 @@ vi.mock('../api/client', () => {
             corroborationCues: ['Corroborated: seq-scan-concern (Resolved) ↔ index delta (resolved)'],
           },
           {
+            pairArtifactId: 'pair_mock_join',
             identity: {
               nodeIdA: 'a1',
               nodeIdB: 'b1',
@@ -203,7 +208,9 @@ vi.mock('../api/client', () => {
               severityB: 3,
               title: 't',
               summary: 's',
+              diffId: 'fd_mock_buf',
               relatedIndexDiffIndexes: [0],
+              relatedIndexDiffIds: ['ii_mock_resolved'],
             },
             {
               changeType: 'New',
@@ -213,9 +220,28 @@ vi.mock('../api/client', () => {
               severityB: 1,
               title: 'only b',
               summary: 'resolved via match table',
+              diffId: 'fd_mock_anchor',
             },
           ],
         },
+        compareOptimizationSuggestions: [
+          {
+            suggestionId: 'sg_cmp_mock',
+            category: 'observe_before_change',
+            suggestedActionType: 'validate_with_explain_analyze',
+            title: 'Compare next step mock title',
+            summary: 'Validate plan B with buffers after this structural change.',
+            details: '',
+            rationale: 'mock',
+            confidence: 'medium',
+            priority: 'high',
+            targetNodeIds: ['b2'],
+            relatedFindingIds: [],
+            relatedIndexInsightNodeIds: [],
+            cautions: [],
+            validationSteps: ['EXPLAIN (ANALYZE, BUFFERS).'],
+          },
+        ],
         narrative: 'n',
         diagnostics: null,
       }
@@ -232,6 +258,10 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => {
+  cleanup()
+})
+
 test('compare page is truthful (no stale MVP placeholder copy)', () => {
   render(
     <MemoryRouter initialEntries={['/compare']}>
@@ -243,6 +273,27 @@ test('compare page is truthful (no stale MVP placeholder copy)', () => {
   expect(screen.queryByText(/placeholder diff summary/i)).toBeNull()
   expect(screen.queryByText(/This MVP/i)).toBeNull()
   expect(screen.getByText(/Heuristic node mapping/i)).toBeInTheDocument()
+})
+
+test('compare deep link pair query restores mapped pair after compare', async () => {
+  render(
+    <MemoryRouter
+      initialEntries={[{ pathname: '/compare', search: '?pair=pair_mock_join' }]}
+    >
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  expect(await screen.findByText('Summary')).toBeInTheDocument()
+  await waitFor(() => {
+    const h = screen.getByRole('heading', { name: 'Selected node pair' })
+    const p = h.nextElementSibling as HTMLElement
+    expect(p.textContent).toMatch(/Hash Join/)
+  })
 })
 
 test('compare page renders summary + what changed most and allows selecting a top change', async () => {
@@ -272,6 +323,9 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(screen.getByText(/1 related index delta/)).toBeInTheDocument()
   expect(screen.getByText(/Supported by 1 finding change/)).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Finding ↔ index corroboration' })).toBeInTheDocument()
+  expect(screen.getByLabelText('Compare optimization suggestions')).toBeInTheDocument()
+  expect(screen.getByText('Next steps after this change')).toBeInTheDocument()
+  expect(screen.getAllByText(/Compare next step mock title/).length).toBeGreaterThanOrEqual(1)
 
   fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
   expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
@@ -293,8 +347,10 @@ test('compare navigator uses ClickableRow: no nested buttons, selection syncs ac
 
   const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
   const improvedRow = screen.getByRole('button', { name: /Improved pair:/i })
-  expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
-  expect(improvedRow.getAttribute('aria-pressed')).toBe('false')
+  await waitFor(() => {
+    expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
+    expect(improvedRow.getAttribute('aria-pressed')).toBe('false')
+  })
 
   const diffRow = screen.getByRole('button', { name: /Finding diff: buffer-read-hotspot/i })
   expect(diffRow.getAttribute('aria-pressed')).toBe('true')
@@ -319,6 +375,7 @@ test('navigator Copy pair reference does not change selection', async () => {
 
   const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
   const copyBtn = within(worsenedRow).getByRole('button', { name: /Copy pair reference/i })
+  await waitFor(() => expect(worsenedRow.getAttribute('aria-pressed')).toBe('true'))
   fireEvent.click(copyBtn)
   expect(clipboardWrite).toHaveBeenCalled()
   expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
@@ -339,7 +396,11 @@ test('branch context shows twin paths and clicking a mapped ancestor updates sel
   expect(screen.getByText('Plan A — path to selected')).toBeInTheDocument()
 
   const hashJoinA = screen.getByRole('button', { name: /Plan A branch row: Hash Join/i })
-  expect(screen.getByRole('button', { name: /Plan A branch row: Seq Scan on users/i }).getAttribute('aria-pressed')).toBe('true')
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /Plan A branch row: Seq Scan on users/i }).getAttribute('aria-pressed')).toBe(
+      'true',
+    ),
+  )
 
   fireEvent.click(hashJoinA)
   const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })

@@ -105,6 +105,24 @@ const mockAnalysis = {
       facts: {},
     },
   ],
+  optimizationSuggestions: [
+    {
+      suggestionId: 'sg_test_1',
+      category: 'index_experiment',
+      suggestedActionType: 'create_index_candidate',
+      title: 'Mock optimization suggestion title',
+      summary: 'Mock summary for UI test — validate with EXPLAIN.',
+      details: 'detail',
+      rationale: 'rationale',
+      confidence: 'medium',
+      priority: 'high',
+      targetNodeIds: ['n1'],
+      relatedFindingIds: [],
+      relatedIndexInsightNodeIds: [],
+      cautions: ['caution line'],
+      validationSteps: ['Run EXPLAIN (ANALYZE, BUFFERS).'],
+    },
+  ],
 }
 
 vi.mock('../api/client', () => ({
@@ -155,6 +173,21 @@ test('Analyze findings and hotspots do not nest buttons (valid HTML)', async () 
   expect(nested.length).toBe(0)
 })
 
+test('selected node shows related optimization suggestion when targeted', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan JSON/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByText(/Mock optimization suggestion title/)
+
+  fireEvent.click(screen.getAllByRole('button', { name: /Finding: Test finding/i })[0])
+  expect(await screen.findByLabelText('Related optimization suggestion')).toBeInTheDocument()
+})
+
 test('selected node shows Access path index insight when indexInsights match node', async () => {
   render(
     <MemoryRouter initialEntries={['/']}>
@@ -190,6 +223,22 @@ test('selected node with workers shows worker summary cue and Workers grid', asy
   expect(within(grid).getByText('Total time')).toBeInTheDocument()
   expect(within(grid).getByText('50ms')).toBeInTheDocument()
   expect(within(grid).getByText('55ms')).toBeInTheDocument()
+})
+
+test('optimization suggestions section shows title category and node jump', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan JSON/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByText(/Mock optimization suggestion title/)
+
+  expect(screen.getByLabelText('Optimization suggestions')).toBeInTheDocument()
+  expect(screen.getByText(/Index experiment/i)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Show node n1/i })).toBeInTheDocument()
 })
 
 test('selected node shows Buffer I/O when plan node includes buffer counters', async () => {

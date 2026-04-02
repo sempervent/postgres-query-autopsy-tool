@@ -15,6 +15,8 @@ The backend is organized as a modular monolith:
     - Derived metrics (`DerivedMetricsEngine` → per-node metrics + shares)
     - Findings (`FindingsEngine` + rules → ranked evidence-based findings)
     - Summary + narrative (`PlanSummaryBuilder`, `NarrativeGenerator`)
+    - Optimization suggestions (`OptimizationSuggestionEngine`): consumes findings, `PlanIndexOverview` / `PlanIndexInsight[]`, and per-node `OperatorContextEvidence` (+ worker lists on `NormalizedPlanNode`) to emit ranked, evidence-linked `OptimizationSuggestion` records (categories, action types, cautions, validation steps). **Not** a second findings engine and **not** DDL prescriptions.
+    - Compare-scoped suggestions (`CompareOptimizationSuggestionEngine`): runs after `ComparisonEngine` produces findings diff + `IndexComparisonSummary`, yielding `compareOptimizationSuggestions` oriented to “what to try next on plan B given the change.”
   - Comparison engine (heuristic node mapping + deltas + pair details + findings diff)
   - Report generators (Markdown/HTML/JSON) rendered from `PlanAnalysisResult`
 - `PostgresQueryAutopsyTool.Api`
@@ -36,6 +38,7 @@ The UI uses a small presentation helper layer to keep human-readable labeling co
 - `src/frontend/web/src/presentation/compareBranchContext.ts`: builds the selected-pair **branch view model** (paths, children, mapping/unmatched flags, focal cues) from `PlanComparisonResult` + `matches`
 - `src/frontend/web/src/presentation/workerPresentation.ts`: worker summary line + table row shaping for parallel `workers[]` on Analyze selected node
 - `src/frontend/web/src/presentation/indexInsightPresentation.ts`: plan overview line, per-node insight cards, compare **access path family** cue (`identity.accessPathFamilyA/B` from API)
+- `src/frontend/web/src/presentation/optimizationSuggestionsPresentation.ts`: category/confidence/priority labels + sort order for suggestion cards (Phase 32)
 - `src/frontend/web/src/components/CompareBranchStrip.tsx`: compact twin-column UI wired to the same selection state as the navigator and findings diff
 - `src/frontend/web/src/components/ClickableRow.tsx` + `ReferenceCopyButton.tsx`: shared row navigation + copy affordances without nested `<button>` markup; `ClickableRow` supports `selected` + `selectedEmphasis` (`fill` vs `accent-bar`) for Compare rows that sit on tinted backgrounds
 
@@ -78,10 +81,17 @@ flowchart LR
   E --> G[OperatorEvidenceCollector]
   F --> H[PlanSummaryBuilder]
   H --> I[NarrativeGenerator]
-  E --> J[API response]
+  E --> OS[OptimizationSuggestionEngine]
+  F --> OS
+  H --> R[PlanAnalysisResult]
+  I --> R
+  OS --> R
+  R --> J[API response]
   J --> K[Analyze UI]
   K --> L[presentation/* helpers]
 ```
+
+`IndexSignalAnalyzer` (overview + bounded insights) feeds both findings-related UI and `OptimizationSuggestionEngine` in code; the diagram keeps the spine readable.
 
 ### Compare pipeline
 
@@ -96,7 +106,10 @@ flowchart LR
   E --> F[ContextEvidenceDiffSummarizer]
   E --> G[Findings diff]
   C --> H[Narrative + reports]
-  E --> I[Compare UI]
+  C --> COS[CompareOptimizationSuggestionEngine]
+  COS --> I[Compare UI]
+  E --> I
+  H --> I
 ```
 
 ### Operator evidence propagation
@@ -120,11 +133,15 @@ flowchart TD
   A --> C[presentation/contextBadges]
   A --> D[presentation/joinPainHints]
   A --> E[presentation/hotspotPresentation]
+  A --> F[presentation/artifactLinks]
   B --> P[AnalyzePage / ComparePage]
   C --> P
   D --> P
   E --> P
+  F --> P
 ```
+
+Phase 33: **`presentation/artifactLinks.ts`** centralizes query keys (`pair`, `finding`, `indexDiff`, `suggestion`, `node`), `buildCompareDeepLinkSearchParams` / `buildAnalyzeDeepLinkSearchParams`, and `scrollArtifactIntoView` for `data-artifact` targets. Compare syncs a small set of params from selection; Analyze hydrates `?node=` once per `analysisId` after load.
 
 ## Data flow
 
@@ -163,7 +180,7 @@ This keeps summaries bounded and avoids dumping raw context into prose.
 Plan A JSON + Plan B JSON
 → analyze A + analyze B (same pipeline as above)
 → `NodeMappingEngine` (heuristic mapping + confidence)
-→ `ComparisonEngine` (per-node deltas, improved/worsened areas, findings diff, **index comparison** via `IndexComparisonAnalyzer`, **`FindingIndexDiffLinker`** for reciprocal indexes + pair **corroboration cues**, evidence-based narrative, pair details with **index delta cues**)
+→ `ComparisonEngine` (per-node deltas, improved/worsened areas, findings diff with **`diffId` (`fd_*`)** + id-based cross-links, **index comparison** via `IndexComparisonAnalyzer` with **`insightDiffId` (`ii_*`)**, **`FindingIndexDiffLinker`** for reciprocal **ids** (legacy index arrays retained), pair **`pairArtifactId` (`pair_*`)**, **corroboration cues**, evidence-based narrative, pair details with **index delta cues**)
 → `PlanComparisonResultV2` (API response, UI model, compare report input; includes `IndexComparison` summary)
 
 Diagnostics mode (optional):

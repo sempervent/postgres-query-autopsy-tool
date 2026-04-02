@@ -18,11 +18,14 @@ public sealed class FindingIndexDiffLinkerTests
 
         foreach (var f in withLinks)
         {
+            Assert.NotNull(f.RelatedIndexDiffIds);
+            Assert.Equal(f.RelatedIndexDiffIndexes.Count, f.RelatedIndexDiffIds!.Count);
             foreach (var ii in f.RelatedIndexDiffIndexes)
             {
                 Assert.InRange(ii, 0, cmp.IndexComparison.InsightDiffs.Count);
                 var idx = cmp.IndexComparison.InsightDiffs[ii];
                 Assert.Contains(ii, idx.RelatedFindingDiffIndexes);
+                Assert.Contains(idx.InsightDiffId, f.RelatedIndexDiffIds);
             }
         }
 
@@ -60,7 +63,9 @@ public sealed class FindingIndexDiffLinkerTests
             NodeIdB: null,
             AccessPathFamilyA: null,
             AccessPathFamilyB: null,
-            RelatedFindingDiffIndexes: new[] { 1 });
+            RelatedFindingDiffIndexes: new[] { 1 },
+            InsightDiffId: "ii_testabc",
+            RelatedFindingDiffIds: new[] { "fd_testdef" });
 
         var json = JsonSerializer.Serialize(item, new JsonSerializerOptions
         {
@@ -69,5 +74,7 @@ public sealed class FindingIndexDiffLinkerTests
 
         Assert.Contains("\"kind\":\"resolved\"", json);
         Assert.Contains("\"relatedFindingDiffIndexes\":[1]", json);
+        Assert.Contains("\"insightDiffId\":\"ii_testabc\"", json);
+        Assert.Contains("\"relatedFindingDiffIds\":[\"fd_testdef\"]", json);
     }
 }

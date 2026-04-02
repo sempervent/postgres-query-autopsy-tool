@@ -16,8 +16,9 @@ Mapping confidence is emitted per pair. Treat low-confidence pairs as “suspect
 After a compare run, start at the top:
 
 - **Summary cards**: total runtime, shared reads, severe findings, node count, max depth (Plan B value + delta vs Plan A).
-- **Index changes** (Phase 30+31): plan-level scan-mix deltas, chunked-bitmap posture lines when applicable, and a short list of **bounded index insight diffs**. Each insight row can show **Supported by N finding change(s)** with rule tails and a **Highlight finding** control; indices are cross-linked to `findingsDiff.items` by **array index** (stable after server-side ranking).
-- **Findings ↔ index deltas** (Phase 31): finding diff rows can show **Related index change** / **N related index deltas** with **Index Δ #k** buttons (stop propagation) to outline the matching row in **Index changes**. The selected pair panel adds **Finding ↔ index corroboration** when structured links exist on that mapped pair. Links are **heuristic** (node ids, relation evidence, rule id ↔ `signalKinds` alignment)—not proof of causality.
+- **Index changes** (Phase 30+31, Phase 33 ids): plan-level scan-mix deltas, chunked-bitmap posture lines when applicable, and a short list of **bounded index insight diffs**. Each insight row can show **Supported by N finding change(s)** with rule tails and a **Highlight finding** control. Cross-links use **stable ids** (`fd_*` / `ii_*`) in **`relatedFindingDiffIds`** / **`relatedIndexDiffIds`**; legacy **`relatedFindingDiffIndexes`** / **`relatedIndexDiffIndexes`** remain for backward compatibility but are not the primary reference.
+- **Next steps after this change** (Phase 32): compact **`compareOptimizationSuggestions`** list (not a verbatim copy of plan B’s analyze suggestions). Suggestion ids use the **`sg_`** prefix (content-hash style). Rows may include **`relatedFindingDiffIds`** / **`relatedIndexInsightDiffIds`** when the engine ties a suggestion to specific diff rows. Rows may offer **Focus pair on node B** when a mapped match exists.
+- **Findings ↔ index deltas** (Phase 31+33): finding diff rows can show **Related index change** with **stable id** buttons (and legacy **Index Δ #k** when needed). Outlining uses **`ii_*`** targets so highlights survive reordering. The selected pair panel adds **Finding ↔ index corroboration** when structured links exist on that mapped pair. Links are **heuristic** (node ids, relation evidence, rule id ↔ `signalKinds` alignment)—not proof of causality.
 - **What changed most**: quick-jump to the top worsened and top improved mapped pairs.
 
 ### Navigator: improved / worsened lists + “what changed most”
@@ -51,7 +52,8 @@ The selected pair shows:
 
 - readable pair heading + join branch subtitle (when applicable)
 - **Access path / index delta** (Phase 30): bullets from `pairDetails[].indexDeltaCues` when present (human-readable access-path family change + pair-matched index insight diff lines); if cues are empty but families still differ, a single fallback line is shown
-- a **Copy reference** action for sharing a human-readable pair reference
+- **Related compare next step** (Phase 32): when a `compareOptimizationSuggestion` targets this pair’s plan B `nodeIdB`, show a compact title + summary (does not replace the summary-card suggestion list)
+- **Copy reference** (human-readable pair text) and **Copy link** (full URL with `?pair=`, optional `finding=`, `indexDiff=`, `suggestion=` when present) for shareable reopening of the same selection in the Compare UI
 - **Join side change summary** when supported (hash build / inner waste)
 - context change summary highlights
 - raw operator fields and evidence side-by-side
@@ -64,6 +66,15 @@ Diff finding rows include a subtle **Copy** action that copies a concise human-r
 
 Notes:
 - Compare is **heuristic**: mapping confidence is shown because some rewrites change structure and labels. Treat low-confidence pairs as leads to validate, not guarantees.
+
+## Stable artifact ids & deep links (Phase 33)
+
+- **Pair**: each **`pairDetails[]`** row has **`pairArtifactId`** (`pair_` + short hash) scoped to **`comparisonId`** and the mapped node ids.
+- **Finding diff**: **`findingsDiff.items[].diffId`** (`fd_*`).
+- **Index insight diff**: **`indexComparison.insightDiffs[].insightDiffId`** (`ii_*`).
+- **URL query keys**: `pair`, `finding`, `indexDiff`, `suggestion` (values are the ids above). The UI syncs these when you change selection/highlights; opening a shared link after running compare with the **same plans** reproduces the same ids so the link lines up with reports.
+
+**Limits:** ids are **deterministic from structured fields** for a given comparison; they are **not** stable across different plan JSON or a different **`comparisonId`**. If query params reference ids that are not in the current result, the UI ignores them for selection.
 
 ## Guardrails
 

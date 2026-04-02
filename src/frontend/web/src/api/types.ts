@@ -96,6 +96,28 @@ export type PlanIndexInsight = {
   facts: Record<string, unknown>
 }
 
+/** Phase 32: evidence-backed next-step suggestions (investigation-oriented, not prescriptions). */
+export type OptimizationSuggestion = {
+  suggestionId: string
+  category: string
+  suggestedActionType: string
+  title: string
+  summary: string
+  details: string
+  rationale: string
+  confidence: string
+  priority: string
+  targetNodeIds: string[]
+  relatedFindingIds: string[]
+  relatedIndexInsightNodeIds: string[]
+  cautions: string[]
+  validationSteps: string[]
+  /** Compare payload: stable finding diff ids (`fd_*`). */
+  relatedFindingDiffIds?: string[] | null
+  /** Compare payload: stable index insight diff ids (`ii_*`). */
+  relatedIndexInsightDiffIds?: string[] | null
+}
+
 export type PlanAnalysisResult = {
   analysisId: string
   rootNodeId: string
@@ -107,6 +129,8 @@ export type PlanAnalysisResult = {
   /** Present when analyzed with Phase 29+ backend; treat as empty when absent. */
   indexOverview?: PlanIndexOverview | null
   indexInsights?: PlanIndexInsight[] | null
+  /** Phase 32: ranked optimization / next-step suggestions. */
+  optimizationSuggestions?: OptimizationSuggestion[] | null
 }
 
 export type PlanComparisonFindingDelta = {
@@ -153,8 +177,12 @@ export type FindingDiffItem = {
   severityB?: number | null
   title: string
   summary: string
-  /** Indices into `indexComparison.insightDiffs` (Phase 31). */
+  /** Stable comparison-scoped id (`fd_*`). */
+  diffId?: string | null
+  /** Indices into `indexComparison.insightDiffs` (legacy; prefer `relatedIndexDiffIds`). */
   relatedIndexDiffIndexes?: number[] | null
+  /** Stable ids of related index insight diff rows (`ii_*`). */
+  relatedIndexDiffIds?: string[] | null
 }
 
 export type FindingsDiff = {
@@ -276,8 +304,12 @@ export type IndexInsightDiffItem = {
   nodeIdB?: string | null
   accessPathFamilyA?: string | null
   accessPathFamilyB?: string | null
-  /** Indices into `findingsDiff.items` (Phase 31). */
+  /** Indices into `findingsDiff.items` (legacy; prefer `relatedFindingDiffIds`). */
   relatedFindingDiffIndexes?: number[] | null
+  /** Stable id (`ii_*`). */
+  insightDiffId?: string | null
+  /** Stable ids of related finding diff rows (`fd_*`). */
+  relatedFindingDiffIds?: string[] | null
 }
 
 export type IndexComparisonSummary = {
@@ -288,6 +320,8 @@ export type IndexComparisonSummary = {
 }
 
 export type NodePairDetail = {
+  /** Stable comparison-scoped pair id (`pair_*`). */
+  pairArtifactId?: string | null
   identity: NodePairIdentity
   rawFields: NodePairRawFields
   contextEvidenceA?: OperatorContextEvidence | null
@@ -481,6 +515,8 @@ export type PlanComparisonResult = {
   findingsDiff: FindingsDiff
   indexComparison?: IndexComparisonSummary | null
   narrative: string
+  /** Phase 32: compare-scoped next steps (not identical to plan B analyze list). */
+  compareOptimizationSuggestions?: OptimizationSuggestion[] | null
   diagnostics?: DiagnosticsPayload | null
 }
 
