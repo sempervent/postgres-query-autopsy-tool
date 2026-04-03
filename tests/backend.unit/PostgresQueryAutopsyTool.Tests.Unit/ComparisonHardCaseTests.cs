@@ -123,6 +123,7 @@ public sealed class ComparisonHardCaseTests
             AnalysisId: "test",
             RootNodeId: root.NodeId,
             QueryText: null,
+            ExplainMetadata: null,
             Nodes: metrics,
             Findings: findings,
             Narrative: narrative,

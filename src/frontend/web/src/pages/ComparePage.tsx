@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import type { NodePairDetail, PlanComparisonResult } from '../api/types'
-import { comparePlansWithDiagnostics } from '../api/client'
+import type { NodePairDetail, PlanAnalysisResult, PlanComparisonResult } from '../api/types'
+import {
+  compareWithPlanTexts,
+  ComparePlanParseError,
+  ComparisonNotFoundError,
+  getComparison,
+} from '../api/client'
 import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presentation/compareBranchContext'
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel, pairShortLabel } from '../presentation/nodeLabels'
 import { joinSideBadgesForPair, joinSideSummaryLinesForPair } from '../presentation/joinPainHints'
@@ -26,16 +31,52 @@ import {
   ArtifactDomKind,
   buildCompareDeepLinkSearchParams,
   compareDeepLinkPath,
+  CompareDeepLinkParam,
   scrollArtifactIntoView,
 } from '../presentation/artifactLinks'
+import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
+import { formatDeclaredExplainOptionsLine, plannerCostsLabel } from '../presentation/explainMetadataPresentation'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { CompareBranchStrip } from '../components/CompareBranchStrip'
 import { ClickableRow } from '../components/ClickableRow'
 import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
 
+function CaptureContextColumn({ title, plan }: { title: string; plan: PlanAnalysisResult }) {
+  const optLine = formatDeclaredExplainOptionsLine(plan.explainMetadata ?? null)
+  const norm = plan.planInputNormalization
+  return (
+    <div style={{ padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{title}</div>
+      <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.9 }}>
+        <li>Source query: {plan.queryText?.trim() ? 'provided' : 'not provided'}</li>
+        <li>{plannerCostsLabel(plan.summary.plannerCosts)}</li>
+        <li>
+          Input normalization:{' '}
+          {!norm
+            ? 'not recorded'
+            : norm.kind === 'rawJson'
+              ? 'Parsed raw JSON directly'
+              : norm.kind === 'queryPlanTable'
+                ? 'Normalized QUERY PLAN output'
+                : norm.kind}
+        </li>
+        {optLine ? <li>Declared options (client): {optLine}</li> : <li>No declared EXPLAIN options in payload.</li>}
+        {plan.explainMetadata?.sourceExplainCommand?.trim() ? (
+          <li style={{ marginTop: 6 }}>
+            <span style={{ opacity: 0.85 }}>Recorded command</span>
+            <pre style={{ margin: '4px 0 0', fontSize: 11, whiteSpace: 'pre-wrap', fontFamily: 'var(--mono)' }}>
+              {plan.explainMetadata.sourceExplainCommand.trim()}
+            </pre>
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  )
+}
+
 export default function ComparePage() {
   const location = useLocation()
-  const [, setSearchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [planA, setPlanA] = useState('')
   const [planB, setPlanB] = useState('')
   const [comparison, setComparison] = useState<PlanComparisonResult | null>(null)
@@ -44,6 +85,18 @@ export default function ComparePage() {
   const [includeDiagnostics, setIncludeDiagnostics] = useState(false)
   const [filterNodeType, setFilterNodeType] = useState('')
   const [filterFindingChange, setFilterFindingChange] = useState('')
+  const [queryTextA, setQueryTextA] = useState('')
+  const [queryTextB, setQueryTextB] = useState('')
+  const [sendCompareExplainMetadata, setSendCompareExplainMetadata] = useState(true)
+  const [compareExplainToggles, setCompareExplainToggles] = useState({
+    analyze: true,
+    verbose: true,
+    buffers: true,
+    costs: true,
+  })
+  const [recordedCommandA, setRecordedCommandA] = useState('')
+  const [recordedCommandB, setRecordedCommandB] = useState('')
+  const [loadingPersistedComparison, setLoadingPersistedComparison] = useState(false)
 
   const improved = comparison?.topImprovedNodes ?? []
   const worsened = comparison?.topWorsenedNodes ?? []
@@ -76,8 +129,53 @@ export default function ComparePage() {
   const copyFinding = useCopyFeedback()
   const copyNav = useCopyFeedback()
   const copyDeepLink = useCopyFeedback()
+  const copyShareCompare = useCopyFeedback()
   const lastSyncedCompareQs = useRef<string | null>(null)
   const hydratedCompareHighlightFor = useRef<string | null>(null)
+  const loadPersistedCompareSeqRef = useRef(0)
+  const urlComparisonId = searchParams.get(CompareDeepLinkParam.comparison)?.trim() ?? ''
+
+  const suggestedExplainA = useMemo(
+    () => buildSuggestedExplainSql(queryTextA, compareExplainToggles),
+    [queryTextA, compareExplainToggles.analyze, compareExplainToggles.verbose, compareExplainToggles.buffers, compareExplainToggles.costs],
+  )
+  const suggestedExplainB = useMemo(
+    () => buildSuggestedExplainSql(queryTextB, compareExplainToggles),
+    [queryTextB, compareExplainToggles.analyze, compareExplainToggles.verbose, compareExplainToggles.buffers, compareExplainToggles.costs],
+  )
+
+  useEffect(() => {
+    if (!urlComparisonId) return
+    if (comparison?.comparisonId === urlComparisonId) return
+    let cancelled = false
+    const seq = ++loadPersistedCompareSeqRef.current
+    setLoadingPersistedComparison(true)
+    setError(null)
+    ;(async () => {
+      try {
+        const data = await getComparison(urlComparisonId)
+        if (cancelled || loadPersistedCompareSeqRef.current !== seq) return
+        setComparison(data)
+        setPlanA('')
+        setPlanB('')
+      } catch (e) {
+        if (cancelled || loadPersistedCompareSeqRef.current !== seq) return
+        setComparison(null)
+        setError(
+          e instanceof ComparisonNotFoundError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : String(e),
+        )
+      } finally {
+        if (!cancelled && loadPersistedCompareSeqRef.current === seq) setLoadingPersistedComparison(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [urlComparisonId, comparison?.comparisonId])
 
   const effectivePair = selectedPair ?? urlResolvedPair ?? selectedDefault
   const pairSelected = (nodeIdA: string, nodeIdB: string) =>
@@ -231,6 +329,7 @@ export default function ComparePage() {
         : null)
 
     const next = buildCompareDeepLinkSearchParams({
+      comparisonId: comparison.comparisonId,
       pairArtifactId,
       findingDiffId,
       indexInsightDiffId,
@@ -290,18 +389,56 @@ export default function ComparePage() {
   async function onCompare() {
     setError(null)
     setLoading(true)
+    const p = new URLSearchParams(location.search)
+    p.delete(CompareDeepLinkParam.comparison)
+    lastSyncedCompareQs.current = null
+    setSearchParams(p, { replace: true })
+    loadPersistedCompareSeqRef.current += 1
     setComparison(null)
     try {
-      const a = JSON.parse(planA) as unknown
-      const b = JSON.parse(planB) as unknown
-      const result = await comparePlansWithDiagnostics(a, b, includeDiagnostics)
+      const result = await compareWithPlanTexts({
+        planAText: planA,
+        planBText: planB,
+        queryTextA,
+        queryTextB,
+        diagnostics: includeDiagnostics,
+        explainMetadataA: sendCompareExplainMetadata
+          ? {
+              options: {
+                format: 'json',
+                analyze: compareExplainToggles.analyze,
+                verbose: compareExplainToggles.verbose,
+                buffers: compareExplainToggles.buffers,
+                costs: compareExplainToggles.costs,
+              },
+              sourceExplainCommand: recordedCommandA.trim() || null,
+            }
+          : undefined,
+        explainMetadataB: sendCompareExplainMetadata
+          ? {
+              options: {
+                format: 'json',
+                analyze: compareExplainToggles.analyze,
+                verbose: compareExplainToggles.verbose,
+                buffers: compareExplainToggles.buffers,
+                costs: compareExplainToggles.costs,
+              },
+              sourceExplainCommand: recordedCommandB.trim() || null,
+            }
+          : undefined,
+      })
       setComparison(result)
       setSelectedPair(null)
       setHighlightFindingDiffId(null)
       setHighlightIndexInsightDiffId(null)
       setHighlightSuggestionId(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (e instanceof ComparePlanParseError) {
+        const parts = [`[${e.side}]`, e.message, e.hint].filter((x) => x && String(x).trim().length)
+        setError(parts.join(' '))
+      } else {
+        setError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
       setLoading(false)
     }
@@ -339,7 +476,9 @@ export default function ComparePage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <section>
           <h3 style={{ marginBottom: 6 }}>Plan A</h3>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>“Before” (baseline), if you have one.</div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>
+            “Before” (baseline). Paste JSON or <code>psql</code> <code>QUERY PLAN</code> cell text (same normalization as Analyze).
+          </div>
           <textarea
             value={planA}
             onChange={(e) => setPlanA(e.target.value)}
@@ -354,13 +493,15 @@ export default function ComparePage() {
               color: 'var(--text-h)',
               fontFamily: 'var(--mono)',
             }}
-            placeholder="Paste JSON for Plan A (EXPLAIN ... FORMAT JSON)"
+            placeholder="Plan A: JSON or QUERY PLAN output"
           />
         </section>
 
         <section>
           <h3 style={{ marginBottom: 6 }}>Plan B</h3>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>“After” (changed plan) — index/rewrite/config change.</div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: -6, marginBottom: 8 }}>
+            “After” (changed plan). Same input shapes as Plan A.
+          </div>
           <textarea
             value={planB}
             onChange={(e) => setPlanB(e.target.value)}
@@ -375,15 +516,169 @@ export default function ComparePage() {
               color: 'var(--text-h)',
               fontFamily: 'var(--mono)',
             }}
-            placeholder="Paste JSON for Plan B (EXPLAIN ... FORMAT JSON)"
+            placeholder="Plan B: JSON or QUERY PLAN output"
           />
         </section>
       </div>
 
+      <details style={{ marginTop: 4 }}>
+        <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Optional: source SQL + EXPLAIN metadata (per side)</summary>
+        <p style={{ fontSize: 12, opacity: 0.82, marginTop: 8 }}>
+          Stored with the comparison on the server (SQLite). Toggle options apply to <b>both</b> sides; recorded commands are separate.
+        </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={sendCompareExplainMetadata}
+            onChange={(e) => setSendCompareExplainMetadata(e.target.checked)}
+          />
+          Send EXPLAIN options with compare request
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10, fontSize: 13 }}>
+          {(
+            [
+              ['analyze', 'ANALYZE'],
+              ['verbose', 'VERBOSE'],
+              ['buffers', 'BUFFERS'],
+              ['costs', 'COSTS'],
+            ] as const
+          ).map(([k, label]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={compareExplainToggles[k]}
+                onChange={(e) => setCompareExplainToggles((prev) => ({ ...prev, [k]: e.target.checked }))}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+          <label style={{ fontSize: 12, opacity: 0.85 }}>
+            Source SQL — Plan A
+            <textarea
+              value={queryTextA}
+              onChange={(e) => setQueryTextA(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 72,
+                marginTop: 6,
+                padding: 10,
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-h)',
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+              }}
+              placeholder="SELECT ... (plan A)"
+            />
+          </label>
+          <label style={{ fontSize: 12, opacity: 0.85 }}>
+            Source SQL — Plan B
+            <textarea
+              value={queryTextB}
+              onChange={(e) => setQueryTextB(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 72,
+                marginTop: 6,
+                padding: 10,
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-h)',
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+              }}
+              placeholder="SELECT ... (plan B)"
+            />
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
+          <label style={{ fontSize: 11, opacity: 0.85 }}>
+            Recorded EXPLAIN — A
+            <textarea
+              value={recordedCommandA}
+              onChange={(e) => setRecordedCommandA(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 48,
+                marginTop: 4,
+                padding: 8,
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                fontFamily: 'var(--mono)',
+                fontSize: 11,
+              }}
+            />
+          </label>
+          <label style={{ fontSize: 11, opacity: 0.85 }}>
+            Recorded EXPLAIN — B
+            <textarea
+              value={recordedCommandB}
+              onChange={(e) => setRecordedCommandB(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 48,
+                marginTop: 4,
+                padding: 8,
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                fontFamily: 'var(--mono)',
+                fontSize: 11,
+              }}
+            />
+          </label>
+        </div>
+        {suggestedExplainA || suggestedExplainB ? (
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {suggestedExplainA ? (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 10,
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  fontFamily: 'var(--mono)',
+                  fontSize: 11,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {suggestedExplainA}
+              </pre>
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Add SQL for A to suggest EXPLAIN.</div>
+            )}
+            {suggestedExplainB ? (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: 10,
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  fontFamily: 'var(--mono)',
+                  fontSize: 11,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {suggestedExplainB}
+              </pre>
+            ) : (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Add SQL for B to suggest EXPLAIN.</div>
+            )}
+          </div>
+        ) : null}
+      </details>
+
       <div style={{ display: 'flex', gap: 12 }}>
         <button
           onClick={onCompare}
-          disabled={loading || planA.trim().length === 0 || planB.trim().length === 0}
+          disabled={loading || loadingPersistedComparison || planA.trim().length === 0 || planB.trim().length === 0}
           style={{
             padding: '10px 14px',
             borderRadius: 12,
@@ -401,6 +696,15 @@ export default function ComparePage() {
             setPlanB('')
             setComparison(null)
             setError(null)
+            loadPersistedCompareSeqRef.current += 1
+            const p = new URLSearchParams(location.search)
+            p.delete(CompareDeepLinkParam.comparison)
+            p.delete(CompareDeepLinkParam.pair)
+            p.delete(CompareDeepLinkParam.finding)
+            p.delete(CompareDeepLinkParam.indexDiff)
+            p.delete(CompareDeepLinkParam.suggestion)
+            lastSyncedCompareQs.current = null
+            setSearchParams(p, { replace: true })
           }}
           style={{
             padding: '10px 14px',
@@ -422,13 +726,19 @@ export default function ComparePage() {
         </details>
       </div>
 
+      {loadingPersistedComparison ? (
+        <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
+          Opening shared comparison…
+        </div>
+      ) : null}
+
       {error ? (
         <div style={{ padding: 12, borderRadius: 12, border: '1px solid #f59e0b', color: 'var(--text-h)' }}>
           <b>Error:</b> {error}
         </div>
       ) : null}
 
-      {!comparison && !loading && !error ? (
+      {!comparison && !loading && !loadingPersistedComparison && !error ? (
         <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
           <div style={{ fontWeight: 900 }}>{empty.title}</div>
           <div style={{ marginTop: 6 }}>{empty.body}</div>
@@ -446,9 +756,32 @@ export default function ComparePage() {
         <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
             <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'baseline',
+                  flexWrap: 'wrap',
+                }}
+              >
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Summary</h3>
-                {coverage ? <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{coverage}</div> : null}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {coverage ? <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{coverage}</div> : null}
+                  <button
+                    type="button"
+                    onClick={() => void copyShareCompare.copy(window.location.href, 'Copied share link')}
+                    style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Copy share link
+                  </button>
+                  {copyShareCompare.status ? (
+                    <span style={{ fontSize: 12, opacity: 0.85 }}>{copyShareCompare.status}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.78, marginBottom: 8, fontFamily: 'var(--mono)' }}>
+                ComparisonId {comparison.comparisonId} · stored in server SQLite (survives restart if the DB file is kept)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
                 {summaryCards.map((c) => (
@@ -472,6 +805,13 @@ export default function ComparePage() {
                   </div>
                 ))}
               </div>
+              <details style={{ marginTop: 12 }} aria-label="Plan capture and EXPLAIN context">
+                <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Plan capture / EXPLAIN context (A vs B)</summary>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12 }}>
+                  <CaptureContextColumn title="Plan A (baseline)" plan={comparison.planA} />
+                  <CaptureContextColumn title="Plan B (changed)" plan={comparison.planB} />
+                </div>
+              </details>
               {indexSection && (indexSection.overviewLines.length > 0 || indexSection.topInsightDiffs.length > 0) ? (
                 <div
                   style={{
@@ -1106,6 +1446,7 @@ export default function ComparePage() {
                     type="button"
                     onClick={async () => {
                       const params = buildCompareDeepLinkSearchParams({
+                        comparisonId: comparison.comparisonId,
                         pairArtifactId: selectedDetail.pairArtifactId ?? null,
                         findingDiffId: highlightFindingDiffId,
                         indexInsightDiffId: highlightIndexInsightDiffId,

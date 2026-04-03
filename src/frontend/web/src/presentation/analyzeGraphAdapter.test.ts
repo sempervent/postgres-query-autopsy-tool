@@ -18,6 +18,7 @@ describe('buildAnalyzeGraph', () => {
         maxDepth: 1,
         hasActualTiming: true,
         hasBuffers: false,
+        plannerCosts: 'present',
         topExclusiveTimeHotspotNodeIds: ['root.0'],
         topInclusiveTimeHotspotNodeIds: [],
         topSharedReadHotspotNodeIds: [],

@@ -57,6 +57,7 @@ public sealed class NarrativeGeneratorLabelTests
             RootInclusiveActualTimeMs: 10,
             HasActualTiming: true,
             HasBuffers: false,
+            PlannerCosts: PlannerCostPresence.Present,
             TopExclusiveTimeHotspotNodeIds: new[] { "root.0" },
             TopInclusiveTimeHotspotNodeIds: Array.Empty<string>(),
             TopSharedReadHotspotNodeIds: Array.Empty<string>(),

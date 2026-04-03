@@ -37,7 +37,7 @@ public sealed class CompareOptimizationSuggestionEngineTests
         var overview = IndexSignalAnalyzer.BuildOverview(metrics, ctx);
         var insights = IndexSignalAnalyzer.BuildInsights(metrics, ctx, overview);
         var core = new PlanAnalysisResult(
-            "t", root.NodeId, null, metrics, findings, narrative, summary, overview, insights,
+            "t", root.NodeId, null, null, metrics, findings, narrative, summary, overview, insights,
             Array.Empty<OptimizationSuggestion>());
         return core with { OptimizationSuggestions = OptimizationSuggestionEngine.Build(core) };
     }

@@ -18,6 +18,7 @@ function minimalComparison(): PlanComparisonResult {
       maxDepth: 1,
       hasActualTiming: true,
       hasBuffers: true,
+      plannerCosts: 'present' as const,
       topExclusiveTimeHotspotNodeIds: [],
       topInclusiveTimeHotspotNodeIds: [],
       topSharedReadHotspotNodeIds: [],

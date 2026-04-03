@@ -1,8 +1,16 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import type { CSSProperties } from 'react'
 import type { AnalysisFinding, AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../api/types'
-import { analyzePlanWithQuery, exportHtml, exportJson, exportMarkdown } from '../api/client'
+import {
+  AnalysisNotFoundError,
+  analyzePlanWithQuery,
+  exportHtml,
+  exportJson,
+  exportMarkdown,
+  getAnalysis,
+  PlanParseError,
+} from '../api/client'
 import { findingAnchorLabel, joinLabelAndSubtitle, nodeShortLabel } from '../presentation/nodeLabels'
 import { joinSideContextLineForNode } from '../presentation/joinPainHints'
 import { buildHotspots } from '../presentation/hotspotPresentation'
@@ -24,9 +32,12 @@ import {
   suggestionPriorityLabel,
 } from '../presentation/optimizationSuggestionsPresentation'
 import {
+  AnalyzeDeepLinkParam,
   analyzeDeepLinkPath,
   buildAnalyzeDeepLinkSearchParams,
 } from '../presentation/artifactLinks'
+import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
+import { formatDeclaredExplainOptionsLine, plannerCostsLabel } from '../presentation/explainMetadataPresentation'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { ClickableRow } from '../components/ClickableRow'
 import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
@@ -50,12 +61,21 @@ function downloadText(filename: string, text: string, mime: string) {
 
 export default function AnalyzePage() {
   const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [input, setInput] = useState('')
   const [queryText, setQueryText] = useState('')
+  const [explainToggles, setExplainToggles] = useState({
+    analyze: true,
+    verbose: true,
+    buffers: true,
+    costs: true,
+  })
+  const [sendExplainMetadata, setSendExplainMetadata] = useState(true)
+  const [recordedExplainCommand, setRecordedExplainCommand] = useState('')
   const [analysis, setAnalysis] = useState<PlanAnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadingPersisted, setLoadingPersisted] = useState(false)
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [treeMode, setTreeMode] = useState<'graph' | 'text'>('graph')
@@ -84,20 +104,82 @@ export default function AnalyzePage() {
   const copyNode = useCopyFeedback()
   const copyHotspot = useCopyFeedback()
   const copyFinding = useCopyFeedback()
-  const copyAnalyzeLink = useCopyFeedback()
-  const hydratedAnalysisId = useRef<string | null>(null)
+  const copyShareLink = useCopyFeedback()
+  const copySuggestedExplain = useCopyFeedback()
+  const lastSyncedAnalyzeQs = useRef('')
+  const loadPersistedSeqRef = useRef(0)
 
-  /** One-time hydrate from `?node=` when a new analysis result arrives (no continuous URL↔state sync — avoids router update loops). */
-  useLayoutEffect(() => {
+  const urlAnalysisId = searchParams.get(AnalyzeDeepLinkParam.analysis)?.trim() ?? ''
+
+  const suggestedExplainSql = useMemo(
+    () => buildSuggestedExplainSql(queryText, explainToggles),
+    [queryText, explainToggles],
+  )
+
+  /** Open shared analysis from `?analysis=` (opaque persisted id). */
+  useEffect(() => {
+    if (!urlAnalysisId) return
+    if (analysis?.analysisId === urlAnalysisId) return
+    let cancelled = false
+    const seq = ++loadPersistedSeqRef.current
+    setLoadingPersisted(true)
+    setError(null)
+    ;(async () => {
+      try {
+        const data = await getAnalysis(urlAnalysisId)
+        if (cancelled || loadPersistedSeqRef.current !== seq) return
+        setAnalysis(data)
+        setInput('')
+      } catch (e) {
+        if (cancelled || loadPersistedSeqRef.current !== seq) return
+        setAnalysis(null)
+        setError(
+          e instanceof AnalysisNotFoundError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : String(e),
+        )
+      } finally {
+        if (!cancelled && loadPersistedSeqRef.current === seq) setLoadingPersisted(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [urlAnalysisId, analysis?.analysisId])
+
+  /** Restore selection from `?node=` when the URL or analysis changes (browser back/forward, shared links). */
+  useEffect(() => {
+    if (!analysis) return
+    const id = searchParams.get('node')
+    if (id && analysis.nodes.some((x) => x.nodeId === id) && id !== selectedNodeId) setSelectedNodeId(id)
+  }, [analysis, analysis?.analysisId, searchParams, selectedNodeId])
+
+  /** Keep `?analysis=` + `?node=` in sync (deduped; replace history to avoid noise). */
+  useEffect(() => {
     if (!analysis) {
-      hydratedAnalysisId.current = null
+      lastSyncedAnalyzeQs.current = ''
       return
     }
-    if (hydratedAnalysisId.current === analysis.analysisId) return
-    hydratedAnalysisId.current = analysis.analysisId
-    const n = searchParams.get('node')
-    if (n && analysis.nodes.some((x) => x.nodeId === n)) setSelectedNodeId(n)
-  }, [analysis, searchParams])
+    const urlNode = searchParams.get('node')
+    const resolvedNodeId =
+      selectedNodeId ??
+      (urlNode && analysis.nodes.some((x) => x.nodeId === urlNode) ? urlNode : null)
+    const next = buildAnalyzeDeepLinkSearchParams({
+      analysisId: analysis.analysisId,
+      nodeId: resolvedNodeId,
+    })
+    const nextQs = next.toString()
+    const curNorm = location.search.startsWith('?') ? location.search.slice(1) : location.search
+    if (nextQs === curNorm) {
+      lastSyncedAnalyzeQs.current = nextQs
+      return
+    }
+    if (nextQs === lastSyncedAnalyzeQs.current) return
+    lastSyncedAnalyzeQs.current = nextQs
+    setSearchParams(next, { replace: true })
+  }, [analysis, analysis?.analysisId, selectedNodeId, location.search, searchParams, setSearchParams])
 
   function nodeLabel(n: AnalyzedPlanNode) {
     return nodeShortLabel(n, byId)
@@ -217,18 +299,49 @@ export default function AnalyzePage() {
     setSelectedNodeId(id)
   }
 
+  function stripAnalyzeUrlParams() {
+    const p = new URLSearchParams(location.search)
+    p.delete(AnalyzeDeepLinkParam.analysis)
+    p.delete(AnalyzeDeepLinkParam.node)
+    lastSyncedAnalyzeQs.current = ''
+    setSearchParams(p, { replace: true })
+  }
+
   async function onAnalyze() {
     setError(null)
     setLoading(true)
+    const nodeHint = searchParams.get('node')
+    stripAnalyzeUrlParams()
+    loadPersistedSeqRef.current += 1
     setAnalysis(null)
     setSelectedNodeId(null)
     try {
-      const plan = JSON.parse(input) as unknown
-      const result = await analyzePlanWithQuery(plan, queryText)
+      const result = await analyzePlanWithQuery(
+        input,
+        queryText,
+        sendExplainMetadata
+          ? {
+              options: {
+                format: 'json',
+                analyze: explainToggles.analyze,
+                verbose: explainToggles.verbose,
+                buffers: explainToggles.buffers,
+                costs: explainToggles.costs,
+              },
+              sourceExplainCommand: recordedExplainCommand.trim() || null,
+            }
+          : undefined,
+      )
       setAnalysis(result)
-      setSelectedNodeId(result.rootNodeId)
+      if (nodeHint && result.nodes.some((x) => x.nodeId === nodeHint)) setSelectedNodeId(nodeHint)
+      else setSelectedNodeId(result.rootNodeId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (e instanceof PlanParseError) {
+        const parts = [e.message, e.hint].filter((x) => x && String(x).trim().length)
+        setError(parts.join(' '))
+      } else {
+        setError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
       setLoading(false)
     }
@@ -257,7 +370,7 @@ export default function AnalyzePage() {
       <section>
         <h2>Input plan</h2>
         <p style={{ opacity: 0.85, marginTop: -8, marginBottom: 12 }}>
-          Paste PostgreSQL `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` output (the full JSON payload).
+          Paste raw <code>EXPLAIN (…, FORMAT JSON)</code> output: plain JSON, or <code>psql</code> tabular output with a <code>QUERY PLAN</code> header and optional line wraps ending in <code>+</code>. The server normalizes common shapes before parsing. Planner <code>COSTS</code> are optional; cost fields are detected from the JSON.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           <textarea
@@ -274,7 +387,7 @@ export default function AnalyzePage() {
               color: 'var(--text-h)',
               fontFamily: 'var(--mono)',
             }}
-            placeholder='Plan JSON: [ { "Plan": { ... } } ]'
+            placeholder='JSON or psql QUERY PLAN cell text: [ { "Plan": { ... } } ]'
           />
           <details>
             <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Optional: source SQL query</summary>
@@ -296,11 +409,96 @@ export default function AnalyzePage() {
               placeholder="SELECT ... FROM ... WHERE ..."
             />
           </details>
+          <details style={{ marginTop: 4 }}>
+            <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Suggested EXPLAIN command (copy-paste)</summary>
+            <p style={{ fontSize: 12, opacity: 0.82, marginTop: 8, marginBottom: 0 }}>
+              Wraps the optional source SQL below—no parsing, only text wrapping. Default matches a forensic-style capture; turn <strong>COSTS</strong> off to align with{' '}
+              <code>EXPLAIN (…, COSTS false, …)</code> output.
+            </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={sendExplainMetadata}
+                onChange={(e) => setSendExplainMetadata(e.target.checked)}
+              />
+              Send EXPLAIN options with analyze request (stored in API result and exports)
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10, fontSize: 13 }}>
+              {(
+                [
+                  ['analyze', 'ANALYZE'],
+                  ['verbose', 'VERBOSE'],
+                  ['buffers', 'BUFFERS'],
+                  ['costs', 'COSTS'],
+                ] as const
+              ).map(([k, label]) => (
+                <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={explainToggles[k]}
+                    onChange={(e) => setExplainToggles((prev) => ({ ...prev, [k]: e.target.checked }))}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <label style={{ display: 'block', fontSize: 12, opacity: 0.85, marginTop: 10 }}>
+              Optional: exact EXPLAIN command you ran (preserved verbatim when sent)
+            </label>
+            <textarea
+              value={recordedExplainCommand}
+              onChange={(e) => setRecordedExplainCommand(e.target.value)}
+              spellCheck={false}
+              style={{
+                width: '100%',
+                minHeight: 56,
+                marginTop: 6,
+                padding: 10,
+                borderRadius: 10,
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-h)',
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+              }}
+              placeholder="EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) ..."
+            />
+            {suggestedExplainSql ? (
+              <div style={{ marginTop: 10 }}>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: 10,
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    fontFamily: 'var(--mono)',
+                    fontSize: 11,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {suggestedExplainSql}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => suggestedExplainSql && void copySuggestedExplain.copy(suggestedExplainSql, 'Copied')}
+                  style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
+                >
+                  Copy suggested EXPLAIN
+                </button>
+                {copySuggestedExplain.status ? (
+                  <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.85 }}>{copySuggestedExplain.status}</span>
+                ) : null}
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, opacity: 0.8, marginTop: 10 }}>Add source SQL above to generate a suggested command.</p>
+            )}
+          </details>
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={onAnalyze}
-            disabled={loading || input.trim().length === 0}
+            disabled={loading || loadingPersisted || input.trim().length === 0}
             style={{
               padding: '10px 14px',
               borderRadius: 12,
@@ -318,6 +516,12 @@ export default function AnalyzePage() {
               setAnalysis(null)
               setError(null)
               setSelectedNodeId(null)
+              loadPersistedSeqRef.current += 1
+              const p = new URLSearchParams(location.search)
+              p.delete(AnalyzeDeepLinkParam.node)
+              p.delete(AnalyzeDeepLinkParam.analysis)
+              lastSyncedAnalyzeQs.current = ''
+              setSearchParams(p, { replace: true })
             }}
             style={{
               padding: '10px 14px',
@@ -344,6 +548,12 @@ export default function AnalyzePage() {
           </button>
         </div>
 
+        {loadingPersisted ? (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
+            Opening shared analysis…
+          </div>
+        ) : null}
+
         {error ? (
           <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid #f59e0b', color: 'var(--text-h)' }}>
             <b>Error:</b> {error}
@@ -361,9 +571,81 @@ export default function AnalyzePage() {
                 <div style={{ fontSize: 12, opacity: 0.8 }}>Summary</div>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
                   nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} severe={analysis.summary.severeFindingsCount} timing=
-                  {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)}
+                  {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)} plannerCosts=
+                  {String(analysis.summary.plannerCosts ?? 'unknown')}
                 </div>
               </div>
+            </div>
+            {analysis.planInputNormalization ? (
+              <div style={{ fontSize: 12, opacity: 0.82, marginTop: 10 }} aria-label="Plan input normalization">
+                {analysis.planInputNormalization.kind === 'queryPlanTable'
+                  ? 'Normalized pasted QUERY PLAN output'
+                  : analysis.planInputNormalization.kind === 'rawJson'
+                    ? 'Parsed raw JSON directly'
+                    : `Input normalization: ${analysis.planInputNormalization.kind}`}
+              </div>
+            ) : null}
+            <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  const path = analyzeDeepLinkPath(
+                    location.pathname,
+                    buildAnalyzeDeepLinkSearchParams({
+                      analysisId: analysis.analysisId,
+                      nodeId: selectedNodeId,
+                    }),
+                  )
+                  await copyShareLink.copy(`${window.location.origin}${path}`, 'Copied share link')
+                }}
+                style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
+              >
+                Copy share link
+              </button>
+              {copyShareLink.status ? (
+                <span style={{ fontSize: 12, opacity: 0.85 }}>{copyShareLink.status}</span>
+              ) : null}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.78, marginTop: 8, fontFamily: 'var(--mono)' }}>
+              Snapshots persist in server SQLite; share links survive API restart if the database file is kept.
+            </div>
+            <div
+              style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 13 }}
+              aria-label="Plan source and EXPLAIN metadata"
+            >
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Plan source / EXPLAIN metadata</div>
+              <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.92 }}>
+                <li>Source query: {analysis.queryText?.trim() ? 'provided' : 'not provided'}</li>
+                <li>{plannerCostsLabel(analysis.summary.plannerCosts)}</li>
+                {analysis.explainMetadata?.options ? (
+                  <li>
+                    Declared EXPLAIN options (client):{' '}
+                    {formatDeclaredExplainOptionsLine(analysis.explainMetadata) ?? '—'}
+                  </li>
+                ) : sendExplainMetadata ? (
+                  <li>No declared options in response (server omitted empty metadata).</li>
+                ) : (
+                  <li>Declared EXPLAIN options were not sent with this request.</li>
+                )}
+                {analysis.explainMetadata?.sourceExplainCommand?.trim() ? (
+                  <li style={{ marginTop: 6 }}>
+                    <span style={{ display: 'block', fontSize: 11, opacity: 0.85 }}>Recorded command</span>
+                    <pre
+                      style={{
+                        margin: '4px 0 0',
+                        padding: 8,
+                        borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        fontFamily: 'var(--mono)',
+                        fontSize: 11,
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {analysis.explainMetadata.sourceExplainCommand.trim()}
+                    </pre>
+                  </li>
+                ) : null}
+              </ul>
             </div>
             {analysis.summary.warnings?.length ? (
               <div style={{ marginTop: 10, fontSize: 13 }}>
@@ -832,15 +1114,21 @@ export default function AnalyzePage() {
                     type="button"
                     onClick={async () => {
                       if (!selectedNodeId) return
-                      const path = analyzeDeepLinkPath(location.pathname, buildAnalyzeDeepLinkSearchParams(selectedNodeId))
-                      await copyAnalyzeLink.copy(`${window.location.origin}${path}`, 'Copied deep link')
+                      const path = analyzeDeepLinkPath(
+                        location.pathname,
+                        buildAnalyzeDeepLinkSearchParams({
+                          analysisId: analysis.analysisId,
+                          nodeId: selectedNodeId,
+                        }),
+                      )
+                      await copyShareLink.copy(`${window.location.origin}${path}`, 'Copied share link')
                     }}
                     style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
                   >
-                    Copy link
+                    Copy share link
                   </button>
                   {copyNode.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyNode.status}</div> : null}
-                  {copyAnalyzeLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyAnalyzeLink.status}</div> : null}
+                  {copyShareLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyShareLink.status}</div> : null}
                 </div>
                 <details style={{ marginTop: 6 }}>
                   <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>

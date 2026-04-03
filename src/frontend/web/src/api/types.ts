@@ -59,12 +59,40 @@ export type AnalyzedPlanNode = {
   contextEvidence?: OperatorContextEvidence | null
 }
 
+/** Detected from parsed plan JSON (not declared EXPLAIN metadata). */
+export type PlannerCostPresence = 'unknown' | 'present' | 'notDetected' | 'mixed'
+
+export type ExplainOptions = {
+  format?: string | null
+  analyze?: boolean | null
+  verbose?: boolean | null
+  buffers?: boolean | null
+  costs?: boolean | null
+  settings?: boolean | null
+  wal?: boolean | null
+  timing?: boolean | null
+  summary?: boolean | null
+  jit?: boolean | null
+}
+
+export type ExplainCaptureMetadata = {
+  options?: ExplainOptions | null
+  sourceExplainCommand?: string | null
+}
+
+/** Set when the API normalized pasted text before parsing (Phase 35). */
+export type PlanInputNormalizationInfo = {
+  kind: 'rawJson' | 'queryPlanTable' | string
+  detail?: string | null
+}
+
 export type PlanSummary = {
   totalNodeCount: number
   maxDepth: number
   rootInclusiveActualTimeMs?: number | null
   hasActualTiming: boolean
   hasBuffers: boolean
+  plannerCosts: PlannerCostPresence
   topExclusiveTimeHotspotNodeIds: string[]
   topInclusiveTimeHotspotNodeIds: string[]
   topSharedReadHotspotNodeIds: string[]
@@ -122,6 +150,7 @@ export type PlanAnalysisResult = {
   analysisId: string
   rootNodeId: string
   queryText?: string | null
+  explainMetadata?: ExplainCaptureMetadata | null
   nodes: AnalyzedPlanNode[]
   findings: AnalysisFinding[]
   narrative: AnalysisNarrative
@@ -131,6 +160,8 @@ export type PlanAnalysisResult = {
   indexInsights?: PlanIndexInsight[] | null
   /** Phase 32: ranked optimization / next-step suggestions. */
   optimizationSuggestions?: OptimizationSuggestion[] | null
+  /** Phase 35: how raw plan input was interpreted when sent as `planText`. */
+  planInputNormalization?: PlanInputNormalizationInfo | null
 }
 
 export type PlanComparisonFindingDelta = {

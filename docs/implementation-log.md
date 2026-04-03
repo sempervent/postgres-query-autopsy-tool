@@ -676,5 +676,57 @@ Verified:
 - Docs: `mkdocs build --strict` OK.
 - Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
 
-**Limitations:** artifact ids are **deterministic within a given comparison/analysis payload** (scoped by `comparisonId` / structured identity); swapping plan A↔B or re-running analyze produces a new id namespace. Analyze does not continuously mirror every node click into the URL (only initial `node=` hydrate + **Copy link**). Weak node mapping still limits cross-panel focus for some suggestions.
+**Limitations:** artifact ids are **deterministic within a given comparison/analysis payload** (scoped by `comparisonId` / structured identity); swapping plan A↔B or re-running analyze produces a new id namespace. Analyze URL behavior for `?node=` was extended in **Phase 34** (continuous sync). Weak node mapping still limits cross-panel focus for some suggestions.
+
+## Phase 34 — EXPLAIN capture metadata + optional costs + Analyze URL sync (complete)
+
+Implemented:
+- **Backend**: `ExplainOptions` / `ExplainCaptureMetadata` on analyze request & `PlanAnalysisResult`; `PlannerCostPresence` + `PlannerCostAnalyzer` → `PlanSummary.PlannerCosts`; extra summary **warnings** when costs are absent or mixed; `PlanAnalysisService` markdown/HTML **Plan capture & EXPLAIN context**; `AnalyzeRequestDto.explainMetadata`.
+- **Frontend**: `PlanSummary.plannerCosts`, types; **Suggested EXPLAIN command** (toggles + optional recorded command + copy); **Send EXPLAIN options** checkbox; **Plan source / EXPLAIN metadata** panel; continuous **`?node=`** sync (deduped) + URL→selection on back/forward; `onAnalyze` prefers valid `?node=` when present; **`presentation/explainCommandBuilder.ts`** / **`explainMetadataPresentation.ts`**; `analyzePlanWithQuery` optional third argument.
+- **Tests**: `PlannerCostAnalyzerTests`, `ExplainCaptureMetadataTests`; `explainCommandBuilder.test.ts`, `explainMetadataPresentation.test.ts`; Analyze interaction tests (metadata panel, suggested EXPLAIN copy, deep link + **Copy link**); `afterEach(cleanup)` on Analyze UX tests.
+- **Docs**: `capturing-explain-json.md`, `analyze-workflow.md`, `api-and-reports.md`, `architecture.md`.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **78** passed.
+- Frontend: `npm test` (vitest `--run`) — **68** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** declared `explainMetadata` is **client-supplied truth** (not verified against JSON). `PlannerCosts` is **structural detection** only. Compare flow does not accept explain metadata per plan (analyze-only scope for this phase).
+
+## Phase 35 — Persisted analyses + pasted-plan normalization (complete)
+
+Implemented:
+- **Core**: `PlanInputNormalizer` / `PlanInputNormalizeResult` / `PlanInputNormalizationInfo` (`rawJson` vs `queryPlanTable`); conservative stripping of **`QUERY PLAN`** tables, separators, **`(N rows)`**, **`|`** cell borders, **`+`** line continuations; structured errors with hints.
+- **API**: `POST /api/analyze` accepts **`planText`** (preferred) or legacy **`plan`**; **400** `plan_parse_failed` on normalize/parse failure; **`planInputNormalization`** on result when `planText` path used; existing in-memory store + **`GET /api/analyses/{id}`**; `InternalsVisibleTo` + **`WebApplicationFactory`** integration tests.
+- **Frontend**: `analyzePlanWithQuery(planText, …)`, `getAnalysis`, `PlanParseError` / `AnalysisNotFoundError`; Analyze sends raw textarea; **`?analysis=`** load + skip redundant fetch when id matches in-memory result; URL sync **`analysis` + `node`**; **Copy share link** (summary + selected node); normalization status line; `PlanAnalysisResult.planInputNormalization` in types.
+- **Tests**: `PlanInputNormalizerTests` (incl. QUERY PLAN + `+` fixture); `AnalyzeApiIntegrationTests` (persist round-trip, 404, QUERY PLAN persistence + `queryPlanTable`); `artifactLinks.test.ts`; Analyze interaction tests (share link params, `getAnalysis`, bad id, normalization label, `PlanParseError` UI).
+- **Docs**: `capturing-explain-json.md`, `analyze-workflow.md`, `api-and-reports.md`, `architecture.md`.
+
+Verified:
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln` — **87** passed.
+- Frontend: `npm test` (vitest `--run`) — **73** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK (see command log in this phase).
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}` (see command log in this phase).
+
+**Limitations:** storage was **in-process only** in Phase 35; Phase 36 replaces this with SQLite (see below). `+` continuation handling can be ambiguous vs JSON string content at line ends. `explainMetadata` remains client-declared.
+
+## Phase 36 — Durable storage + Compare capture metadata parity (complete)
+
+Implemented:
+- **Persistence**: `IArtifactPersistenceStore`, `SqliteArtifactStore` (`Api/Persistence/`), JSON serialization aligned with API (`ArtifactPersistenceJson`); tables for analyses and comparisons; **`created_utc`**, optional **`expires_utc`**, **`last_access_utc`**; configurable **`Storage:DatabasePath`**, **`ArtifactTtlHours`**, **`MaxArtifactRows`**; purge on read + startup retention pass.
+- **API**: `POST /api/analyze` and `POST /api/compare` persist full result payloads after success; **`GET /api/analyses/{id}`** and **`GET /api/comparisons/{id}`** load from SQLite; compare request DTO: **`planAText`/`planBText`**, **`queryTextA`/`queryTextB`**, **`explainMetadataA`/`explainMetadataB`** (legacy **`planA`/`planB`** unchanged); **`plan_parse_failed`** with **`side`** when a compare half fails to parse.
+- **Core / services**: `PlanAnalysisService.CompareAsync` applies per-side normalization + metadata before `ComparisonEngine`; **`PlanCaptureMarkdownFormatter`** includes per-side capture sections in compare markdown.
+- **Frontend**: `getComparison`, `compareWithPlanTexts`, Compare **`?comparison=`** reopen, **Plan capture / EXPLAIN context** (A vs B), suggested EXPLAIN for both sides, share links including **`comparison=`**; Analyze copy text notes SQLite durability.
+- **Ops**: Dockerfile `data` dir + env; `docker-compose` volume **`pqat-api-data:/app/data`**.
+- **Tests**: `DurableStorageIntegrationTests` (restart simulation via new factory + same DB path); compare metadata round-trip; frontend Compare/Analyze tests and `artifactLinks` expectations.
+- **Docs**: `analyze-workflow`, `compare-workflow`, `capturing-explain-json`, `api-and-reports`, `architecture`, this log.
+
+Verified (this phase):
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **89** passed.
+- Frontend: `npm test` (vitest `--run`) — **75** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK.
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** durability is **the SQLite file on disk** (or container volume); deleting it or aggressive TTL/pruning drops share ids. **No authentication** — treat **`analysis=`** / **`comparison=`** as capability URLs. **`explainMetadata`** is still **client-declared** and not cryptographically tied to JSON. Multi-instance deployments need a **shared** DB path or external store (not in scope).
 

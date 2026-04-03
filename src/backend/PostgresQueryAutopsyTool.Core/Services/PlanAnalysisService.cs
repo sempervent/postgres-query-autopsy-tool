@@ -5,6 +5,7 @@ using PostgresQueryAutopsyTool.Core.Domain;
 using PostgresQueryAutopsyTool.Core.Findings;
 using PostgresQueryAutopsyTool.Core.Findings.Rules;
 using PostgresQueryAutopsyTool.Core.Parsing;
+using PostgresQueryAutopsyTool.Core.Reporting;
 
 namespace PostgresQueryAutopsyTool.Core.Services;
 
@@ -43,7 +44,11 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         _comparisonEngine = new ComparisonEngine();
     }
 
-    public async Task<PlanAnalysisResult> AnalyzeAsync(JsonElement postgresExplainJson, CancellationToken cancellationToken, string? queryText = null)
+    public async Task<PlanAnalysisResult> AnalyzeAsync(
+        JsonElement postgresExplainJson,
+        CancellationToken cancellationToken,
+        string? queryText = null,
+        ExplainCaptureMetadata? explainMetadata = null)
     {
         NormalizedPlanNode root;
         try
@@ -76,6 +81,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             AnalysisId: Guid.NewGuid().ToString("n"),
             RootNodeId: root.NodeId,
             QueryText: string.IsNullOrWhiteSpace(queryText) ? null : queryText,
+            ExplainMetadata: NormalizeExplainMetadata(explainMetadata),
             Nodes: analyzedNodes,
             Findings: rankedFindings,
             Narrative: narrative,
@@ -90,10 +96,24 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         };
     }
 
-    public async Task<PlanComparisonResultV2> CompareAsync(JsonElement postgresExplainAJson, JsonElement postgresExplainBJson, CancellationToken cancellationToken, bool includeDiagnostics = false)
+    public async Task<PlanComparisonResultV2> CompareAsync(
+        JsonElement postgresExplainAJson,
+        JsonElement postgresExplainBJson,
+        CancellationToken cancellationToken,
+        bool includeDiagnostics = false,
+        string? queryTextA = null,
+        string? queryTextB = null,
+        ExplainCaptureMetadata? explainMetadataA = null,
+        ExplainCaptureMetadata? explainMetadataB = null,
+        PlanInputNormalizationInfo? planInputNormalizationA = null,
+        PlanInputNormalizationInfo? planInputNormalizationB = null)
     {
-        var analysisA = await AnalyzeAsync(postgresExplainAJson, cancellationToken);
-        var analysisB = await AnalyzeAsync(postgresExplainBJson, cancellationToken);
+        var analysisA = await AnalyzeAsync(postgresExplainAJson, cancellationToken, queryTextA, explainMetadataA);
+        var analysisB = await AnalyzeAsync(postgresExplainBJson, cancellationToken, queryTextB, explainMetadataB);
+        if (planInputNormalizationA is not null)
+            analysisA = analysisA with { PlanInputNormalization = planInputNormalizationA };
+        if (planInputNormalizationB is not null)
+            analysisB = analysisB with { PlanInputNormalization = planInputNormalizationB };
 
         await Task.Yield();
         return _comparisonEngine.Compare(analysisA, analysisB, includeDiagnostics);
@@ -148,6 +168,8 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
 {analysis.QueryText}
 ```";
 
+        var captureSection = PlanCaptureMarkdownFormatter.FormatCaptureSectionMarkdown(analysis);
+
         return $@"# Postgres Query Autopsy Report
 
 AnalysisId: {analysis.AnalysisId}
@@ -159,11 +181,15 @@ AnalysisId: {analysis.AnalysisId}
 {analysis.Narrative.WhereTimeWent}
 {querySection}
 
+## Plan capture & EXPLAIN context
+{captureSection}
+
 ## Summary
 - Node count: {analysis.Summary.TotalNodeCount}
 - Max depth: {analysis.Summary.MaxDepth}
 - Has timing: {analysis.Summary.HasActualTiming}
 - Has buffers: {analysis.Summary.HasBuffers}
+- Planner costs (detected from JSON): {PlanCaptureMarkdownFormatter.PlannerCostsShortLabel(analysis.Summary.PlannerCosts)}
 - Root inclusive time (ms): {(analysis.Summary.RootInclusiveActualTimeMs?.ToString("F2") ?? "n/a")}
 
 ## Headline Findings ({findings})
@@ -215,7 +241,9 @@ AnalysisId: {analysis.AnalysisId}
       <li><b>Max depth:</b> {analysis.Summary.MaxDepth}</li>
       <li><b>Has timing:</b> {analysis.Summary.HasActualTiming}</li>
       <li><b>Has buffers:</b> {analysis.Summary.HasBuffers}</li>
+      <li><b>Planner costs (from JSON):</b> {System.Net.WebUtility.HtmlEncode(PlanCaptureMarkdownFormatter.PlannerCostsShortLabel(analysis.Summary.PlannerCosts))}</li>
     </ul>
+    {PlanCaptureMarkdownFormatter.FormatCaptureSectionHtml(analysis)}
     <h2>Overview</h2>
     <p>{System.Net.WebUtility.HtmlEncode(analysis.Narrative.WhatHappened)}</p>
     <h2>Where Time Went</h2>
@@ -270,9 +298,17 @@ AnalysisId: {analysis.AnalysisId}
         var newOrWorse = comparison.FindingsDiff.Items.Where(i => i.ChangeType is FindingChangeType.New or FindingChangeType.Worsened).Take(6).ToArray();
         var resolved = comparison.FindingsDiff.Items.Where(i => i.ChangeType == FindingChangeType.Resolved).Take(6).ToArray();
 
+        var sideA = PlanCaptureMarkdownFormatter.FormatSideHeaderMarkdown("Plan A (baseline)", comparison.PlanA);
+        var sideB = PlanCaptureMarkdownFormatter.FormatSideHeaderMarkdown("Plan B (changed)", comparison.PlanB);
+
         return $@"# Postgres Query Autopsy Compare Report
 
 ComparisonId: {comparison.ComparisonId}
+
+## Plan capture & EXPLAIN context (per side)
+{sideA}
+
+{sideB}
 
 ## Summary
 - Runtime Δ: {(s.RuntimeDeltaMs?.ToString("F2") ?? "n/a")}ms ({(s.RuntimeDeltaPct?.ToString("P1") ?? "n/a")})
@@ -346,6 +382,22 @@ ComparisonId: {comparison.ComparisonId}
 - If the plans differ substantially, unmatched nodes may represent real structural changes.
 ";
     }
+
+    private static ExplainCaptureMetadata? NormalizeExplainMetadata(ExplainCaptureMetadata? m)
+    {
+        if (m is null) return null;
+        var cmd = string.IsNullOrWhiteSpace(m.SourceExplainCommand) ? null : m.SourceExplainCommand.Trim();
+        var opts = m.Options;
+        if (opts is not null && ExplainOptionsAllNull(opts))
+            opts = null;
+        if (cmd is null && opts is null) return null;
+        return new ExplainCaptureMetadata(opts, cmd);
+    }
+
+    private static bool ExplainOptionsAllNull(ExplainOptions o)
+        => string.IsNullOrWhiteSpace(o.Format)
+           && o.Analyze is null && o.Verbose is null && o.Buffers is null && o.Costs is null
+           && o.Settings is null && o.Wal is null && o.Timing is null && o.Summary is null && o.Jit is null;
 
     private static string? TryGetFirstString(JsonElement element, string propertyName)
     {

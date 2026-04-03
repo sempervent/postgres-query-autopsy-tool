@@ -1,7 +1,56 @@
 import type {
+  ExplainCaptureMetadata,
   PlanAnalysisResult,
   PlanComparisonResult,
 } from './types'
+
+export class ComparePlanParseError extends Error {
+  side: string
+  hint?: string
+
+  constructor(side: string, message: string, hint?: string) {
+    super(message)
+    this.name = 'ComparePlanParseError'
+    this.side = side
+    this.hint = hint
+  }
+}
+
+export class ComparisonNotFoundError extends Error {
+  readonly comparisonId: string
+
+  constructor(comparisonId: string) {
+    super(
+      `No stored comparison for id "${comparisonId}". It may be invalid, expired, or the database was reset.`,
+    )
+    this.name = 'ComparisonNotFoundError'
+    this.comparisonId = comparisonId
+  }
+}
+
+export class PlanParseError extends Error {
+  readonly code: 'plan_parse_failed' = 'plan_parse_failed'
+  hint?: string
+
+  constructor(message: string, hint?: string) {
+    super(message)
+    this.name = 'PlanParseError'
+    this.hint = hint
+  }
+}
+
+export class AnalysisNotFoundError extends Error {
+  readonly code: 'analysis_not_found' = 'analysis_not_found'
+  readonly analysisId: string
+
+  constructor(analysisId: string) {
+    super(
+      `No stored analysis for id "${analysisId}". It may be invalid, expired, or the SQLite database file was removed or reset.`,
+    )
+    this.name = 'AnalysisNotFoundError'
+    this.analysisId = analysisId
+  }
+}
 
 async function postJson<TResponse>(url: string, payload: unknown): Promise<TResponse> {
   const res = await fetch(url, {
@@ -22,8 +71,64 @@ export async function analyzePlan(plan: unknown): Promise<PlanAnalysisResult> {
   return postJson<PlanAnalysisResult>('/api/analyze', { plan })
 }
 
-export async function analyzePlanWithQuery(plan: unknown, queryText: string | null | undefined): Promise<PlanAnalysisResult> {
-  return postJson<PlanAnalysisResult>('/api/analyze', { plan, queryText: queryText && queryText.trim().length ? queryText : null })
+/** Load a persisted analysis snapshot (opaque id from a prior analyze or share link). */
+export async function getAnalysis(analysisId: string): Promise<PlanAnalysisResult> {
+  const res = await fetch(`/api/analyses/${encodeURIComponent(analysisId)}`)
+  if (res.status === 404) {
+    let body: { analysisId?: string } = {}
+    try {
+      body = (await res.json()) as { analysisId?: string }
+    } catch {
+      /* ignore */
+    }
+    throw new AnalysisNotFoundError(body.analysisId ?? analysisId)
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+  return res.json() as Promise<PlanAnalysisResult>
+}
+
+export async function analyzePlanWithQuery(
+  planText: string,
+  queryText: string | null | undefined,
+  explainMetadata?: ExplainCaptureMetadata | null,
+): Promise<PlanAnalysisResult> {
+  const body: Record<string, unknown> = {
+    planText,
+    queryText: queryText && queryText.trim().length ? queryText : null,
+  }
+  if (explainMetadata && (explainMetadata.options || explainMetadata.sourceExplainCommand?.trim())) {
+    body.explainMetadata = {
+      options: explainMetadata.options ?? null,
+      sourceExplainCommand: explainMetadata.sourceExplainCommand?.trim() || null,
+    }
+  }
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) {
+    if (res.status === 400) {
+      try {
+        const j = JSON.parse(text) as { error?: string; message?: string; hint?: string }
+        if (j.error === 'plan_parse_failed') {
+          throw new PlanParseError(
+            j.message?.trim() ||
+              'The pasted text could not be turned into valid EXPLAIN JSON.',
+            j.hint?.trim(),
+          )
+        }
+      } catch (e) {
+        if (e instanceof PlanParseError) throw e
+      }
+    }
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+  return JSON.parse(text) as PlanAnalysisResult
 }
 
 export async function comparePlans(planA: unknown, planB: unknown): Promise<PlanComparisonResult> {
@@ -33,6 +138,82 @@ export async function comparePlans(planA: unknown, planB: unknown): Promise<Plan
 export async function comparePlansWithDiagnostics(planA: unknown, planB: unknown, diagnostics: boolean): Promise<PlanComparisonResult> {
   const url = diagnostics ? '/api/compare?diagnostics=1' : '/api/compare'
   return postJson<PlanComparisonResult>(url, { planA, planB })
+}
+
+export async function getComparison(comparisonId: string): Promise<PlanComparisonResult> {
+  const res = await fetch(`/api/comparisons/${encodeURIComponent(comparisonId)}`)
+  if (res.status === 404) {
+    let body: { comparisonId?: string } = {}
+    try {
+      body = (await res.json()) as { comparisonId?: string }
+    } catch {
+      /* ignore */
+    }
+    throw new ComparisonNotFoundError(body.comparisonId ?? comparisonId)
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+  return res.json() as Promise<PlanComparisonResult>
+}
+
+export async function compareWithPlanTexts(args: {
+  planAText: string
+  planBText: string
+  queryTextA?: string | null
+  queryTextB?: string | null
+  explainMetadataA?: ExplainCaptureMetadata | null
+  explainMetadataB?: ExplainCaptureMetadata | null
+  diagnostics?: boolean
+}): Promise<PlanComparisonResult> {
+  const url = args.diagnostics ? '/api/compare?diagnostics=1' : '/api/compare'
+  const body: Record<string, unknown> = {
+    planAText: args.planAText,
+    planBText: args.planBText,
+    queryTextA: args.queryTextA?.trim() ? args.queryTextA : null,
+    queryTextB: args.queryTextB?.trim() ? args.queryTextB : null,
+  }
+  const attach = (key: 'explainMetadataA' | 'explainMetadataB', m: ExplainCaptureMetadata | null | undefined) => {
+    if (m && (m.options || m.sourceExplainCommand?.trim())) {
+      body[key] = {
+        options: m.options ?? null,
+        sourceExplainCommand: m.sourceExplainCommand?.trim() || null,
+      }
+    }
+  }
+  attach('explainMetadataA', args.explainMetadataA)
+  attach('explainMetadataB', args.explainMetadataB)
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) {
+    if (res.status === 400) {
+      try {
+        const j = JSON.parse(text) as {
+          error?: string
+          side?: string
+          message?: string
+          hint?: string
+        }
+        if (j.error === 'plan_parse_failed' && j.side) {
+          throw new ComparePlanParseError(
+            j.side,
+            j.message?.trim() || 'Plan text could not be normalized.',
+            j.hint?.trim(),
+          )
+        }
+      } catch (e) {
+        if (e instanceof ComparePlanParseError) throw e
+      }
+    }
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+  return JSON.parse(text) as PlanComparisonResult
 }
 
 export async function exportMarkdown(analysis: PlanAnalysisResult): Promise<{ analysisId: string; markdown: string }> {

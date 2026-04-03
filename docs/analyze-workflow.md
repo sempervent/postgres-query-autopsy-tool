@@ -2,11 +2,14 @@
 
 ## Input
 
-1. Paste the plan JSON output (prefer `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)`).
-2. Optionally paste the source SQL query text (best-effort orientation aid; not required).
-3. Click **Analyze**.
+1. Paste plan output: **plain EXPLAIN JSON** or typical **`psql` QUERY PLAN** cell text (header, separators, `(N rows)`, `+` wraps—see [Capturing EXPLAIN JSON](capturing-explain-json.md)). Prefer `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` when you need forensic evidence; planner **`COSTS`** are optional.
+2. Optionally paste the source SQL query text (stored on the server with the analysis when provided).
+3. Optionally expand **Suggested EXPLAIN command** to generate copy-paste SQL (toggles for `ANALYZE`, `VERBOSE`, `BUFFERS`, and explicit `COSTS true`/`false`) and, if **Send EXPLAIN options with analyze request** is checked, attach declared options plus an optional “recorded command” to the API payload (`explainMetadata`).
+4. Click **Analyze**.
 
-See [Capturing EXPLAIN JSON](capturing-explain-json.md) for recommended commands and caveats.
+**Local vs reopened analysis:** Pasting and analyzing keeps the raw text in the browser until you clear it. After success, the address bar gains **`?analysis=<opaqueId>`** (and **`node=`** when a node is selected) so the same result can be fetched again from **SQLite-backed** storage. Opening a URL with **`analysis=`** loads the snapshot from the server (`GET /api/analyses/{id}`) and clears the textarea; running **Analyze** again on new paste strips the old `analysis` query param and replaces it after the new response. **Copy share link** remains valid across API restarts if the database file is kept (see [API & Reports](api-and-reports.md#storage-phase-36)).
+
+See [Capturing EXPLAIN JSON](capturing-explain-json.md) for recommended commands, share-link behavior, and normalizer caveats.
 
 ## Reading the results
 
@@ -54,7 +57,7 @@ The selected node panel shows:
 - human-readable label
 - join/branch subtitle when applicable
 - optional side-aware context line when supported by evidence
-- **Copy reference** (human-readable node text) and **Copy link** (full URL with `?node=<nodeId>` for the current selection). After a new analyze run, a URL with `node=` is applied **once** when that id exists in the result (the app does not continuously fight the address bar on every click).
+- **Copy reference** (human-readable node text) and **Copy link** (full URL with `?node=<nodeId>` for the current selection). **Phase 34:** the address bar stays in sync: selecting a node updates `?node=` (replace history, deduped), loading a URL with a valid `node=` restores selection after analyze, and browser back/forward updates the selected node when the id still exists in the current result.
 - **Related optimization suggestion** (when a ranked `optimizationSuggestions` entry targets this `nodeId`): title + summary only, to avoid duplicating the full suggestions list
 - **Access path / index insight** (when `indexInsights` entries target this `nodeId`): compact headline, access-path family, and signal kinds (investigation-oriented, not prescriptions)
 - **Buffer I/O**: when this node has any shared/local/temp buffer counters in the API payload (including explicit zeros), a short labeled list is shown above the raw JSON dump; if the plan has buffers elsewhere but this operator has none, a one-line hint explains that
@@ -66,7 +69,18 @@ The selected node panel shows:
 - Missing timing reduces time-based hotspot fidelity; missing buffer counters reduce read-based hotspots. `summary.hasBuffers` is true when **any** parsed shared/local/temp buffer field is present on **any** node (null means absent; zero still counts as present).
 - Query text is passed through and displayed; the tool does not claim exact SQL-to-plan mapping.
 
-After **Analyze**, the compact **summary** line under the input includes node count, max depth, **severe findings count** (from the backend summary), whether actual timing and buffers were present, and any **warnings** when the engine reports limitations.
+After **Analyze**, the compact **summary** line under the input includes node count, max depth, **severe findings count** (from the backend summary), whether actual timing and buffers were present, **`summary.plannerCosts`** (detected from JSON: `present` / `notDetected` / `mixed` / `unknown`), and any **warnings** when the engine reports limitations. When the request used **`planText`**, the API may include **`planInputNormalization`**; the UI shows a one-line note (**Parsed raw JSON directly** vs **Normalized pasted QUERY PLAN output**). **Copy share link** copies the reopenable URL; invalid or expired **`analysis=`** links show a clear error (e.g. after server restart).
+
+### Plan source / EXPLAIN metadata (Phase 34)
+
+Below the summary line, a short **Plan source / EXPLAIN metadata** block lists:
+
+- whether **source query** text was provided
+- **planner costs** detection (independent of declared EXPLAIN options)
+- **declared options** from `explainMetadata.options` when the client sent them
+- optional **recorded EXPLAIN command** text when provided
+
+This is separate from findings: it documents *how the plan was captured*, not *what the plan did wrong*.
 
 ## Graphical tree view
 

@@ -18,12 +18,17 @@ public static class PlanSummaryBuilder
 
         var hasActualTiming = nodes.Any(n => n.Metrics.InclusiveActualTimeMs is not null);
         var hasBuffers = nodes.Any(n => PlanBufferStats.NodeHasAnyBufferCounter(n.Node));
+        var plannerCosts = PlannerCostAnalyzer.Detect(nodes);
 
         var warnings = new List<string>();
         if (!hasActualTiming)
             warnings.Add("No actual timing fields observed (did you run EXPLAIN ANALYZE?). Findings will be partial.");
         if (!hasBuffers)
             warnings.Add("No buffer fields observed (did you run EXPLAIN (ANALYZE, BUFFERS)?). Buffer hotspot findings will be partial.");
+        if (plannerCosts == PlannerCostPresence.NotDetected)
+            warnings.Add("No planner cost/row/width fields observed on plan nodes (often EXPLAIN with COSTS OFF or stripped JSON). Analysis still uses runtime/buffer signals where present.");
+        if (plannerCosts == PlannerCostPresence.Mixed)
+            warnings.Add("Mixed planner cost fields across nodes; cost-based cues may be inconsistent.");
 
         var rootInclusive = root.Metrics.InclusiveActualTimeMs;
 
@@ -56,6 +61,7 @@ public static class PlanSummaryBuilder
             RootInclusiveActualTimeMs: rootInclusive,
             HasActualTiming: hasActualTiming,
             HasBuffers: hasBuffers,
+            PlannerCosts: plannerCosts,
             TopExclusiveTimeHotspotNodeIds: topExclusive,
             TopInclusiveTimeHotspotNodeIds: topInclusive,
             TopSharedReadHotspotNodeIds: topSharedRead,

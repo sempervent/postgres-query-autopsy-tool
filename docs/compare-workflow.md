@@ -1,5 +1,15 @@
 # Compare Workflow
 
+## Input (Phase 36)
+
+1. Paste **Plan A** and **Plan B** as **raw text** (plain JSON or `psql` **`QUERY PLAN`** output—same **`PlanInputNormalizer`** path as Analyze).
+2. Optionally expand **Optional: source SQL + EXPLAIN metadata** to attach **`queryTextA` / `queryTextB`**, shared EXPLAIN toggles, per-side **recorded EXPLAIN** commands, and **suggested EXPLAIN** snippets (mirrors Analyze ergonomics). Metadata is **optional** and **client-declared**.
+3. Click **Compare** — the API runs analyze twice (with per-side context), then the comparison engine. The full **`PlanComparisonResultV2`** is stored in **SQLite**; the UI syncs **`?comparison=<comparisonId>`** with existing **`pair=`**, **`finding=`**, **`indexDiff=`**, **`suggestion=`** params.
+4. **Reopen:** `GET /api/comparisons/{id}` powers **`?comparison=`** loads (same durability rules as analyses).
+5. **Copy share link** in the summary header copies the current URL (includes **`comparison=`** when synced). **Copy link** on the selected pair also includes **`comparison=`** so deep links stay attached to the stored snapshot.
+
+After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
+
 ## What compare does (and does not)
 
 - **Does**: heuristically maps nodes between Plan A and Plan B, computes deltas, summarizes context diffs, and highlights findings changes.
@@ -53,7 +63,7 @@ The selected pair shows:
 - readable pair heading + join branch subtitle (when applicable)
 - **Access path / index delta** (Phase 30): bullets from `pairDetails[].indexDeltaCues` when present (human-readable access-path family change + pair-matched index insight diff lines); if cues are empty but families still differ, a single fallback line is shown
 - **Related compare next step** (Phase 32): when a `compareOptimizationSuggestion` targets this pair’s plan B `nodeIdB`, show a compact title + summary (does not replace the summary-card suggestion list)
-- **Copy reference** (human-readable pair text) and **Copy link** (full URL with `?pair=`, optional `finding=`, `indexDiff=`, `suggestion=` when present) for shareable reopening of the same selection in the Compare UI
+- **Copy reference** (human-readable pair text) and **Copy link** (full URL with **`comparison=`**, `?pair=`, optional `finding=`, `indexDiff=`, `suggestion=` when present) for shareable reopening of the same selection against the **stored** comparison
 - **Join side change summary** when supported (hash build / inner waste)
 - context change summary highlights
 - raw operator fields and evidence side-by-side
@@ -67,14 +77,14 @@ Diff finding rows include a subtle **Copy** action that copies a concise human-r
 Notes:
 - Compare is **heuristic**: mapping confidence is shown because some rewrites change structure and labels. Treat low-confidence pairs as leads to validate, not guarantees.
 
-## Stable artifact ids & deep links (Phase 33)
+## Stable artifact ids & deep links (Phase 33 + 36)
 
+- **Comparison**: **`comparisonId`** identifies the **persisted** snapshot; URL key **`comparison`** (with **`pair`**, **`finding`**, **`indexDiff`**, **`suggestion`**).
 - **Pair**: each **`pairDetails[]`** row has **`pairArtifactId`** (`pair_` + short hash) scoped to **`comparisonId`** and the mapped node ids.
 - **Finding diff**: **`findingsDiff.items[].diffId`** (`fd_*`).
 - **Index insight diff**: **`indexComparison.insightDiffs[].insightDiffId`** (`ii_*`).
-- **URL query keys**: `pair`, `finding`, `indexDiff`, `suggestion` (values are the ids above). The UI syncs these when you change selection/highlights; opening a shared link after running compare with the **same plans** reproduces the same ids so the link lines up with reports.
 
-**Limits:** ids are **deterministic from structured fields** for a given comparison; they are **not** stable across different plan JSON or a different **`comparisonId`**. If query params reference ids that are not in the current result, the UI ignores them for selection.
+**Limits:** artifact ids are **deterministic from structured fields** for a given comparison payload; they are **not** stable across different plan JSON or a different **`comparisonId`**. If query params reference ids that are not in the current result, the UI ignores them for selection. **`comparison=`** must match a row still present in SQLite (TTL / pruning / DB deletion ⇒ 404-style error in the UI).
 
 ## Guardrails
 

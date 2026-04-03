@@ -22,7 +22,7 @@ The backend is organized as a modular monolith:
 - `PostgresQueryAutopsyTool.Api`
   - HTTP endpoints
   - Request validation
-  - In-memory persistence for MVP
+  - **SQLite artifact persistence** (`IArtifactPersistenceStore` / `SqliteArtifactStore`): full JSON snapshots for **`PlanAnalysisResult`** and **`PlanComparisonResultV2`** (opaque ids, optional TTL / max-row retention)
   - Swagger/OpenAPI
 
 The frontend communicates with the backend via typed API calls:
@@ -65,7 +65,7 @@ Narrative/hotspot presentation + query text (Phase 15):
 - Frontend renders hotspots as structured, clickable “inspect next” items derived from `PlanSummary.top*HotspotNodeIds` + the presentation label system.
 - Optional query text can be supplied on analyze; it is returned in `PlanAnalysisResult` and surfaced in reports and the Analyze UI as a collapsible “Source query” section.
 
-For MVP, persistence is in-memory only (no database required). Docker Compose runs both services locally.
+Analyze and Compare share-links are backed by a **local SQLite file** (configurable path; Docker mounts a volume on `/app/data` by default). There is no separate “application database” for users beyond this artifact store; treat it as **deployment-local durability** (not multi-tenant auth). Docker Compose runs both services locally with a named volume so ids can survive container restarts when the volume is kept.
 
 ## Architecture diagrams
 
@@ -97,8 +97,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  A[Plan A JSON] --> AA[AnalyzeAsync]
-  B[Plan B JSON] --> BB[AnalyzeAsync]
+  A[Plan A text or JSON] --> AA[AnalyzeAsync]
+  B[Plan B text or JSON] --> BB[AnalyzeAsync]
   AA --> C[ComparisonEngine]
   BB --> C
   C --> D[NodeMappingEngine]
@@ -111,6 +111,8 @@ flowchart LR
   E --> I
   H --> I
 ```
+
+Phase 36: each analyze half can carry optional **`queryTextA`/`queryTextB`**, **`explainMetadataA`/`explainMetadataB`**, and **`PlanInputNormalizationInfo`** per side; **`POST /api/compare`** persists **`PlanComparisonResultV2`** and returns **`comparisonId`**; **`GET /api/comparisons/{id}`** reloads the snapshot.
 
 ### Operator evidence propagation
 
@@ -141,9 +143,19 @@ flowchart TD
   F --> P
 ```
 
-Phase 33: **`presentation/artifactLinks.ts`** centralizes query keys (`pair`, `finding`, `indexDiff`, `suggestion`, `node`), `buildCompareDeepLinkSearchParams` / `buildAnalyzeDeepLinkSearchParams`, and `scrollArtifactIntoView` for `data-artifact` targets. Compare syncs a small set of params from selection; Analyze hydrates `?node=` once per `analysisId` after load.
+Phase 33: **`presentation/artifactLinks.ts`** centralizes query keys (`pair`, `finding`, `indexDiff`, `suggestion`, **`analysis`**, **`comparison`**, `node`), `buildCompareDeepLinkSearchParams` / `buildAnalyzeDeepLinkSearchParams`, and `scrollArtifactIntoView` for `data-artifact` targets. Compare syncs a small set of params from selection.
+
+Phase 34: optional **`ExplainCaptureMetadata`** on analyze request/response; **`PlannerCostAnalyzer`** fills **`PlanSummary.PlannerCosts`** from parsed nodes; **`presentation/explainCommandBuilder.ts`** + **`explainMetadataPresentation.ts`** support the Analyze “Suggested EXPLAIN” UI. Analyze **`?node=`** is kept in sync with selection (deduped `replace` updates).
+
+Phase 35: **`PlanInputNormalizer`** (Core) + **`PlanInputNormalizationInfo`** on **`PlanAnalysisResult`**; API prefers **`planText`** for analyze; shareable **`?analysis=`** + **`?node=`** URL model, **Copy share link**, inline normalization status.
+
+Phase 36: **SQLite** artifact store for analyses and comparisons; **`GET /api/analyses/{id}`** / **`GET /api/comparisons/{id}`** read durable JSON payloads; optional **`Storage:ArtifactTtlHours`** and **`Storage:MaxArtifactRows`**; Compare **`planAText`/`planBText`**, per-side query text + **`ExplainCaptureMetadata`**, UI **Plan capture / EXPLAIN context** (A vs B), **`?comparison=`** + **Copy share link** parity with Analyze.
 
 ## Data flow
+
+Raw pasted `planText` (optional `psql` wrapper / `+` wraps)
+→ **`PlanInputNormalizer`** (Phase 35) → JSON string
+→ `JsonDocument.Parse` / legacy `plan` body
 
 Raw plan JSON
 → `PostgresJsonExplainParser` (normalize)
@@ -177,8 +189,8 @@ This keeps summaries bounded and avoids dumping raw context into prose.
 
 ## Comparison pipeline
 
-Plan A JSON + Plan B JSON
-→ analyze A + analyze B (same pipeline as above)
+Plan A text/JSON + Plan B text/JSON (optional per-side query + explain metadata)
+→ analyze A + analyze B (same pipeline as above; per-side normalization when text path used)
 → `NodeMappingEngine` (heuristic mapping + confidence)
 → `ComparisonEngine` (per-node deltas, improved/worsened areas, findings diff with **`diffId` (`fd_*`)** + id-based cross-links, **index comparison** via `IndexComparisonAnalyzer` with **`insightDiffId` (`ii_*`)**, **`FindingIndexDiffLinker`** for reciprocal **ids** (legacy index arrays retained), pair **`pairArtifactId` (`pair_*`)**, **corroboration cues**, evidence-based narrative, pair details with **index delta cues**)
 → `PlanComparisonResultV2` (API response, UI model, compare report input; includes `IndexComparison` summary)

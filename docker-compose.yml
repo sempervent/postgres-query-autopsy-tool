@@ -1,3 +1,6 @@
+volumes:
+  pqat-api-data:
+
 services:
   api:
     build:
@@ -6,6 +9,10 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Production
+      - Storage__DatabasePath=/app/data/autopsy.db
+      - Storage__ArtifactTtlHours=720
+    volumes:
+      - pqat-api-data:/app/data
     ports:
       - "8080:8080"
 

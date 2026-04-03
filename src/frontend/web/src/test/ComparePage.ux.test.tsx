@@ -3,39 +3,51 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 
-vi.mock('../api/client', () => {
-  return {
-    comparePlansWithDiagnostics: vi.fn(async () => {
-      const basePlan: any = {
-        analysisId: 'x',
-        rootNodeId: 'root',
-        queryText: null,
-        findings: [],
-        narrative: { whatHappened: '', whereTimeWent: '', whatLikelyMatters: '', whatProbablyDoesNotMatter: '' },
-        summary: {
-          totalNodeCount: 2,
-          maxDepth: 1,
-          hasActualTiming: true,
-          hasBuffers: true,
-          topExclusiveTimeHotspotNodeIds: [],
-          topInclusiveTimeHotspotNodeIds: [],
-          topSharedReadHotspotNodeIds: [],
-          severeFindingsCount: 0,
-          warnings: [],
-        },
-      }
+const { compareWithPlanTextsMock, getComparisonMock } = vi.hoisted(() => ({
+  compareWithPlanTextsMock: vi.fn(),
+  getComparisonMock: vi.fn(),
+}))
 
-      return {
-        comparisonId: 'cmp-1',
-        planA: {
-          ...basePlan,
-          nodes: [
+function mockComparisonPayload(): any {
+  const basePlan: any = {
+    analysisId: 'x',
+    rootNodeId: 'root',
+    queryText: null,
+    planInputNormalization: { kind: 'rawJson' },
+    explainMetadata: { options: { format: 'json', analyze: true, verbose: true }, sourceExplainCommand: null },
+    findings: [],
+    narrative: { whatHappened: '', whereTimeWent: '', whatLikelyMatters: '', whatProbablyDoesNotMatter: '' },
+    summary: {
+      totalNodeCount: 2,
+      maxDepth: 1,
+      hasActualTiming: true,
+      hasBuffers: true,
+      plannerCosts: 'present' as const,
+      topExclusiveTimeHotspotNodeIds: [],
+      topInclusiveTimeHotspotNodeIds: [],
+      topSharedReadHotspotNodeIds: [],
+      severeFindingsCount: 0,
+      warnings: [],
+    },
+    indexOverview: null,
+    indexInsights: [],
+    optimizationSuggestions: [],
+  }
+
+  return {
+    comparisonId: 'cmp-1',
+    planA: {
+      ...basePlan,
+      queryText: 'SELECT * FROM a',
+      nodes: [
             { nodeId: 'a1', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Hash Join' }, metrics: {} },
             { nodeId: 'a2', parentNodeId: 'a1', childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} },
           ],
         },
         planB: {
           ...basePlan,
+          queryText: 'SELECT * FROM b',
+          planInputNormalization: { kind: 'queryPlanTable' },
           nodes: [
             { nodeId: 'b1', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Hash Join' }, metrics: {} },
             {
@@ -244,14 +256,26 @@ vi.mock('../api/client', () => {
         ],
         narrative: 'n',
         diagnostics: null,
-      }
-    }),
+  }
+}
+
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>()
+  return {
+    ...actual,
+    compareWithPlanTexts: (...a: unknown[]) => compareWithPlanTextsMock(...a) as ReturnType<typeof actual.compareWithPlanTexts>,
+    getComparison: (...a: unknown[]) => getComparisonMock(...a) as ReturnType<typeof actual.getComparison>,
   }
 })
 
 const clipboardWrite = vi.fn().mockResolvedValue(undefined)
 
 beforeEach(() => {
+  compareWithPlanTextsMock.mockImplementation(async () => mockComparisonPayload())
+  getComparisonMock.mockImplementation(async (id: string) => ({
+    ...mockComparisonPayload(),
+    comparisonId: id,
+  }))
   clipboardWrite.mockClear()
   Object.assign(navigator, {
     clipboard: { writeText: clipboardWrite },
@@ -447,5 +471,35 @@ test('keyboard activates navigator row selection', async () => {
   const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
   expect(improvedRow.getAttribute('aria-pressed')).toBe('true')
   expect(worsenedRow.getAttribute('aria-pressed')).toBe('false')
+})
+
+test('?comparison= loads persisted comparison via getComparison', async () => {
+  render(
+    <MemoryRouter initialEntries={[{ pathname: '/compare', search: '?comparison=reopen-cmp' }]}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText('Summary')).toBeInTheDocument()
+  expect(getComparisonMock).toHaveBeenCalledWith('reopen-cmp')
+})
+
+test('Plan capture / EXPLAIN context shows per-side query and normalization', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByText('Summary')
+
+  fireEvent.click(screen.getByText('Plan capture / EXPLAIN context (A vs B)'))
+  expect(await screen.findByText('Plan A (baseline)')).toBeInTheDocument()
+  expect(screen.getAllByText(/Source query: provided/).length).toBeGreaterThanOrEqual(2)
+  expect(screen.getByText(/Parsed raw JSON directly/)).toBeInTheDocument()
+  expect(screen.getByText(/Normalized QUERY PLAN output/)).toBeInTheDocument()
 })
 

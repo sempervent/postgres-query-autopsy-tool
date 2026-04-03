@@ -10,14 +10,16 @@ export type ArtifactDomKind = (typeof ArtifactDomKind)[keyof typeof ArtifactDomK
 
 /** Query keys used on `/compare` for deep links. */
 export const CompareDeepLinkParam = {
+  comparison: 'comparison',
   pair: 'pair',
   finding: 'finding',
   indexDiff: 'indexDiff',
   suggestion: 'suggestion',
 } as const
 
-/** Query key on `/analyze` for selected plan node. */
+/** Query keys on `/analyze` for share links and node selection (Phase 35). */
 export const AnalyzeDeepLinkParam = {
+  analysis: 'analysis',
   node: 'node',
 } as const
 
@@ -32,12 +34,14 @@ export function scrollArtifactIntoView(
 }
 
 export function buildCompareDeepLinkSearchParams(parts: {
+  comparisonId?: string | null
   pairArtifactId?: string | null
   findingDiffId?: string | null
   indexInsightDiffId?: string | null
   suggestionId?: string | null
 }): URLSearchParams {
   const p = new URLSearchParams()
+  if (parts.comparisonId) p.set(CompareDeepLinkParam.comparison, parts.comparisonId)
   if (parts.pairArtifactId) p.set(CompareDeepLinkParam.pair, parts.pairArtifactId)
   if (parts.findingDiffId) p.set(CompareDeepLinkParam.finding, parts.findingDiffId)
   if (parts.indexInsightDiffId) p.set(CompareDeepLinkParam.indexDiff, parts.indexInsightDiffId)
@@ -53,8 +57,12 @@ export function compareDeepLinkPath(pathname: string, params: URLSearchParams): 
 /** Same as {@link compareDeepLinkPath}; alias for analyze routes. */
 export const analyzeDeepLinkPath = compareDeepLinkPath
 
-export function buildAnalyzeDeepLinkSearchParams(nodeId: string | null | undefined): URLSearchParams {
+export function buildAnalyzeDeepLinkSearchParams(parts: {
+  analysisId?: string | null
+  nodeId?: string | null
+}): URLSearchParams {
   const p = new URLSearchParams()
-  if (nodeId) p.set(AnalyzeDeepLinkParam.node, nodeId)
+  if (parts.analysisId) p.set(AnalyzeDeepLinkParam.analysis, parts.analysisId)
+  if (parts.nodeId) p.set(AnalyzeDeepLinkParam.node, parts.nodeId)
   return p
 }
