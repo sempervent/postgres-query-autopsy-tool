@@ -22,17 +22,8 @@ export function ReferenceCopyButton({
         void onCopy(e)
       }}
       aria-label={ariaLabel ?? label}
-      style={{
-        padding: '4px 8px',
-        borderRadius: 10,
-        cursor: 'pointer',
-        fontSize: 12,
-        opacity: 0.9,
-        border: '1px solid var(--border)',
-        background: 'color-mix(in srgb, var(--bg) 92%, transparent)',
-        color: 'var(--text-h)',
-        ...style,
-      }}
+      className="pqat-copyBtn"
+      style={style}
     >
       {label}
     </button>

@@ -75,8 +75,74 @@ export class AnalysisNotFoundError extends Error {
   }
 }
 
+/** Phase 49: **422** `artifact_corrupt` from persisted artifact GET. */
+export class ArtifactCorruptError extends Error {
+  readonly code = 'artifact_corrupt' as const
+  readonly artifactKind: 'analysis' | 'comparison'
+  readonly artifactId: string
+
+  constructor(kind: 'analysis' | 'comparison', artifactId: string, message?: string | null) {
+    const fallback =
+      kind === 'analysis'
+        ? 'This saved analysis could not be read. The stored snapshot may be corrupt or in an unreadable shape.'
+        : 'This saved comparison could not be read. The stored snapshot may be corrupt or in an unreadable shape.'
+    super((message && message.trim()) || fallback)
+    this.name = 'ArtifactCorruptError'
+    this.artifactKind = kind
+    this.artifactId = artifactId
+  }
+}
+
+/** Phase 49: **409** `artifact_version_unsupported` — payload schema newer than this server or explicitly rejected. */
+export class ArtifactIncompatibleSchemaError extends Error {
+  readonly code = 'artifact_version_unsupported' as const
+  readonly artifactKind: 'analysis' | 'comparison'
+  readonly artifactId: string
+  readonly schemaVersion: number | null
+  readonly maxSupported: number | null
+
+  constructor(
+    kind: 'analysis' | 'comparison',
+    artifactId: string,
+    message: string | null | undefined,
+    schemaVersion: number | null,
+    maxSupported: number | null,
+  ) {
+    const sv = schemaVersion != null ? String(schemaVersion) : 'unknown'
+    const mx = maxSupported != null ? String(maxSupported) : 'unknown'
+    const fallback =
+      kind === 'analysis'
+        ? `This saved analysis uses an unsupported artifact format (schema ${sv}; this server supports up to ${mx}). Update the server or open a freshly generated snapshot.`
+        : `This saved comparison uses an unsupported artifact format (schema ${sv}; this server supports up to ${mx}). Update the server or open a freshly generated snapshot.`
+    super((message && message.trim()) || fallback)
+    this.name = 'ArtifactIncompatibleSchemaError'
+    this.artifactKind = kind
+    this.artifactId = artifactId
+    this.schemaVersion = schemaVersion
+    this.maxSupported = maxSupported
+  }
+}
+
+type ArtifactGetErrorJson = {
+  error?: string
+  message?: string
+  analysisId?: string
+  comparisonId?: string
+  schemaVersion?: number
+  maxSupported?: number
+}
+
+function tryParseArtifactGetError(text: string): ArtifactGetErrorJson | null {
+  try {
+    return JSON.parse(text) as ArtifactGetErrorJson
+  } catch {
+    return null
+  }
+}
+
 /** Phase 40: server-stored JSON preference per authenticated user (`/api/me/preferences/{key}`). */
 export const ANALYZE_WORKSPACE_PREFERENCE_KEY = 'analyze_workspace_v1'
+export const COMPARE_WORKSPACE_PREFERENCE_KEY = 'compare_workspace_v1'
 
 export async function fetchUserPreference(key: string): Promise<unknown | null> {
   const res = await fetch(`/api/me/preferences/${encodeURIComponent(key)}`, { headers: jsonGetHeaders() })
@@ -205,9 +271,27 @@ export async function getAnalysis(analysisId: string): Promise<PlanAnalysisResul
     }
     throw new AnalysisNotFoundError(body.analysisId ?? analysisId)
   }
+  const textEarly = res.ok ? '' : await res.text().catch(() => '')
+  if (res.status === 422) {
+    const j = tryParseArtifactGetError(textEarly)
+    if (j?.error === 'artifact_corrupt') {
+      throw new ArtifactCorruptError('analysis', analysisId, j.message)
+    }
+  }
+  if (res.status === 409) {
+    const j = tryParseArtifactGetError(textEarly)
+    if (j?.error === 'artifact_version_unsupported') {
+      throw new ArtifactIncompatibleSchemaError(
+        'analysis',
+        analysisId,
+        j.message,
+        j.schemaVersion ?? null,
+        j.maxSupported ?? null,
+      )
+    }
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${textEarly ? ` - ${textEarly}` : ''}`)
   }
   return res.json() as Promise<PlanAnalysisResult>
 }
@@ -276,9 +360,27 @@ export async function getComparison(comparisonId: string): Promise<PlanCompariso
     }
     throw new ComparisonNotFoundError(body.comparisonId ?? comparisonId)
   }
+  const textEarly = res.ok ? '' : await res.text().catch(() => '')
+  if (res.status === 422) {
+    const j = tryParseArtifactGetError(textEarly)
+    if (j?.error === 'artifact_corrupt') {
+      throw new ArtifactCorruptError('comparison', comparisonId, j.message)
+    }
+  }
+  if (res.status === 409) {
+    const j = tryParseArtifactGetError(textEarly)
+    if (j?.error === 'artifact_version_unsupported') {
+      throw new ArtifactIncompatibleSchemaError(
+        'comparison',
+        comparisonId,
+        j.message,
+        j.schemaVersion ?? null,
+        j.maxSupported ?? null,
+      )
+    }
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${textEarly ? ` - ${textEarly}` : ''}`)
   }
   return res.json() as Promise<PlanComparisonResult>
 }

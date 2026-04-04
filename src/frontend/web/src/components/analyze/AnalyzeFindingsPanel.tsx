@@ -5,9 +5,15 @@ import { findingReferenceText } from '../../presentation/nodeReferences'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { ClickableRow } from '../ClickableRow'
 import { ReferenceCopyButton } from '../ReferenceCopyButton'
+import { VirtualizedListColumn, VIRTUAL_LIST_THRESHOLD } from '../VirtualizedListColumn'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
+}
+
+function severityChipClass(sev: number) {
+  const n = Math.min(4, Math.max(0, sev))
+  return `pqat-chip pqat-chip--sev${n}`
 }
 function confidenceLabel(conf: number) {
   return ['Low', 'Medium', 'High'][conf] ?? String(conf)
@@ -36,27 +42,88 @@ export function AnalyzeFindingsPanel(props: {
     copyFinding,
   } = props
 
+  const useVirtual = filteredFindings.length >= VIRTUAL_LIST_THRESHOLD
+
+  function renderFindingRow(f: AnalysisFinding) {
+    const anchorId = (f.nodeIds ?? [])[0]
+    return (
+      <ClickableRow
+        key={f.findingId}
+        className="pqat-listRow"
+        selected={!!anchorId && anchorId === selectedNodeId}
+        aria-label={`Finding: ${f.title}`}
+        onActivate={() => {
+          const target = anchorId
+          if (target) jumpToNodeId(target)
+        }}
+        style={{
+          padding: 12,
+          color: 'var(--text-h)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <span style={{ fontFamily: 'var(--mono)' }}>{findingAnchorLabel(anchorId, byId as any)}</span>
+          </div>
+          <ReferenceCopyButton
+            aria-label="Copy finding reference"
+            onCopy={() => {
+              if (!anchorId) return
+              copyFinding.copy(findingReferenceText(anchorId, byId, f.title), 'Copied finding reference')
+            }}
+          />
+        </div>
+        {(() => {
+          if (!anchorId) return null
+          const n = byId.get(anchorId) ?? null
+          const side = joinSideContextLineForNode(n)
+          if (!side) return null
+          return <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-secondary)' }}>{side}</div>
+        })()}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span className={severityChipClass(f.severity)}>{severityLabel(f.severity)}</span>
+            <span style={{ fontWeight: 750, fontSize: '0.9375rem', lineHeight: 1.35 }}>{f.title}</span>
+          </div>
+          <span className="pqat-chip">{confidenceLabel(f.confidence)}</span>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+          rule: <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-secondary)' }}>{f.ruleId}</span> · category:{' '}
+          {String(f.category)}
+        </div>
+        <div style={{ marginTop: 8, fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>{f.summary}</div>
+        <details className="pqat-details" style={{ marginTop: 10 }}>
+          <summary>Evidence + explanation</summary>
+          <div style={{ marginTop: 8, fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{f.explanation}</div>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <b style={{ color: 'var(--text-h)' }}>Suggestion:</b> {f.suggestion}
+          </div>
+        </details>
+      </ClickableRow>
+    )
+  }
+
   return (
-    <div style={{ minWidth: 0 }} aria-label="Findings list">
+    <div className="pqat-panel pqat-panel--detail" style={{ minWidth: 0, padding: '16px 18px' }} aria-label="Findings list">
+      <div className="pqat-eyebrow">Ranked</div>
       <h2>Findings</h2>
-      <div style={{ marginBottom: 10, fontSize: 11, opacity: 0.8 }}>
+      <p className="pqat-hint" style={{ marginBottom: 12 }}>
         Index-related rules include seq-scan / indexing opportunities (J, F), heavy index paths (R), bitmap recheck (S), chunk+bitmap plans (P), nested-loop inner support (Q), hash join pressure (L), materialize loops (M), and sort cost (K).
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center' }}>
+      </p>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
         <input
+          className="pqat-input"
           value={findingSearch}
           onChange={(e) => setFindingSearch(e.target.value)}
           placeholder="Search findings (title/summary/rule)"
-          style={{
-            flex: 1,
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text-h)',
-          }}
+          style={{ flex: 1 }}
         />
-        <select value={minSeverity} onChange={(e) => setMinSeverity(Number(e.target.value))} style={{ padding: '10px 12px', borderRadius: 12 }}>
+        <select
+          className="pqat-select"
+          value={minSeverity}
+          onChange={(e) => setMinSeverity(Number(e.target.value))}
+          style={{ width: 'auto', minWidth: 120 }}
+        >
           <option value={0}>Info+</option>
           <option value={1}>Low+</option>
           <option value={2}>Medium+</option>
@@ -65,67 +132,23 @@ export function AnalyzeFindingsPanel(props: {
         </select>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filteredFindings.slice(0, 60).map((f: AnalysisFinding) => {
-          const anchorId = (f.nodeIds ?? [])[0]
-          return (
-            <ClickableRow
-              key={f.findingId}
-              selected={!!anchorId && anchorId === selectedNodeId}
-              aria-label={`Finding: ${f.title}`}
-              onActivate={() => {
-                const target = anchorId
-                if (target) jumpToNodeId(target)
-              }}
-              style={{
-                padding: 10,
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                background: 'color-mix(in srgb, var(--accent-bg) 18%, transparent)',
-                color: 'var(--text-h)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                <div style={{ fontSize: 12, opacity: 0.9 }}>
-                  <span style={{ fontFamily: 'var(--mono)' }}>{findingAnchorLabel(anchorId, byId as any)}</span>
-                </div>
-                <ReferenceCopyButton
-                  aria-label="Copy finding reference"
-                  onCopy={() => {
-                    if (!anchorId) return
-                    copyFinding.copy(findingReferenceText(anchorId, byId, f.title), 'Copied finding reference')
-                  }}
-                />
-              </div>
-              {(() => {
-                if (!anchorId) return null
-                const n = byId.get(anchorId) ?? null
-                const side = joinSideContextLineForNode(n)
-                if (!side) return null
-                return <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>{side}</div>
-              })()}
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ fontWeight: 800 }}>
-                  [{severityLabel(f.severity)}] {f.title}
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>{confidenceLabel(f.confidence)}</div>
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-                rule: <span style={{ fontFamily: 'var(--mono)' }}>{f.ruleId}</span> · category: {String(f.category)}
-              </div>
-              <div style={{ marginTop: 6 }}>{f.summary}</div>
-              <details style={{ marginTop: 8 }}>
-                <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Evidence + explanation</summary>
-                <div style={{ marginTop: 8, fontSize: 13, whiteSpace: 'pre-wrap' }}>{f.explanation}</div>
-                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-                  <b>Suggestion:</b> {f.suggestion}
-                </div>
-              </details>
-            </ClickableRow>
-          )
-        })}
-      </div>
-      {copyFinding.status ? <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>{copyFinding.status}</div> : null}
+      {useVirtual ? (
+        <VirtualizedListColumn
+          count={filteredFindings.length}
+          estimateSize={200}
+          aria-label="Findings list (scroll for more)"
+        >
+          {(i) => renderFindingRow(filteredFindings[i]!)}
+        </VirtualizedListColumn>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{filteredFindings.map((f) => renderFindingRow(f))}</div>
+      )}
+      {useVirtual ? (
+        <p className="pqat-hint" style={{ marginTop: 10, marginBottom: 0 }}>
+          Showing {filteredFindings.length} findings in a scrollable window for responsiveness.
+        </p>
+      ) : null}
+      {copyFinding.status ? <div className="pqat-hint" style={{ marginTop: 10 }}>{copyFinding.status}</div> : null}
     </div>
   )
 }

@@ -7,14 +7,18 @@ import {
 import { hasAuthFetchCredentials } from '../api/authHeaders'
 import {
   applyAnalyzeWorkspacePreset,
+  coerceAnalyzeGuideSectionOrder,
+  coerceAnalyzeLowerBandOrder,
   defaultAnalyzeWorkspaceLayout,
   mergeAnalyzeWorkspaceLayout,
+  type AnalyzeGuideSectionId,
+  type AnalyzeLowerBandColumnId,
   type AnalyzeWorkspaceLayoutState,
   type AnalyzeWorkspacePresetId,
   type AnalyzeWorkspaceRegionId,
 } from './analyzeWorkspaceModel'
 import { writeAnalyzeWorkspaceLayoutToLocalStorage, readAnalyzeWorkspaceLayoutFromLocalStorage } from './analyzeWorkspaceStorage'
-import { swapWithNeighbor } from './workspaceReorder'
+import { swapWithNeighbor } from '../workspaceLayout/reorder'
 
 export type AnalyzeWorkspaceLayoutApi = {
   layout: AnalyzeWorkspaceLayoutState
@@ -23,6 +27,8 @@ export type AnalyzeWorkspaceLayoutApi = {
   resetToDefaults: () => void
   moveLowerBand: (index: number, direction: -1 | 1) => void
   moveGuideSection: (index: number, direction: -1 | 1) => void
+  setGuideSectionOrder: (next: AnalyzeGuideSectionId[]) => void
+  setLowerBandOrder: (next: AnalyzeLowerBandColumnId[]) => void
   /** True after optional server hydrate finishes (or immediately when no server sync). */
   serverHydrated: boolean
 }
@@ -98,6 +104,18 @@ export function useAnalyzeWorkspaceLayout(authEnabled: boolean): AnalyzeWorkspac
     }))
   }, [])
 
+  const setGuideSectionOrder = useCallback((next: AnalyzeGuideSectionId[]) => {
+    const valid = coerceAnalyzeGuideSectionOrder(next)
+    if (!valid) return
+    setLayout((prev) => ({ ...prev, preset: null, guideSectionOrder: valid }))
+  }, [])
+
+  const setLowerBandOrder = useCallback((next: AnalyzeLowerBandColumnId[]) => {
+    const valid = coerceAnalyzeLowerBandOrder(next)
+    if (!valid) return
+    setLayout((prev) => ({ ...prev, preset: null, lowerBandOrder: valid }))
+  }, [])
+
   return {
     layout,
     setVisibility,
@@ -105,6 +123,8 @@ export function useAnalyzeWorkspaceLayout(authEnabled: boolean): AnalyzeWorkspac
     resetToDefaults,
     moveLowerBand,
     moveGuideSection,
+    setGuideSectionOrder,
+    setLowerBandOrder,
     serverHydrated,
   }
 }

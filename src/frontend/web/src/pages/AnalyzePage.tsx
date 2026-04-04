@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import type { AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../api/types'
 import {
   AccessDeniedError,
   AnalysisNotFoundError,
+  ArtifactCorruptError,
+  ArtifactIncompatibleSchemaError,
   analyzePlanWithQuery,
   exportHtml,
   exportJson,
@@ -15,20 +17,31 @@ import {
 import { nodeShortLabel } from '../presentation/nodeLabels'
 import { buildAnalyzeGraph } from '../presentation/analyzeGraphAdapter'
 import { applyGraphView, revealPath } from '../presentation/analyzeGraphState'
-import { compareSuggestionsByPriority } from '../presentation/optimizationSuggestionsPresentation'
+import {
+  compareSuggestionsByPriority,
+  normalizeOptimizationSuggestionsForDisplay,
+} from '../presentation/optimizationSuggestionsPresentation'
 import { AnalyzeDeepLinkParam, buildAnalyzeDeepLinkSearchParams } from '../presentation/artifactLinks'
 import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
-import { useAnalyzeWorkspaceWide } from '../hooks/useAnalyzeWorkspaceWide'
+import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useAnalyzeWorkspaceLayout } from '../analyzeWorkspace/useAnalyzeWorkspaceLayout'
 import type { AnalyzeLowerBandColumnId } from '../analyzeWorkspace/analyzeWorkspaceModel'
 import { AnalyzeCapturePanel } from '../components/analyze/AnalyzeCapturePanel'
 import { AnalyzeSummaryCard } from '../components/analyze/AnalyzeSummaryCard'
+import { LowerBandPanelSkeleton } from '../components/HeavyPanelShell'
 import { AnalyzePlanWorkspacePanel } from '../components/analyze/AnalyzePlanWorkspacePanel'
 import { AnalyzePlanGuideRail } from '../components/analyze/AnalyzePlanGuideRail'
-import { AnalyzeFindingsPanel } from '../components/analyze/AnalyzeFindingsPanel'
-import { AnalyzeOptimizationSuggestionsPanel } from '../components/analyze/AnalyzeOptimizationSuggestionsPanel'
-import { AnalyzeSelectedNodePanel } from '../components/analyze/AnalyzeSelectedNodePanel'
+
+const AnalyzeFindingsPanel = lazy(() =>
+  import('../components/analyze/AnalyzeFindingsPanel').then((m) => ({ default: m.AnalyzeFindingsPanel })),
+)
+const AnalyzeOptimizationSuggestionsPanel = lazy(() =>
+  import('../components/analyze/AnalyzeOptimizationSuggestionsPanel').then((m) => ({ default: m.AnalyzeOptimizationSuggestionsPanel })),
+)
+const AnalyzeSelectedNodePanel = lazy(() =>
+  import('../components/analyze/AnalyzeSelectedNodePanel').then((m) => ({ default: m.AnalyzeSelectedNodePanel })),
+)
 
 function downloadText(filename: string, text: string, mime: string) {
   const blob = new Blob([text], { type: mime })
@@ -79,7 +92,7 @@ export default function AnalyzePage() {
   const loadPersistedSeqRef = useRef(0)
 
   const urlAnalysisId = searchParams.get(AnalyzeDeepLinkParam.analysis)?.trim() ?? ''
-  const workspaceWide = useAnalyzeWorkspaceWide()
+  const layoutTier = useWorkspaceLayoutTier()
   const layoutApi = useAnalyzeWorkspaceLayout(appConfig?.authEnabled ?? false)
   const { layout } = layoutApi
 
@@ -134,9 +147,11 @@ export default function AnalyzePage() {
             ? e.message
             : e instanceof AccessDeniedError
               ? e.message
-              : e instanceof Error
+              : e instanceof ArtifactCorruptError || e instanceof ArtifactIncompatibleSchemaError
                 ? e.message
-                : String(e),
+                : e instanceof Error
+                  ? e.message
+                  : String(e),
         )
       } finally {
         if (!cancelled && loadPersistedSeqRef.current === seq) setLoadingPersisted(false)
@@ -198,14 +213,15 @@ export default function AnalyzePage() {
 
   const sortedOptimizationSuggestions = useMemo(() => {
     const raw = analysis?.optimizationSuggestions ?? []
-    return [...raw].sort(compareSuggestionsByPriority)
+    const sorted = [...raw].sort(compareSuggestionsByPriority)
+    return normalizeOptimizationSuggestionsForDisplay(sorted)
   }, [analysis])
 
   const relatedOptimizationForSelectedNode = useMemo((): OptimizationSuggestion | null => {
-    if (!analysis?.optimizationSuggestions?.length || !selectedNodeId) return null
-    const hits = analysis.optimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(selectedNodeId))
-    return hits.sort(compareSuggestionsByPriority)[0] ?? null
-  }, [analysis, selectedNodeId])
+    if (!sortedOptimizationSuggestions.length || !selectedNodeId) return null
+    const hits = sortedOptimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(selectedNodeId))
+    return [...hits].sort(compareSuggestionsByPriority)[0] ?? null
+  }, [sortedOptimizationSuggestions, selectedNodeId])
 
   const graph = useMemo(() => {
     if (!analysis) return null
@@ -320,6 +336,12 @@ export default function AnalyzePage() {
     return layout.visibility.selectedNode
   })
 
+  function lowerBandFallback(col: AnalyzeLowerBandColumnId) {
+    if (col === 'findings') return <LowerBandPanelSkeleton title="Findings" eyebrow="Loading" lines={6} />
+    if (col === 'suggestions') return <LowerBandPanelSkeleton title="Optimization suggestions" eyebrow="Loading" lines={5} />
+    return <LowerBandPanelSkeleton title="Selected node" eyebrow="Loading" lines={5} />
+  }
+
   function renderLowerColumn(col: AnalyzeLowerBandColumnId) {
     if (!analysis) return null
     if (col === 'findings' && layout.visibility.findings) {
@@ -370,13 +392,13 @@ export default function AnalyzePage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="pqat-page pqat-stack" style={{ gap: 18 }}>
       {!layout.visibility.capture ? (
         <div
+          className="pqat-panel pqat-panel--tool"
           style={{
-            padding: 10,
-            borderRadius: 12,
-            border: '1px dashed var(--border)',
+            padding: 12,
+            borderStyle: 'dashed',
             fontSize: 13,
             display: 'flex',
             alignItems: 'center',
@@ -384,8 +406,10 @@ export default function AnalyzePage() {
             flexWrap: 'wrap',
           }}
         >
-          <span>Plan capture is hidden.</span>
-          <button type="button" onClick={() => layoutApi.setVisibility('capture', true)} style={{ padding: '6px 12px', borderRadius: 10, cursor: 'pointer' }}>
+          <span className="pqat-hint" style={{ margin: 0 }}>
+            Plan capture is hidden.
+          </span>
+          <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--primary" onClick={() => layoutApi.setVisibility('capture', true)}>
             Show input
           </button>
         </div>
@@ -429,8 +453,13 @@ export default function AnalyzePage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: workspaceWide && layout.visibility.guide ? 'minmax(0, 1fr) minmax(280px, 400px)' : '1fr',
-            gap: 16,
+            gridTemplateColumns:
+              layoutTier !== 'narrow' && layout.visibility.guide
+                ? layoutTier === 'wide'
+                  ? 'minmax(0, 1.4fr) minmax(280px, min(26vw, 480px))'
+                  : 'minmax(0, 1fr) minmax(240px, 36%)'
+                : '1fr',
+            gap: 18,
             alignItems: 'stretch',
           }}
           aria-label="Analyze workspace"
@@ -484,22 +513,24 @@ export default function AnalyzePage() {
           style={{
             display: 'grid',
             gridTemplateColumns:
-              workspaceWide && visibleLower.length > 1
-                ? visibleLower.map(() => 'minmax(0, 1fr)').join(' ')
-                : '1fr',
-            gap: 16,
+              visibleLower.length <= 1
+                ? '1fr'
+                : layoutTier === 'wide'
+                  ? visibleLower.map(() => 'minmax(0, 1fr)').join(' ')
+                  : 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+            gap: 18,
             alignItems: 'start',
           }}
           aria-label="Findings and node detail"
         >
           {visibleLower.length === 0 ? (
-            <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', fontSize: 13, opacity: 0.9 }}>
+            <div className="pqat-panel pqat-panel--tool pqat-hint" style={{ padding: 14, fontSize: 13, margin: 0 }}>
               Findings, suggestions, and selected-node panels are hidden. Open <b>Customize workspace</b> in Plan workspace to show them again.
             </div>
           ) : (
             visibleLower.map((col) => (
               <div key={col} style={{ minWidth: 0 }}>
-                {renderLowerColumn(col)}
+                <Suspense fallback={lowerBandFallback(col)}>{renderLowerColumn(col)}</Suspense>
               </div>
             ))
           )}

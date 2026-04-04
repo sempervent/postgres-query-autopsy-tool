@@ -2,10 +2,18 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
+import { waitForCompareAppReady } from './waitForLazyApp'
+import { COMPARE_WORKSPACE_LOCAL_STORAGE_KEY } from '../compareWorkspace/compareWorkspaceStorage'
 
-const { compareWithPlanTextsMock, getComparisonMock } = vi.hoisted(() => ({
+const { compareWithPlanTextsMock, getComparisonMock, prefetchPairHeavyMock } = vi.hoisted(() => ({
   compareWithPlanTextsMock: vi.fn(),
   getComparisonMock: vi.fn(),
+  prefetchPairHeavyMock: vi.fn(),
+}))
+
+vi.mock('../components/compare/prefetchCompareSelectedPairHeavySections', () => ({
+  prefetchCompareSelectedPairHeavySections: prefetchPairHeavyMock,
+  resetComparePairHeavyPrefetchForTests: vi.fn(),
 }))
 
 function mockComparisonPayload(): any {
@@ -252,6 +260,10 @@ function mockComparisonPayload(): any {
             relatedIndexInsightNodeIds: [],
             cautions: [],
             validationSteps: ['EXPLAIN (ANALYZE, BUFFERS).'],
+            suggestionFamily: 'operational_tuning_validation',
+            recommendedNextAction: 'Re-run EXPLAIN on plan B with production-like parameters.',
+            whyItMatters: 'Compare suggestions should read as post-change guidance, not raw diff labels.',
+            targetDisplayLabel: 'Seq Scan on users',
           },
         ],
         narrative: 'n',
@@ -271,12 +283,18 @@ vi.mock('../api/client', async (importOriginal) => {
 const clipboardWrite = vi.fn().mockResolvedValue(undefined)
 
 beforeEach(() => {
+  prefetchPairHeavyMock.mockClear()
   compareWithPlanTextsMock.mockImplementation(async () => mockComparisonPayload())
   getComparisonMock.mockImplementation(async (id: string) => ({
     ...mockComparisonPayload(),
     comparisonId: id,
   }))
   clipboardWrite.mockClear()
+  try {
+    localStorage.removeItem(COMPARE_WORKSPACE_LOCAL_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
   Object.assign(navigator, {
     clipboard: { writeText: clipboardWrite },
   })
@@ -286,12 +304,13 @@ afterEach(() => {
   cleanup()
 })
 
-test('compare page is truthful (no stale MVP placeholder copy)', () => {
+test('compare page is truthful (no stale MVP placeholder copy)', async () => {
   render(
     <MemoryRouter initialEntries={['/compare']}>
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   expect(screen.getByText('Compare plans')).toBeInTheDocument()
   expect(screen.queryByText(/placeholder diff summary/i)).toBeNull()
@@ -299,25 +318,76 @@ test('compare page is truthful (no stale MVP placeholder copy)', () => {
   expect(screen.getByText(/Heuristic node mapping/i)).toBeInTheDocument()
 })
 
-test('compare deep link pair query restores mapped pair after compare', async () => {
+test(
+  'compare deep link pair query restores mapped pair after compare',
+  async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{ pathname: '/compare', search: '?pair=pair_mock_join' }]}
+      >
+        <App />
+      </MemoryRouter>,
+    )
+    await waitForCompareAppReady()
+
+    fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+    fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+    expect(await screen.findByText('Summary', undefined, { timeout: 15_000 })).toBeInTheDocument()
+    await waitFor(
+      () => {
+        const h = screen.getByRole('heading', { name: 'Selected node pair' })
+        const p = h.nextElementSibling as HTMLElement
+        expect(p.textContent).toMatch(/Hash Join/)
+      },
+      { timeout: 15_000 },
+    )
+  },
+  20_000,
+)
+
+test('selected pair: eager copy actions and confidence line; heavy block includes metric deltas', async () => {
   render(
-    <MemoryRouter
-      initialEntries={[{ pathname: '/compare', search: '?pair=pair_mock_join' }]}
-    >
+    <MemoryRouter initialEntries={['/compare']}>
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
 
-  expect(await screen.findByText('Summary')).toBeInTheDocument()
-  await waitFor(() => {
-    const h = screen.getByRole('heading', { name: 'Selected node pair' })
-    const p = h.nextElementSibling as HTMLElement
-    expect(p.textContent).toMatch(/Hash Join/)
-  })
+  await screen.findByText('Summary', {}, { timeout: 15_000 })
+  expect(screen.getByRole('heading', { name: 'Selected node pair' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copy reference' })).toBeInTheDocument()
+  expect(screen.getByText(/confidence: High · score/)).toBeInTheDocument()
+  await waitFor(
+    () => {
+      expect(screen.getByText('Key metric deltas')).toBeInTheDocument()
+    },
+    { timeout: 15_000 },
+  )
+})
+
+test('compare navigator worsened row hover invokes pair heavy prefetch helper', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  await screen.findByText('Navigator', undefined, { timeout: 15_000 })
+  const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
+  prefetchPairHeavyMock.mockClear()
+  fireEvent.mouseEnter(worsenedRow)
+  expect(prefetchPairHeavyMock).toHaveBeenCalled()
 })
 
 test('compare page renders summary + what changed most and allows selecting a top change', async () => {
@@ -326,6 +396,7 @@ test('compare page renders summary + what changed most and allows selecting a to
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
@@ -350,40 +421,52 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(screen.getByLabelText('Compare optimization suggestions')).toBeInTheDocument()
   expect(screen.getByText('Next steps after this change')).toBeInTheDocument()
   expect(screen.getAllByText(/Compare next step mock title/).length).toBeGreaterThanOrEqual(1)
+  const sug = screen.getByLabelText('Compare optimization suggestions')
+  expect(within(sug).getByText(/Operational tuning & validation/i)).toBeInTheDocument()
+  expect(within(sug).getByText(/Next ·/)).toBeInTheDocument()
+  expect(within(sug).queryByText(/Priority: high/i)).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
   expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
 })
 
-test('compare navigator uses ClickableRow: no nested buttons, selection syncs across navigator and findings diff', async () => {
-  render(
-    <MemoryRouter initialEntries={['/compare']}>
-      <App />
-    </MemoryRouter>,
-  )
+test(
+  'compare navigator uses ClickableRow: no nested buttons, selection syncs across navigator and findings diff',
+  async () => {
+    render(
+      <MemoryRouter initialEntries={['/compare']}>
+        <App />
+      </MemoryRouter>,
+    )
+    await waitForCompareAppReady()
 
-  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
-  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
-  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+    fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+    fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
 
-  await screen.findByText('Navigator')
-  expect(document.querySelectorAll('button button').length).toBe(0)
+    await screen.findByText('Navigator', undefined, { timeout: 15_000 })
+    expect(document.querySelectorAll('button button').length).toBe(0)
 
-  const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
-  const improvedRow = screen.getByRole('button', { name: /Improved pair:/i })
-  await waitFor(() => {
-    expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
-    expect(improvedRow.getAttribute('aria-pressed')).toBe('false')
-  })
+    const worsenedRow = screen.getByRole('button', { name: /Worsened pair:/i })
+    const improvedRow = screen.getByRole('button', { name: /Improved pair:/i })
+    await waitFor(
+      () => {
+        expect(worsenedRow.getAttribute('aria-pressed')).toBe('true')
+        expect(improvedRow.getAttribute('aria-pressed')).toBe('false')
+      },
+      { timeout: 15_000 },
+    )
 
-  const diffRow = screen.getByRole('button', { name: /Finding diff: buffer-read-hotspot/i })
-  expect(diffRow.getAttribute('aria-pressed')).toBe('true')
+    const diffRow = screen.getByRole('button', { name: /Finding diff: buffer-read-hotspot/i })
+    expect(diffRow.getAttribute('aria-pressed')).toBe('true')
 
-  fireEvent.click(improvedRow)
-  expect(worsenedRow.getAttribute('aria-pressed')).toBe('false')
-  expect(improvedRow.getAttribute('aria-pressed')).toBe('true')
-  expect(diffRow.getAttribute('aria-pressed')).toBe('false')
-})
+    fireEvent.click(improvedRow)
+    expect(worsenedRow.getAttribute('aria-pressed')).toBe('false')
+    expect(improvedRow.getAttribute('aria-pressed')).toBe('true')
+    expect(diffRow.getAttribute('aria-pressed')).toBe('false')
+  },
+  25_000,
+)
 
 test('navigator Copy pair reference does not change selection', async () => {
   render(
@@ -391,6 +474,7 @@ test('navigator Copy pair reference does not change selection', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
@@ -411,6 +495,7 @@ test('branch context shows twin paths and clicking a mapped ancestor updates sel
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
@@ -439,6 +524,7 @@ test('finding diff with only Plan B anchor resolves pair and syncs selection', a
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
@@ -458,6 +544,7 @@ test('keyboard activates navigator row selection', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
@@ -479,9 +566,97 @@ test('?comparison= loads persisted comparison via getComparison', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   expect(await screen.findByText('Summary')).toBeInTheDocument()
   expect(getComparisonMock).toHaveBeenCalledWith('reopen-cmp')
+})
+
+test('?comparison= suggestion= legacy alias in alsoKnownAs highlights canonical suggestion row', async () => {
+  getComparisonMock.mockImplementation(async (id: string) => {
+    const base = mockComparisonPayload()
+    return {
+      ...base,
+      comparisonId: id,
+      compareOptimizationSuggestions: [
+        {
+          ...(base.compareOptimizationSuggestions ?? [])[0],
+          suggestionId: 'sg_canonical',
+          alsoKnownAs: ['sg_legacy_alias'],
+        },
+      ],
+    }
+  })
+  render(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: '/compare', search: '?comparison=reopen-cmp&suggestion=sg_legacy_alias' },
+      ]}
+    >
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  await screen.findByLabelText('Compare optimization suggestions')
+  const row = document.querySelector(
+    '[data-artifact="compare-suggestion"][data-artifact-id="sg_canonical"]',
+  )
+  expect(row).toBeTruthy()
+  expect(row?.classList.contains('pqat-suggestionItem--highlight')).toBe(true)
+})
+
+test('customize workspace hides findings diff list until re-enabled', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByRole('heading', { name: 'Findings diff' })
+
+  const cust = screen.getAllByText('Customize workspace').find((el) => el.tagName === 'SUMMARY')
+  expect(cust).toBeTruthy()
+  fireEvent.click(cust!)
+  const findingsToggle = await waitFor(
+    () => screen.getByRole('checkbox', { name: /Show panel: findings diff/i }),
+    { timeout: 15_000 },
+  )
+  fireEvent.click(findingsToggle)
+  expect(screen.queryByRole('heading', { name: 'Findings diff' })).toBeNull()
+
+  fireEvent.click(findingsToggle)
+  expect(await screen.findByRole('heading', { name: 'Findings diff' })).toBeInTheDocument()
+})
+
+test('customize workspace Down on navigator order persists layout to localStorage', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+  await screen.findByRole('heading', { name: 'Findings diff' })
+
+  const customizeSummaries = screen.getAllByText('Customize workspace').filter((n) => n.tagName === 'SUMMARY')
+  expect(customizeSummaries.length).toBeGreaterThan(0)
+  fireEvent.click(customizeSummaries[0])
+  const navList = await screen.findByRole('list', { name: 'Compare navigator block order' })
+  const downButtons = within(navList).getAllByRole('button', { name: 'Down' })
+  fireEvent.click(downButtons[0])
+
+  const raw = localStorage.getItem(COMPARE_WORKSPACE_LOCAL_STORAGE_KEY)
+  expect(raw).toBeTruthy()
+  const stored = JSON.parse(raw!) as { leftStackOrder: string[] }
+  expect(stored.leftStackOrder[0]).toBe('findingsDiff')
 })
 
 test('Plan capture / EXPLAIN context shows per-side query and normalization', async () => {
@@ -490,6 +665,7 @@ test('Plan capture / EXPLAIN context shows per-side query and normalization', as
       <App />
     </MemoryRouter>,
   )
+  await waitForCompareAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
   fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })

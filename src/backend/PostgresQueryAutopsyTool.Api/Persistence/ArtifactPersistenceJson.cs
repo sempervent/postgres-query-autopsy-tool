@@ -17,6 +17,8 @@ public static class ArtifactPersistenceJson
             WriteIndented = false,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
+        o.Converters.Add(new RelaxedOptimizationSuggestionJsonConverter());
+        o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
         return o;
     }
 }

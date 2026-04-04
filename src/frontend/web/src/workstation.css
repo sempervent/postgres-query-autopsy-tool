@@ -1,0 +1,546 @@
+/**
+ * Phase 43–44 — shared workstation visual language (Analyze + Compare).
+ * Dense page/layout patterns live in workstation-patterns.css (imported after this file from App).
+ * Uses tokens from index.css; scoped under .pqat-page where needed.
+ */
+
+.pqat-page {
+  text-align: left;
+  color: var(--text);
+}
+
+.pqat-page h2 {
+  font-family: var(--heading);
+  font-size: var(--pqat-title-size, 1.125rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-h);
+  margin: 0 0 0.5rem;
+}
+
+.pqat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pqat-gap-section, 18px);
+}
+
+.pqat-hint {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.pqat-hint--tight {
+  margin-top: -6px;
+  margin-bottom: 12px;
+}
+
+.pqat-eyebrow {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+/* --- Panel surfaces (layered depth) --- */
+.pqat-panel {
+  box-sizing: border-box;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  box-shadow: var(--elev-1);
+}
+
+.pqat-panel--workspace {
+  background: var(--surface-workspace);
+  border-color: var(--border);
+  box-shadow: var(--elev-2), var(--inset-glow);
+}
+
+.pqat-panel--rail {
+  background: var(--surface-rail);
+  border-color: color-mix(in srgb, var(--accent-border) 22%, var(--border-subtle));
+}
+
+.pqat-panel--detail {
+  background: var(--surface-detail);
+  border-color: var(--border);
+  box-shadow: var(--elev-1);
+}
+
+.pqat-panel--capture {
+  background: var(--surface-capture);
+  border-color: var(--border-subtle);
+}
+
+.pqat-panel--tool {
+  background: var(--surface-tool);
+  border-color: var(--border-subtle);
+  box-shadow: none;
+}
+
+.pqat-panel__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pqat-panel__header:empty {
+  display: none;
+}
+
+/* --- Forms --- */
+.pqat-textarea,
+.pqat-input,
+.pqat-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid var(--border);
+  background: var(--surface-input);
+  color: var(--text-h);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pqat-textarea:focus-visible,
+.pqat-input:focus-visible,
+.pqat-select:focus-visible {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.pqat-select {
+  font-family: var(--sans);
+  cursor: pointer;
+}
+
+/* --- Buttons --- */
+.pqat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--pqat-radius-control, 11px);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-h);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pqat-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent-border) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent-bg) 18%, var(--surface-2));
+}
+
+.pqat-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.pqat-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pqat-btn--primary {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent-bg) 55%, var(--surface-2));
+  color: var(--text-h);
+}
+
+.pqat-btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-bg) 75%, var(--surface-2));
+}
+
+.pqat-btn--ghost {
+  background: transparent;
+}
+
+.pqat-btn--sm {
+  padding: 6px 11px;
+  font-size: 0.75rem;
+}
+
+.pqat-seg {
+  display: inline-flex;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.pqat-seg__btn {
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.pqat-seg__btn:hover {
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+}
+
+.pqat-seg__btn--active {
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 55%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+/* --- List / finding / suggestion cards --- */
+.pqat-listRow {
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-list);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pqat-listRow:hover {
+  border-color: color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+}
+
+.pqat-listRow--suggestion {
+  background: var(--surface-suggestion);
+  cursor: default;
+}
+
+.pqat-listRow--suggestion:hover {
+  border-color: var(--border-subtle);
+}
+
+.pqat-suggestionMeta--readable {
+  font-family: var(--sans);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.pqat-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  font-family: var(--mono);
+  letter-spacing: 0.02em;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.pqat-chip--suggestionMeta {
+  font-family: var(--sans);
+  letter-spacing: 0;
+  font-weight: 650;
+}
+
+.pqat-suggestionGroupedBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border-subtle));
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 12%, transparent);
+  margin-bottom: 6px;
+}
+
+.pqat-chip--sev0 {
+  border-color: color-mix(in srgb, #64748b 40%, var(--border-subtle));
+  color: var(--text-secondary);
+}
+.pqat-chip--sev1 {
+  border-color: color-mix(in srgb, #38bdf8 45%, var(--border-subtle));
+  color: #7dd3fc;
+}
+.pqat-chip--sev2 {
+  border-color: color-mix(in srgb, #fbbf24 50%, var(--border-subtle));
+  color: #fcd34d;
+}
+.pqat-chip--sev3 {
+  border-color: color-mix(in srgb, #fb923c 50%, var(--border-subtle));
+  color: #fdba74;
+}
+.pqat-chip--sev4 {
+  border-color: color-mix(in srgb, #f87171 55%, var(--border-subtle));
+  color: #fca5a5;
+}
+
+/* --- Graph frame --- */
+.pqat-graphFrame {
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--surface-graph);
+  box-shadow: var(--elev-2), inset 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent);
+}
+
+.pqat-graphToolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-workspace) 88%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--elev-1);
+}
+
+/* --- Details / disclosure --- */
+.pqat-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.pqat-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pqat-details > summary:hover {
+  color: var(--text-h);
+}
+
+.pqat-details--muted {
+  opacity: 0.92;
+}
+
+/* --- Workspace customizer --- */
+.pqat-customizer {
+  font-size: 0.8125rem;
+}
+
+.pqat-customizer > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.pqat-customizer > summary:hover {
+  color: var(--accent);
+}
+
+.pqat-customizer__body {
+  margin-top: 10px;
+  padding: 14px 16px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: var(--surface-tool);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pqat-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.pqat-fieldset > legend {
+  font-weight: 700;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.pqat-presetBtn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.pqat-presetBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.pqat-presetBtn--active {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent-bg) 45%, transparent);
+  color: var(--text-h);
+}
+
+/* --- Sortable row (DnD) --- */
+.pqat-sortRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.pqat-sortRow--dragging {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent-bg) 28%, var(--surface-2));
+  box-shadow: var(--elev-1);
+}
+
+.pqat-dragHandle {
+  cursor: grab;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1;
+  background: color-mix(in srgb, var(--accent-bg) 22%, var(--surface-2));
+  color: var(--text-h);
+}
+
+.pqat-dragHandle:active {
+  cursor: grabbing;
+}
+
+/* --- Metric / summary tiles (Compare) --- */
+.pqat-metricTile {
+  padding: 12px 14px;
+  border-radius: var(--pqat-radius-control, 12px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-metric);
+  transition: border-color 0.15s ease;
+}
+
+.pqat-metricTile:hover {
+  border-color: color-mix(in srgb, var(--accent-border) 25%, var(--border-subtle));
+}
+
+.pqat-metricTile__label {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pqat-metricTile__value {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--text-h);
+  margin-top: 6px;
+  letter-spacing: -0.02em;
+}
+
+.pqat-metricTile__delta {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* --- Copy reference button --- */
+.pqat-copyBtn {
+  padding: 5px 10px;
+  border-radius: var(--pqat-radius-control, 10px);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    background 0.12s ease;
+}
+
+.pqat-copyBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 15%, var(--surface-2));
+}
+
+/* --- Clickable row base (selection ring clarity) --- */
+.clickableRow {
+  border-radius: var(--pqat-radius-panel, 14px);
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.clickableRow:not(.clickableRow--selected):hover {
+  border-color: color-mix(in srgb, var(--accent-border) 30%, var(--border-subtle)) !important;
+}
+
+/* --- React Flow dark canvas --- */
+.pqat-graphFrame .react-flow {
+  background: var(--surface-graph-canvas) !important;
+}
+
+.pqat-graphFrame .react-flow__controls {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--elev-1);
+}
+
+.pqat-graphFrame .react-flow__controls-button {
+  background: var(--surface-2) !important;
+  border-bottom-color: var(--border-subtle) !important;
+  fill: var(--text-secondary) !important;
+}
+
+.pqat-graphFrame .react-flow__controls-button:hover {
+  background: var(--surface-1) !important;
+  fill: var(--text-h) !important;
+}

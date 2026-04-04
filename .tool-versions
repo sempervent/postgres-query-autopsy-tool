@@ -1,0 +1,2 @@
+# Optional asdf-vm pin (Phase 53) — aligns with Volta in src/frontend/web/package.json
+nodejs 20.18.0

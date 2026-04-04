@@ -1,7 +1,12 @@
-import { Link, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { NavLink, Route, Routes } from 'react-router-dom'
 import './App.css'
-import AnalyzePage from './pages/AnalyzePage'
-import ComparePage from './pages/ComparePage'
+import './workstation.css'
+import './workstation-patterns.css'
+import { RouteFallback } from './components/RouteFallback'
+
+const AnalyzePage = lazy(() => import('./pages/AnalyzePage'))
+const ComparePage = lazy(() => import('./pages/ComparePage'))
 
 export default function App() {
   return (
@@ -11,19 +16,33 @@ export default function App() {
           <div className="brandTitle">Postgres Query Autopsy Tool</div>
         </div>
         <nav className="nav">
-          <Link className="navLink" to="/">
+          <NavLink className={({ isActive }) => `navLink${isActive ? ' navLink--active' : ''}`} to="/" end>
             Analyze
-          </Link>
-          <Link className="navLink" to="/compare">
+          </NavLink>
+          <NavLink className={({ isActive }) => `navLink${isActive ? ' navLink--active' : ''}`} to="/compare">
             Compare
-          </Link>
+          </NavLink>
         </nav>
       </header>
 
       <main className="content">
         <Routes>
-          <Route path="/" element={<AnalyzePage />} />
-          <Route path="/compare" element={<ComparePage />} />
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={<RouteFallback label="Loading Analyze…" />}>
+                <AnalyzePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/compare"
+            element={
+              <Suspense fallback={<RouteFallback label="Loading Compare…" />}>
+                <ComparePage />
+              </Suspense>
+            }
+          />
         </Routes>
       </main>
     </div>

@@ -798,3 +798,269 @@ Verified (this phase):
 
 **Limitations:** No drag-and-drop (Up/Down reorder only). **Compare** does not use the layout hook yet—only Analyze. Server preferences require **auth enabled** + valid identity; misconfigured clients keep **local-only** behavior.
 
+## Phase 41 — Compare workspace decomposition + customizable layout parity (complete)
+
+Implemented:
+- **Frontend decomposition**: `src/frontend/web/src/components/compare/` — **`CompareIntroPanel`**, **`CompareCapturePanel`** (+ **`CompareWorkspaceCustomizer`**), **`CompareSummaryColumn`**, **`CompareTopChangesPanel`**, **`CompareNavigatorPanel`**, **`ComparePairColumn`**, **`CompareSelectedPairPanel`**, **`CompareCaptureContextColumn`**; **`ComparePage.tsx`** (~676 lines) orchestrates state, deep-link sync, and layout.
+- **Layout model**: **`compareWorkspace/compareWorkspaceModel.ts`** (v1 visibility, **`summarySectionOrder`**, **`leftStackOrder`**, **`mainColumnOrder`**, presets); **`compareWorkspaceStorage.ts`** (`pqat.compareWorkspaceLayout.v1`); **`useCompareWorkspaceLayout`** + **`COMPARE_WORKSPACE_PREFERENCE_KEY`** (`compare_workspace_v1`) aligned with **`/api/me/preferences/{key}`**.
+- **Shared primitive**: **`workspaceLayout/reorder.ts`** (`swapWithNeighbor`) reused from Analyze’s hook.
+- **UX**: Intro / input recovery strip; responsive summary + top-changes row; wide vs stacked main columns (`useAnalyzeWorkspaceWide`); empty navigator message when all list panels hidden; empty pair column message when branch + pair detail hidden.
+- **Tests**: **`compareWorkspace/compareWorkspaceModel.test.ts`**; **`ComparePage.ux.test.tsx`** clears compare layout localStorage in **`beforeEach`**, adds customize/hide findings diff round-trip.
+- **Docs**: `compare-workflow.md`, `architecture.md`, `index.md`, `api-and-reports.md`, this log.
+
+Verified (this phase):
+- Frontend: `npx vitest run` — **88** tests in **20** files; `npm run build` / `tsc -b` OK.
+- Backend: **`dotnet test`** not runnable in agent environment (host .NET 10 without .NET 8 runtime); run **`dotnet test PostgresQueryAutopsyTool.sln -c Release`** in CI or with .NET 8 installed.
+- Docs: `mkdocs build --strict` where `.venv-docs` + plugins are installed.
+
+**Limitations:** Still no drag-and-drop reorder. Server sync for Compare matches Analyze (auth + credentials required). Compact preset keeps three **`leftStackOrder`** entries so merge round-trips; **unmatched** remains ordered last but can stay hidden via visibility.
+
+## Phase 42 — Full-width workspace density + responsive breakpoint refinement + drag/reorder polish (complete)
+
+Implemented:
+- **Layout tiers**: **`useWorkspaceLayoutTier`** — **`narrow`** &lt;900px, **`medium`** 900–1319px, **`wide`** ≥1320px; used by **`AnalyzePage`** and **`ComparePage`** for graph+guide, summary+top-changes, and main compare columns (medium keeps side-by-side grids instead of a single 1080px cliff).
+- **Shell width**: **`App.css`** **`.content`** — fluid width with **`max-width: min(2200px, 100%)`** and clamp padding (removes fixed ~1126px centered column).
+- **Analyze / Compare models**: presets **Wide graph**, **Reviewer**, **Compact** (Analyze); **Wide pair** (`wideGraph`) (Compare); exported **`coerceAnalyzeGuideSectionOrder`**, **`coerceAnalyzeLowerBandOrder`**, **`coerceCompareSummarySectionOrder`**, **`coerceCompareLeftStackOrder`** for validated merges; hooks expose **`setGuideSectionOrder`**, **`setLowerBandOrder`**, **`setSummarySectionOrder`**, **`setLeftStackOrder`**.
+- **Reorder UX**: **`components/workspace/WorkspaceSortableOrderList`** — **@dnd-kit** vertical sortable list, **drag handle** + **Up/Down**; wired in **`AnalyzeWorkspaceCustomizer`** and **`CompareWorkspaceCustomizer`**.
+- **Compare summary cards**: **`CompareSummaryColumn`** metric grid uses **`repeat(auto-fit, minmax(...))`** for wrapping on mid-width viewports.
+- **Tests**: **`useWorkspaceLayoutTier.test.tsx`**; extended **`analyzeWorkspaceModel` / `compareWorkspaceModel`** tests; **`AnalyzePage.interaction`** and **`ComparePage.ux`** assert **Down** reorder persists to **localStorage**.
+- **Docs**: **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`index.md`**, **`api-and-reports.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npx vitest run` — **101** passed (**21** files); `npm run build` OK.
+- Docs: `mkdocs build --strict` — run in this phase (see command output).
+- Docker: `docker compose build` + `docker compose up -d`; `curl http://localhost:8080/api/health` → `{"status":"ok"}`.
+- Backend: **no backend code changed in Phase 42**. **`dotnet build PostgresQueryAutopsyTool.sln -c Release`** succeeded; **`dotnet test`** **could not execute** on this host (testhost targets **net8.0** but only **.NET 10** runtime is installed — same limitation as Phase 41). Run **`dotnet test PostgresQueryAutopsyTool.sln -c Release`** in CI or after installing the **.NET 8** runtime.
+
+**Limitations:** Drag reorder is **vertical lists inside Customize** only (not freeform page layout). **Auth preference sync** still requires auth enabled + SPA credentials. Ultra-wide layouts cap at **`max-width`** on **`.content`**; very narrow viewports still stack aggressively by design.
+
+## Phase 43 — Visual design polish + cohesive workstation aesthetics (complete)
+
+Implemented:
+- **Design tokens** (`index.css`): layered **`--surface-*`** (workspace, rail, detail, capture, tool, list, suggestion, graph, metric), **`--text-secondary`** / **`--text-tertiary`**, **`--border-subtle`**, **`--elev-1`** / **`--elev-2`**, **`--focus-ring`**, refined dark/light accent and body contrast; **`#root`** full-bleed (removes legacy 1126px centered column).
+- **Workstation stylesheet** (`workstation.css`): **`pqat-page`**, **`pqat-panel`** variants, **`pqat-btn`** / **`pqat-seg`**, **`pqat-input`** / **`pqat-textarea`**, **`pqat-chip`** + severity tints, **`pqat-metricTile`**, **`pqat-customizer`** (dashed tool well), **`pqat-graphFrame`** + React Flow control theming, **`pqat-listRow`**, **`pqat-copyBtn`**.
+- **Shell** (`App.css`): glassy **topBar**, **pill nav** with **`navLink--active`**; **`App.tsx`** uses **`NavLink`** + imports **`workstation.css`**.
+- **Analyze / Compare UI**: capture/summary/workspace/findings/suggestions/selected-node panels, graph toolbar, guide rail eyebrow, Compare intro + capture header (**Plan inputs**), navigator/pair columns, summary metric tiles, customizer + sortable rows aligned to the same system.
+- **Tests**: **`App.smoke.test.tsx`** — compare route + active nav via **`aria-current`**; full suite **102** tests.
+- **Docs**: **`architecture.md`** — Phase 43 paragraph in the numbered phase list plus Analyze/Compare bullets updated for **`workstation.css`** / **`pqat-*`**.
+
+Verified (this phase):
+- Frontend: `npx vitest run` — **102** passed (**21** files); `npm run build` OK.
+- Docs: `mkdocs build --strict` OK (`.venv-docs`).
+- Docker: `docker compose build` OK (web image rebuilds frontend; api cached).
+- Backend: **no backend changes**; **`dotnet test`** not run on this host (**.NET 8** runtime not installed; same as Phase 42).
+
+**Limitations:** Many secondary textareas/buttons inside Compare optional **details** still use lighter inline styling; bundle size grew slightly with **`workstation.css`**. Further gains: lazy-load **@dnd-kit**, optional screenshot refresh in docs.
+
+## Phase 44 — Workstation design-system completion + route-level/code-splitting performance pass (complete)
+
+Implemented:
+- **`workstation-patterns.css`**: page grids, capture/form **2-column** grids, field labels, check rows/groups, mono **pre** blocks, navigator **pair** rows, findings-diff/outline, summary **shell** + **callouts**, **pill** link buttons, **route** / **customizer** loading shells; **`pqat-details--muted`** in **`workstation.css`**.
+- **Compare UI alignment**: **`CompareCapturePanel`**, **`CompareNavigatorPanel`**, **`CompareSummaryColumn`**, **`ComparePage`**, **`CompareIntroPanel`**, **`ComparePairColumn`** — reduced inline layout; shared classes for metrics, index/suggestion blocks, warnings/empty/loading panels.
+- **Lazy delivery**: **`App.tsx`** — **`React.lazy`** for **`AnalyzePage`** / **`ComparePage`** + per-route **`Suspense`** with **`RouteFallback`**; **`AnalyzeWorkspaceCustomizer`** / **`CompareWorkspaceCustomizer`** mount **`React.lazy`** **`*Inner`** modules when **Customize workspace** opens (**`CustomizerBodyFallback`**).
+- **Tests**: **`waitForLazyApp.ts`**; **`setup.ts`** preloads **`*Inner`** modules so **Suspense** resolves under jsdom; **`App.smoke`** scopes **Plan inputs** panel queries (StrictMode); **`vitest.config.ts`** **`testTimeout: 30_000`**; **`AnalyzePage.interaction`** / **`ComparePage.ux`** await lazy routes.
+- **Docs**: **`architecture.md`**, **`index.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npx vitest run` — **104** passed (**21** files); `npm run build` — **no** default chunk &gt;500 kB warning; main **`index-*.js`** ~**226** kB (~**72** kB gzip) with **Analyze** / **Compare** / **WorkspaceSortableOrderList** / customizer inners in separate chunks (see `dist/assets/*`).
+- Docs: `mkdocs build --strict` OK (`.venv-docs`).
+- Docker: `docker compose build` OK (**web** + **api** images).
+- Backend: **no backend source changes**; **`dotnet test`** not run on this host (**.NET 8** runtime not installed).
+
+**Limitations:** Some **CompareSummaryColumn** / **Analyze** panels still use occasional inline margins for one-off rhythm; **`WorkspaceSortableOrderList`** remains a **~46 kB** gzip chunk (DnD) but loads only after opening **Customize** (or when that chunk is prefetched by navigation). Further gains: optional **React Flow** lazy load on Analyze, image refresh in docs.
+
+## Phase 45 — Progressive workspace hydration + graph/list performance (complete)
+
+Implemented:
+- **Graph stack**: **`AnalyzePlanGraphCore.tsx`** (React Flow + toolbar) as a **lazy chunk** behind **`AnalyzePlanGraphLazy`** + **`PlanGraphSkeleton`**; **`AnalyzePlanGraph.tsx`** re-exports. **Graph** mode only mounts the chunk; **Text** mode skips it. **`prefetchAnalyzePlanGraph()`** on **Graph** segment **hover/focus** and **`requestIdleCallback`** (fallback **setTimeout**) when already in graph mode.
+- **Heavy panel shell**: **`HeavyPanelShell`** + **`LowerBandPanelSkeleton`**; graph skeleton + panel skeleton styles in **`workstation-patterns.css`** (**`pqat-graphSkeleton*`**, **`pqat-heavyPanel*`**, **`pqat-panelSkeleton*`**).
+- **Analyze lower band**: **`AnalyzePage`** **`React.lazy`** for **`AnalyzeFindingsPanel`**, **`AnalyzeOptimizationSuggestionsPanel`**, **`AnalyzeSelectedNodePanel`** + per-column **`Suspense`** + **`LowerBandPanelSkeleton`**.
+- **Virtual lists**: **`VirtualizedListColumn`** (**`@tanstack/react-virtual`**, **`VIRTUAL_LIST_THRESHOLD`**) — long **Analyze** findings and optimization suggestions; long **Compare** findings diff (threshold in **`CompareNavigatorPanel`**). Defaults use **`min(560px, max(280px, 58vh))`**-style caps so short viewports still get a usable scroll height.
+- **Selected node**: **`AnalyzeSelectedNodeHeavySections`** lazy chunk + **`Suspense`** skeleton under the compact header.
+- **Tests**: **`setup.ts`** preloads **`AnalyzePlanGraphCore`** and lower-band / heavy-section modules; **`AnalyzePage.interaction`** — text vs graph **React Flow** presence; **`AnalyzeFindingsPanel.virtual.test.tsx`** — virtual vs non-virtual list labeling.
+- **Docs**: **`architecture.md`**, **`index.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npm test` — **107** passed (**22** files); `npm run build` OK; Vite splits **`AnalyzePlanGraphCore`** (~**144** kB JS / ~**46** kB gzip) and **`VirtualizedListColumn`** (~**17** kB JS / ~**5** kB gzip) into separate assets.
+- Docs: `mkdocs build --strict` (run in this phase when `.venv-docs` is available).
+- Docker: `docker compose build` OK (**web** + **api**).
+- Backend: **no backend source changes**; **`dotnet test`** not run on this host (**.NET 8** runtime not installed).
+
+**Limitations:** Virtualization relies on **scroll host** `offsetHeight` in TanStack’s observer — very small containers in exotic layouts could still under-measure until resize. **jsdom** tests avoid asserting virtual row clicks without layout stubs; behavior is covered via list-mode labeling + full-app graph/text test. **Compare** pair column is not further code-split in this phase.
+
+## Phase 46 — Build stabilization + Compare selected-pair staged hydration (complete)
+
+Implemented:
+- **TypeScript / Docker build fix**: **`AnalyzeFindingsPanel.virtual.test.tsx`** — add **`import { …, vi } from 'vitest'`** so **`tsc -b`** (which typechecks **`src/test/**`**) succeeds in the **web** Docker image.
+- **Vitest policy (documented)**: **`vitest.config.ts`** comment — keep **globals off**; **`docs/contributing.md`** — explicit **`vitest`** imports required because **`tsconfig.app.json`** includes tests without **`vitest/globals`**.
+- **Compare staged pair detail**: **`CompareSelectedPairHeavySections.tsx`** — moved dense UI from **`CompareSelectedPairPanel`**; panel uses **`React.lazy`** + **`Suspense`** + **`PairHeavyFallback`** (skeleton + hint). Styles: **`pqat-pairHeavySkeleton`** in **`workstation-patterns.css`**.
+- **Tests**: **`setup.ts`** preloads **`CompareSelectedPairHeavySections`** for deterministic jsdom; **`ComparePage.ux.test.tsx`** — new test for eager copy/confidence + **`waitFor`** **Key metric deltas**.
+- **Bundle**: **`CompareSelectedPairHeavySections`** becomes a separate Vite chunk (~**14** kB JS); **`ComparePage`** chunk size drops.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npm test` — **108** passed (**22** files); `npm run build` OK.
+- Docker: `docker compose build web` OK (**`tsc -b` + vite** inside **node:20-alpine**).
+- Docs: `mkdocs build --strict` OK.
+- Backend: **no backend source changes**; **`dotnet test`** not run on this host (**.NET 8** runtime not installed).
+
+**Limitations:** **Branch context** strip remains eager (not split in this phase). Pair heavy chunk still loads as soon as a pair is selected — no idle prefetch yet.
+
+## Phase 47 — Human-readable optimization suggestions overhaul (complete)
+
+Implemented:
+- **Backend model** (`OptimizationSuggestionModels.cs`): **`OptimizationSuggestionFamily`** enum (JSON snake_case), **`RecommendedNextAction`**, **`WhyItMatters`**, optional **`TargetDisplayLabel`**, **`IsGroupedCluster`**; new **`OptimizationSuggestionFamilyJsonConverter`**.
+- **Analyze synthesis** (`OptimizationSuggestionEngine.cs`): rewritten titles/summaries/validation copy; **`HumanLabel`** via **`NodeLabelFormatter`**; **sort** cards avoid raw **`root.*`** in summaries; **statistics** findings (**G** / **A**) **merge** into one suggestion when multiple fire; **`ValExplainBuffers`** wording tightened.
+- **Compare synthesis** (`CompareOptimizationSuggestionEngine.cs`): same fields + **`CmpHumanLabel`** on plan B; compare-specific **Next** / **Why** / validation phrasing; **`AddNewAccessPathConcern`** takes full comparison for labels.
+- **Reports** (`PlanAnalysisService.cs`): markdown/HTML/compare markdown list **title + family + next + why** instead of enum soup.
+- **Frontend** (`api/types.ts`, **`optimizationSuggestionsPresentation.ts`**): family labels, **`suggestionConfidenceShort` / `suggestionPriorityShort`**, **`groupOptimizationSuggestionsForUi`**, **`suggestionMetadataSentence`**; **`AnalyzeOptimizationSuggestionsPanel`** — family chips, **Try next** / **Why it matters**, **Validate ·**, grouped sections when helpful, **empty state**, **Combined suggestion** badge; **Plan guide** + **Selected node** + **Compare** summary/pair panels updated.
+- **Styles** (`workstation.css`): **`pqat-chip--suggestionMeta`**, **`pqat-suggestionGroupedBadge`**, **`pqat-suggestionMeta--readable`**.
+- **Tests**: backend **`OptimizationSuggestionEngineTests`** (consolidation, human fields, no **`root.`** in sort summaries); frontend **`optimizationSuggestionsPresentation.test.ts`**; **`AnalyzePage.interaction`**, **`ComparePage.ux`** assertions for readable metadata.
+- **Docs**: **`analyze-workflow.md`**, **`compare-workflow.md`**, **`findings-catalog.md`**, **`architecture.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npx vitest run` — **109** passed (**22** files); `npm run build` OK.
+- Backend: `docker run --rm -v "$(pwd)":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **106** passed (host lacks **.NET 8** runtime; Docker SDK **8.0** used).
+- Docs: `mkdocs build --strict` when `.venv-docs` is available (run locally).
+- Docker: `docker compose build web` OK (same as Phase 46 policy).
+
+**Limitations:** Virtualized **optimization** list skips **family subheadings** (only used when grouping is off); very large grouped sets still scroll as a flat virtual list. Compare **carried** suggestions from plan B reuse analyze **SuggestionId** hashing on a prefixed title—stable but not re-hashed on merge. Further work: idle **prefetch** for Compare pair heavy sections (deferred per mission).
+
+## Phase 48 — Suggestion virtualized grouping + persisted compatibility + Compare pair prefetch (complete)
+
+Implemented:
+- **Grouped + virtualized suggestions:** **`flattenGroupedSuggestionsForVirtualList`**, **`suggestionVirtualRowEstimateSize`**, **`VirtualizedListColumn` `getItemSize`** — family **header rows** stay in the virtual list alongside cards (**`AnalyzeOptimizationSuggestionsPanel`**).
+- **Client normalization:** **`normalizeOptimizationSuggestionForDisplay` / `normalizeOptimizationSuggestionsForDisplay`** — infer **`suggestionFamily`**, backfill **Next** / **Why** / **`targetDisplayLabel`** for older SQLite snapshots missing Phase 47 properties; wired on **Analyze** + **Compare** suggestion lists.
+- **Compare carried ids:** **`CompareOptimizationSuggestionEngine.CmpCarriedFromPlanBId`** — **`sg_*`** from structured payload + source analyze **`SuggestionId`**, not title text.
+- **Prefetch:** **`prefetchCompareSelectedPairHeavySections.ts`**; **`ClickableRow` `onPointerIntent`** on navigator / findings diff / top changes / branch strip; summary **Focus plan B** **`onMouseEnter`/`onFocus`**; **`ComparePage` `useEffect`** idle warm after **`comparisonId`** (cleanup matches **`AnalyzePlanWorkspacePanel`** idle pattern).
+- **UX:** **`PairHeavyFallback`** calmer copy + fewer skeleton bars; **`pqat-fadeInSoft`** on **`pqat-pairHeavySkeleton`**.
+- **Tests:** **`optimizationSuggestionsPresentation.test.ts`** (flatten + legacy normalize); **`AnalyzeOptimizationSuggestionsPanel.test.tsx`** (mock **`VirtualizedListColumn`**, assert **`.pqat-suggestionVirtualHeader`** rows); **`ClickableRow.test.tsx`**; **`prefetchCompareSelectedPairHeavySections.test.ts`**; **`ComparePage.ux`** prefetch hover + **`vi.mock`**; **`CompareOptimizationSuggestionEngineTests`** carried-id stability; **`setup.ts`** drops eager **`AnalyzeOptimizationSuggestionsPanel`** import so per-test **`vi.mock('../VirtualizedListColumn')` works** — **`AnalyzePage.interaction`** preloads the panel module instead.
+- **Docs:** **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`api-and-reports.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npx vitest run` — **115** passed (**25** files); `npm run build` OK.
+- Backend: `docker run --rm -v "$(pwd)":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **107** passed (first `--no-restore` attempt may warn on cold cache; restore + test succeeded).
+- Docs: `mkdocs build --strict` when `.venv-docs` + plugins are installed (run locally if needed).
+- Docker: `docker compose build web` (run locally; expected OK per prior phases).
+
+**Limitations:** Virtual lists still depend on scroll-host measurement in jsdom for full integration tests (panel test uses a **`VirtualizedListColumn` mock). Prefetch only warms JS; first paint of heavy pair UI can still wait on slow devices if the chunk is large. Carried compare ids change vs pre-Phase-48 title-based scheme—deep links pinning those ids could differ after upgrade (rare; ids are compare-scoped).
+
+## Phase 49 — Persisted artifact versioning + compatibility/migration hardening (complete)
+
+Implemented:
+- **Backend:** **`ArtifactSchema`** / **`PersistedArtifactNormalizer`** / **`OptimizationSuggestionCompat`**; **`PlanAnalysisResult`** + **`PlanComparisonResultV2`** carry **`ArtifactSchemaVersion`**, **`ArtifactPersistedUtc`**; **`OptimizationSuggestion.AlsoKnownAs`** for compare carried-suggestion legacy ids; **`ArtifactReadResult`** + **422** (`artifact_corrupt`) / **409** (`artifact_version_unsupported`) on GET; **`SqliteArtifactStore`** stamps version on save, normalizes on read, retains corrupt rows; unit tests (**`PersistedArtifactNormalizerTests`**, **`SqliteArtifactStoreReadTests`**).
+- **Frontend:** **`artifactSchemaVersion`**, **`artifactPersistedUtc`** on API types; **`ArtifactCorruptError`**, **`ArtifactIncompatibleSchemaError`** from **`getAnalysis`/`getComparison`**; **Analyze** / **Compare** persisted-load error messaging; **`resolveCompareSuggestionParamToCanonicalId`** + Compare URL sync for **`suggestion=`** aliases; sharing reload error surface on **Analyze** summary card; display normalization comment (server-first).
+- **Docs:** **`api-and-reports.md`** (versioning, GET errors, compatibility matrix), **`architecture.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, this log.
+
+Verified (this phase):
+- Frontend: `cd src/frontend/web && npx vitest run` — **117** passed (**25** files); `npm run build` OK. **`AnalyzePage.interaction`**: extended **`findByRole`** timeout for lazy **Plan guide** customizer list (parallel-run flake).
+- Backend: `docker run --rm -v "$(pwd)":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **113** passed (omit **`--no-restore`** on cold cache).
+- Docs: `.venv-docs/bin/mkdocs build --strict` OK.
+- Docker: `docker compose build web` OK.
+
+**Limitations:** Not every historical field permutation is migrated—only explicit, test-covered paths. **`alsoKnownAs`** covers high-value compare carried-suggestion id drift, not arbitrary client-side invented ids. Future schema bumps require incrementing **`ArtifactSchema`** and extending the normalizer.
+
+## Phase 50 — Browser E2E smoke for persisted / deep-link flows (complete)
+
+Implemented:
+- **Playwright** (`@playwright/test`), config **`playwright.config.mjs`**, specs **`src/frontend/web/e2e/persisted-flows.spec.ts`**, bundled plan JSON under **`e2e/fixtures/`** (copies of backend unit fixtures).
+- **API (gated):** **`E2E:Enabled`** → **`E2eSeedEndpoints`**: corrupt analysis JSON, future **`artifactSchemaVersion`** analysis, comparison with carried suggestion + legacy alias; **`SqliteArtifactStore.UpsertRawJsonForE2E`**. *(Phase 51: **`PQAT_E2E_ENABLED`** via **`.env.testing`** on **`docker compose`**, not a separate compose file.)*
+- **UI hooks:** **`data-testid`** on Analyze error / persisted loading, Compare error / persisted loading, **`compare-plan-a-text`** / **`compare-plan-b-text`**; **`vite.config.ts`** **`/api`** proxy to **8080** for local Vite E2E.
+- **Automation:** **`scripts/e2e-playwright-docker.sh`** (compose + Playwright container for macOS); **`.github/workflows/ci.yml`** job **`e2e-playwright`**.
+- **Docs:** **`contributing.md`**, **`architecture.md`**, this log.
+
+Verified (this phase):
+- **Playwright:** `docker run … mcr.microsoft.com/playwright:v1.52.0-jammy` against **`host.docker.internal:3000`** with compose **e2e** stack — **6** tests passed (persisted analyze+node, compare reopen, lazy pair heavy, **422**, **409**, suggestion alias).
+- **Frontend (Node 20, matches CI):** `docker run node:20-alpine` in **`src/frontend/web`** — **`npm ci`**, **`npm test`**, **`npm run build`** OK.
+- **Typecheck (host):** `npx tsc -b` in **`src/frontend/web`** OK.
+- **Backend:** `docker … dotnet sdk:8.0 dotnet test` — **113** passed (includes API compile with **E2e** code).
+- **Docker:** `docker compose build web` OK after UI testids (Phase 50); Phase 51 folds E2E env into **`.env.testing`** + **`testing`** profile (see Phase 51).
+
+**Limitations:** E2E seeds are **powerful**—must stay off outside test/staging. Suite is **serial** (**`workers: 1`**) against one SQLite volume. Host **Node 25** + current **Vite** may fail **`npm run build`** locally (rolldown optional native binding); use **Node 20** or Docker as in CI. **`e2e/fixtures`** can drift from **`tests/backend.unit/.../postgres-json`** if fixtures change (Phase 51 adds **`fixtures:sync`** / **`fixtures:check`**).
+
+## Phase 51 — Compose profiles + testing ergonomics (complete)
+
+Implemented:
+- **`docker-compose.yml`:** **`api`** + **`web`** always; **`playwright`** on **`profiles: [testing]`**; **`E2E__Enabled=${PQAT_E2E_ENABLED:-false}`**; removed separate **`docker-compose.e2e.yml`** (behavior via **`.env.testing`** + same file).
+- **`.env.testing`** / **`.env.testing.example`:** document **`PQAT_E2E_ENABLED=true`** for seed routes only when running E2E.
+- **Scripts:** **`scripts/e2e-playwright-docker.sh`** uses **`--env-file .env.testing`** + **`--profile testing run --rm playwright`**; **`scripts/sync-e2e-fixtures.sh`**, **`scripts/check-e2e-fixtures.mjs`**; **`npm run fixtures:sync` / `fixtures:check`** in **`src/frontend/web/package.json`**.
+- **Tooling:** **`engines.node`**, **`.nvmrc`** (**20**); contributor notes on Node 20 vs 25 / Rolldown.
+- **CI:** **`e2e-playwright`** job aligned with compose profile + in-container Playwright; frontend job runs **`fixtures:check`**.
+- **Docs:** **`contributing.md`**, **`architecture.md`**, **`getting-started.md`**, this log; **`e2e/auth/README.md`**, **`e2e/visual/README.md`** as minimal future hooks.
+- **Makefile:** **`e2e-playwright-docker`** target; help typo fix (**`test-frontend`**).
+
+Verified (this phase, agent run):
+- **`docker compose config --services`:** **`api`**, **`web`** only (no **`playwright`** without **`--profile testing`**).
+- **`docker compose --profile testing config --services`:** **`api`**, **`web`**, **`playwright`**.
+- **`node scripts/check-e2e-fixtures.mjs`** / **`npm run fixtures:check`:** OK.
+- **Frontend:** `cd src/frontend/web && npm ci && npm run fixtures:check && npm test && npm run build` — **117** Vitest tests + production build OK (agent host **Node 25** with **`npm` EBADENGINE** warning vs **`engines`**; **CI** uses **Node 20**).
+- **Docs:** `mkdocs build --strict` — OK.
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **113** passed.
+- **Docker images:** `docker compose build` — OK (**api** + **web**).
+- **E2E:** `docker compose --env-file .env.testing up -d --build api web` + `docker compose --env-file .env.testing --profile testing run --rm playwright` — **6** Playwright tests passed; **`docker compose --env-file .env.testing down -v`** teardown OK.
+
+**Limitations:** **`docker compose --profile testing up -d`** starts a **`playwright`** container that runs once and exits (service **exited**); prefer **`run --rm playwright`** for clarity. Visual regression remains a small doc stub under **`e2e/visual/`**.
+
+## Phase 52 — First real auth-mode browser E2E (complete)
+
+Implemented:
+- **Strategy:** **API key** auth for deterministic principals (**`X-Api-Key`**); Playwright **`extraHTTPHeaders`** per browser context (no **`VITE_AUTH_*`** rebuild for Docker **`web`** image).
+- **`.env.testing.auth`** / **`.env.testing.auth.example`:** **`PQAT_AUTH_ENABLED`**, **`PQAT_AUTH_MODE=ApiKey`**, three seeded keys (**`e2e-user-a`**, **`e2e-user-b`** in **`e2e-group-research`**; **`e2e-user-c`** ungrouped).
+- **`docker-compose.yml`:** maps **`PQAT_*`** → **`Auth__*`** / **`Auth__ApiKey__Seeds__*__*`**; passes **`PQAT_E2E_*`** into **`playwright`** for test constants; **`PLAYWRIGHT_CLI_ARGS`** (default **`--project=e2e-smoke`**); command runs **`npx playwright test … $PLAYWRIGHT_CLI_ARGS`**.
+- **Playwright:** projects **`e2e-smoke`** (**`persisted-flows.spec.ts`**) and **`e2e-auth-api-key`** (**`auth-artifact-access.spec.ts`**); **`npm run test:e2e`** = smoke; **`npm run test:e2e:auth`** = auth.
+- **Specs:** owner persist/reopen; cross-user **private** denial (**`analyze-page-error`**); **group** scope via **Sharing** UI + member access + outsider denial.
+- **Playwright ↔ SPA:** **`e2e/auth/installApiKeyRoute.ts`** adds **`X-Api-Key`** on **`/api/*`** via **`page.route`** so **`fetch()`** matches real auth traffic ( **`extraHTTPHeaders`** alone was insufficient for SPA subrequests in practice).
+- **UI:** **`data-testid`** on **`ArtifactSharingPanel`** (incl. **`artifact-sharing-status`** on save/error line).
+- **Scripts / Make:** **`e2e-playwright-docker.sh --auth`**, **`make e2e-playwright-docker-auth`**.
+- **CI:** job **`e2e-playwright-auth`** (**.env.testing.auth** + **`e2e-auth-api-key`**).
+- **Docs:** **`contributing.md`**, **`deployment-auth.md`**, **`architecture.md`**, **`e2e/auth/README.md`**, this log.
+
+Verified (this phase, agent run):
+- **Smoke E2E:** **6** tests (**`e2e-smoke`**) with **`.env.testing`** — OK.
+- **Auth E2E:** **3** tests (**`e2e-auth-api-key`**) with **`.env.testing.auth`** — OK (stable after waiting for **GET** analysis reload following **PUT** sharing).
+- **Frontend (Node 20, CI parity):** `docker run node:20-alpine` with repo mounted at **`/repo`**, **`cd /repo/src/frontend/web`**, **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** — **117** Vitest tests + build OK. **Host Node 25** on this machine failed **Vitest** startup (**rolldown** native binding) — use **Node 20** per **`engines`** / **`.nvmrc`**.
+- **Docs:** **`mkdocs build --strict`** — OK.
+- **Backend:** **`docker … dotnet sdk:8.0 dotnet test`** — **113** passed.
+
+**Limitations:** JWT / proxy / legacy bearer are **not** covered in browser E2E yet. Auth job uses a **fresh volume** per run. **`PLAYWRIGHT_CLI_ARGS`** is a single token today (**`--project=…`**). Seeded API keys live in **`.env.testing.auth`** — rotate if a leak is ever suspected.
+
+## Phase 53 — JWT bearer browser smoke + Compare auth parity (complete)
+
+Implemented:
+- **Second auth strategy in browser E2E:** **JWT bearer** (**`Auth__Mode=JwtBearer`**) with deterministic **`sub`** values (**`PQAT_JWT_SUB_A`**, **`PQAT_JWT_SUB_B`**) and HS256 signing material in **`.env.testing.jwt`** / **`.env.testing.jwt.example`**.
+- **Playwright:** project **`e2e-auth-jwt`** (**`jwt-auth-smoke.spec.ts`**); **`installBearerRoute`** + **`jwtMint.ts`** / **`jwtConfig.ts`** mirror the API-key **`page.route`** pattern for **`fetch('/api/…')`**.
+- **Coverage:** **Analyze** persist + reopen; **Compare** persist + reopen; **Compare** cross-subject denial (**`compare-page-error`**, access denied text).
+- **Compose / scripts / CI:** **`docker-compose.yml`** JWT env mapping; **`e2e-playwright-docker.sh --jwt`**, **`make e2e-playwright-docker-jwt`**, **`npm run test:e2e:jwt`**, CI job **`e2e-playwright-jwt`**.
+- **Docs / ops:** **`deployment-auth.md`** reverse-proxy header forwarding (**`Authorization`**, **`X-Api-Key`**); **`nginx.conf`** comment block; **`contributing.md`**, **`architecture.md`**, **`e2e/auth/README.md`**.
+- **Tooling:** **`volta`** block in **`src/frontend/web/package.json`** (**Node 20.18.0**); **`.tool-versions`** for asdf.
+
+Verified (this phase, agent run, 2026-03-31):
+- **Smoke E2E:** **6** tests (**`e2e-smoke`**) with **`.env.testing`** — OK.
+- **API key auth E2E:** **3** tests (**`e2e-auth-api-key`**) with **`.env.testing.auth`** — OK.
+- **JWT auth E2E:** **3** tests (**`e2e-auth-jwt`**) with **`.env.testing.jwt`** — OK.
+- **Frontend (Node 20, Docker `node:20-alpine`):** **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** — **117** Vitest tests + build OK.
+- **Docs:** **`mkdocs build --strict`** — OK.
+- **Backend:** **`docker … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release`** — **113** passed (first **`--no-restore`** attempt hit a transient package path issue; restore + test succeeded).
+
+**Limitations (at Phase 53 closure):** Trusted-proxy/header browser E2E was deferred to **Phase 54**. JWT suite does **not** duplicate API-key group-sharing matrix on **Compare**. **`PLAYWRIGHT_CLI_ARGS`** remains one project selector. Host **Node 25** may still break Vitest; use **Node 20** (**Volta** / **asdf** / **`.nvmrc`**).
+
+## Phase 54 — Trusted-header auth smoke + E2E/CI ergonomics (complete)
+
+Implemented:
+- **ProxyHeaders browser proof:** **`.env.testing.proxy`** / **`.env.testing.proxy.example`** (**`PQAT_AUTH_MODE=ProxyHeaders`**), Playwright **`e2e-auth-proxy`** (**`proxy-auth-smoke.spec.ts`**): **Analyze** persist + reopen, second user **private** denial. **`e2e/auth/installProxyHeadersRoute.ts`** + **`proxyHeadersConfig.ts`** inject **`X-PQAT-User`** (and optional groups) on **`/api/*`**.
+- **Explicit non-coverage:** **`BearerSubject`** (legacy bearer-as-user-id) documented as **not** browser-E2E’d in **`deployment-auth.md`** / **`e2e/auth/README.md`**.
+- **E2E ergonomics:** Refactored **`scripts/e2e-playwright-docker.sh`** with **`run_one_suite`**, **`--proxy`**, **`--all-auth`** (sequential api-key → jwt → proxy with **`down -v`** between), **`--help`**. **`Makefile`** targets **`e2e-playwright-docker-proxy`**, **`e2e-playwright-docker-all-auth`**. **`package.json`**: **`test:e2e:api-key`** (duplicate of **`test:e2e:auth`**), **`test:e2e:proxy`**.
+- **CI:** New job **`e2e-playwright-proxy`**; existing E2E jobs keep stable **job ids** (**`e2e-playwright`**, **`e2e-playwright-auth`**, **`e2e-playwright-jwt`**) with human-readable **`name:`**; steps echo local reproduce commands. **`docker-compose.yml`** passes **`PQAT_PROXY_USER_ID_*`** into **`playwright`**.
+- **Docs / nginx:** **`contributing.md`** project table + sequential auth note; **`deployment-auth.md`** browser coverage table; **`architecture.md`**; **`nginx.conf`** header comment; this log.
+
+Verified (this phase, agent run, 2026-03-31):
+- **Smoke E2E:** **6** tests (**`e2e-smoke`**, **`.env.testing`**) — OK.
+- **API key E2E:** **3** tests (**`e2e-auth-api-key`**) — OK.
+- **JWT E2E:** **3** tests (**`e2e-auth-jwt`**) — OK.
+- **Proxy headers E2E:** **2** tests (**`e2e-auth-proxy`**, **`.env.testing.proxy`**) — OK.
+- **`./scripts/e2e-playwright-docker.sh --all-auth`:** api-key → jwt → proxy sequential run — OK.
+- **Frontend (Docker `node:20-alpine`):** **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** — **117** Vitest tests + build OK.
+- **Docs:** **`mkdocs build --strict`** — OK.
+- **Backend:** **`docker … dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release`** — **113** passed.
+
+**Limitations:** **`BearerSubject`** remains **without** browser E2E (documented). **`PLAYWRIGHT_CLI_ARGS`** still selects **one** project per compose run. Compare **group** sharing is **not** duplicated for **ProxyHeaders** or **JWT** (small matrix). No Docker layer cache optimization in CI this phase (clarity-first job layout only).
+

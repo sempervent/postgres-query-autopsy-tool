@@ -1,0 +1,966 @@
+/**
+ * Phase 44 — dense layouts, Compare/Analyze form patterns, callouts, loading.
+ * Core surfaces stay in workstation.css; use this for repeated page-level composition.
+ */
+
+/* --- Page / section layout --- */
+.pqat-pageGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--pqat-gap-section, 18px);
+}
+
+.pqat-sectionStack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.pqat-mainSplit {
+  display: grid;
+  gap: 16px;
+}
+
+.pqat-mainSplit--narrow {
+  grid-template-columns: 1fr;
+}
+
+.pqat-mainSplit--medium {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
+}
+
+.pqat-mainSplit--wide {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+}
+
+.pqat-summaryTopSplit {
+  display: grid;
+  gap: 12px;
+}
+
+.pqat-summaryTopSplit--stack {
+  grid-template-columns: 1fr;
+}
+
+.pqat-summaryTopSplit--medium {
+  grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.95fr);
+}
+
+.pqat-summaryTopSplit--wide {
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.82fr);
+}
+
+/* --- Panel padding utilities --- */
+.pqat-panelPad--lg {
+  padding: 18px 20px;
+}
+
+.pqat-panelPad--md {
+  padding: 16px 18px;
+}
+
+.pqat-panelPad--sm {
+  padding: 14px 16px;
+}
+
+.pqat-panelPad--xs {
+  padding: 12px 14px;
+}
+
+/* --- Capture / forms --- */
+.pqat-captureStack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pqat-captureStack > div > h2.pqat-captureTitle,
+.pqat-captureTitle {
+  font-family: var(--heading);
+  font-size: var(--pqat-title-size, 1.125rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-h);
+  margin: 0 0 8px;
+}
+
+.pqat-formGrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .pqat-formGrid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pqat-formGrid2--tight {
+  gap: 12px;
+}
+
+.pqat-sectionHeading {
+  margin: 0 0 6px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.pqat-detailsBody {
+  margin-top: 10px;
+}
+
+.pqat-detailsBody > .pqat-hint:first-child {
+  margin-top: 0;
+}
+
+.pqat-checkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.pqat-checkRow--tight {
+  margin-top: 10px;
+}
+
+.pqat-checkGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.pqat-checkGroup label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.pqat-fieldLabel {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.pqat-fieldLabel--sm {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.pqat-fieldLabel .pqat-textarea,
+.pqat-fieldLabel .pqat-input {
+  margin-top: 6px;
+}
+
+.pqat-fieldLabel--sm .pqat-textarea,
+.pqat-fieldLabel--sm .pqat-input {
+  margin-top: 4px;
+}
+
+.pqat-textarea--plan {
+  min-height: 260px;
+}
+
+.pqat-textarea--sql {
+  min-height: 72px;
+  font-size: 0.75rem;
+}
+
+.pqat-textarea--command {
+  min-height: 48px;
+  font-size: 0.6875rem;
+}
+
+.pqat-monoPre {
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-input);
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  white-space: pre-wrap;
+  color: var(--text-h);
+}
+
+.pqat-placeholderHint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.pqat-actionRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pqat-details--inline {
+  margin-left: 6px;
+}
+
+.pqat-details--inline .pqat-detailsBody {
+  margin-top: 8px;
+}
+
+.pqat-workspaceColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pqat-introGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .pqat-introGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pqat-metricTile--accentWash {
+  background: color-mix(in srgb, var(--accent-bg) 12%, var(--surface-metric));
+}
+
+.pqat-introList {
+  margin-top: 10px;
+  margin-bottom: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.pqat-introList li {
+  margin-bottom: 4px;
+}
+
+.pqat-pillLinkBtn {
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.pqat-pillLinkBtn:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.pqat-sortList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pqat-filterSelect {
+  padding: 10px 12px;
+  border-radius: var(--pqat-radius-control, 11px);
+  min-width: 160px;
+}
+
+/* --- Navigator / pair list rows --- */
+.pqat-blockHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.pqat-blockTitle {
+  font-weight: 800;
+  font-size: 0.9375rem;
+  color: var(--text-h);
+}
+
+.pqat-monoMuted {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.pqat-stackList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pqat-navPairRow {
+  padding: 10px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-list);
+}
+
+.pqat-navPairRow__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pqat-navPairRow__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pqat-navPairRow__titleLine {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pqat-navPairRow__label {
+  font-weight: 800;
+  font-size: 0.875rem;
+  color: var(--text-h);
+}
+
+.pqat-navPairRow__subtitle {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.pqat-navPairRow__stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.pqat-navPairRow__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.pqat-chipIndexDelta {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  background: var(--surface-2);
+}
+
+.pqat-joinBadge {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+}
+
+.pqat-joinBadge--good {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+}
+
+.pqat-joinBadge--bad {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+}
+
+.pqat-joinBadge--mixed {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+}
+
+.pqat-joinBadge--neutral {
+  background: transparent;
+}
+
+.pqat-filterBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.pqat-filterBar__input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.pqat-sectionTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.pqat-findingsDiffList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pqat-artifactOutline {
+  border-radius: var(--pqat-radius-panel, 14px);
+  outline-offset: 2px;
+}
+
+.pqat-artifactOutline--active {
+  outline: 2px solid var(--accent-border);
+}
+
+.pqat-findingsDiffRow {
+  padding: 10px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-list);
+}
+
+.pqat-findingsDiffMeta {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.pqat-findingsDiffAnchorRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.pqat-findingsDiffSummary {
+  font-size: 0.8125rem;
+  color: var(--text);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.pqat-indexLinkRow {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pqat-copyStatus {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.pqat-unmatchedGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+@media (max-width: 640px) {
+  .pqat-unmatchedGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pqat-unmatchedList {
+  margin-top: 6px;
+  padding-left: 18px;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.pqat-unmatchedList li {
+  margin-bottom: 4px;
+}
+
+.pqat-monoLine {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* --- Summary column --- */
+.pqat-summaryShell {
+  padding: 12px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-detail);
+  box-shadow: var(--elev-1);
+}
+
+.pqat-summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.pqat-summaryHeader h3 {
+  margin: 0;
+}
+
+.pqat-summaryMetaLine {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  line-height: 1.45;
+}
+
+.pqat-metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 10px;
+}
+
+.pqat-metricTile--toneGood {
+  background: color-mix(in srgb, #22c55e 14%, var(--surface-metric)) !important;
+}
+
+.pqat-metricTile--toneBad {
+  background: color-mix(in srgb, #ef4444 14%, var(--surface-metric)) !important;
+}
+
+.pqat-callout {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+}
+
+.pqat-callout--accent {
+  background: color-mix(in srgb, var(--accent-bg) 10%, var(--surface-detail));
+  border-color: color-mix(in srgb, var(--accent-border) 25%, var(--border-subtle));
+}
+
+.pqat-callout--suggestion {
+  background: color-mix(in srgb, #6366f1 8%, var(--surface-suggestion));
+  border-color: color-mix(in srgb, #6366f1 28%, var(--border-subtle));
+}
+
+.pqat-callout__title {
+  font-weight: 800;
+  margin-bottom: 6px;
+  font-size: 0.875rem;
+  color: var(--text-h);
+}
+
+.pqat-callout__hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+
+.pqat-bulletList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.pqat-bulletList--tight li {
+  margin-bottom: 4px;
+}
+
+.pqat-inlineMeta {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.pqat-suggestionItem {
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-radius: 8px;
+  outline-offset: 2px;
+}
+
+.pqat-suggestionItem--highlight {
+  outline: 2px solid var(--accent-border);
+}
+
+.pqat-indexInsightItem {
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-radius: 8px;
+  outline-offset: 2px;
+}
+
+.pqat-indexInsightItem--active {
+  outline: 2px solid var(--accent-border);
+}
+
+.pqat-navigatorStack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.pqat-filterBar--tight {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.pqat-suggestionTitle {
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-h);
+}
+
+.pqat-suggestionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.pqat-metaRow {
+  margin-top: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pqat-preWrap {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-size: 0.8125rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.pqat-debugIds {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--text-secondary);
+}
+
+.pqat-shareRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pqat-mutedSpan {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* --- Empty / loading / errors --- */
+.pqat-panelDashedHint {
+  padding: 12px;
+  border-style: dashed;
+  font-size: 0.8125rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.pqat-panelHintDense {
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.pqat-panelWarn {
+  padding: 14px;
+  border-color: color-mix(in srgb, #f59e0b 55%, var(--border)) !important;
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface-1)) !important;
+}
+
+.pqat-emptyTitle {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-h);
+}
+
+.pqat-loadingPanel__title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-h);
+}
+
+/* --- Route / chunk loading --- */
+.pqat-routeFallback {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 28px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-workspace) 70%, var(--surface-tool));
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.pqat-routeFallback__title {
+  font-family: var(--heading);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--text-h);
+  letter-spacing: -0.02em;
+}
+
+.pqat-routeFallback__bar {
+  width: min(280px, 100%);
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  overflow: hidden;
+}
+
+.pqat-routeFallback__bar::after {
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-border), color-mix(in srgb, var(--accent) 60%, transparent));
+  animation: pqat-shimmer 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes pqat-shimmer {
+  from {
+    transform: translateX(0);
+    opacity: 0.65;
+  }
+  to {
+    transform: translateX(150%);
+    opacity: 1;
+  }
+}
+
+.pqat-customizerFallback {
+  padding: 12px 0;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* --- Customizer inner --- */
+.pqat-presetRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pqat-visibilityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.pqat-visibilityGrid--analyze {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.pqat-fieldHint {
+  margin: 0 0 8px;
+}
+
+/* --- Sortable row label (DndKit keeps transform on element) --- */
+.pqat-sortRow__label {
+  flex: 1;
+  min-width: 140px;
+  font-size: 0.75rem;
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.pqat-sortRow__btnDimmed:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Phase 45: deferred heavy panels + graph placeholder --- */
+.pqat-heavyPanel {
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-workspace);
+  box-shadow: var(--elev-1);
+  overflow: hidden;
+}
+
+.pqat-heavyPanel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-tool) 55%, var(--surface-workspace));
+}
+
+.pqat-heavyPanel__eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--text-tertiary);
+}
+
+.pqat-heavyPanel__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: var(--text-h);
+  letter-spacing: -0.02em;
+}
+
+.pqat-heavyPanel__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pqat-heavyPanel__body {
+  padding: 12px 14px 14px;
+}
+
+.pqat-panelSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 2px;
+}
+
+.pqat-panelSkeleton__row {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--border-subtle) 0%,
+    color-mix(in srgb, var(--surface-tool) 85%, var(--border-subtle)) 50%,
+    var(--border-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: pqat-shimmer 1.2s ease-in-out infinite alternate;
+}
+
+.pqat-panelSkeleton__row--short {
+  width: 42%;
+}
+
+.pqat-panelSkeleton__row--med {
+  width: 68%;
+}
+
+.pqat-graphFrame {
+  position: relative;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-workspace);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pqat-graphSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  min-height: inherit;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.pqat-graphSkeleton__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pqat-graphSkeleton__chip {
+  height: 28px;
+  width: 88px;
+  border-radius: 999px;
+  background: var(--border-subtle);
+  animation: pqat-shimmer 1.1s ease-in-out infinite alternate;
+}
+
+.pqat-graphSkeleton__canvas {
+  flex: 1;
+  min-height: 120px;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 40%, var(--surface-workspace));
+  position: relative;
+  overflow: hidden;
+}
+
+.pqat-graphSkeleton__canvas::after {
+  content: '';
+  position: absolute;
+  inset: 18% 12%;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    color-mix(in srgb, var(--accent-border) 12%, transparent) 50%,
+    transparent 60%
+  );
+  animation: pqat-shimmer 1.4s ease-in-out infinite alternate;
+}
+
+.pqat-graphSkeleton__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+@keyframes pqat-fadeInSoft {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Compare selected-pair deferred detail (Phase 46); Phase 48 — calmer entry when chunk not yet prefetched */
+.pqat-pairHeavySkeleton {
+  padding: 10px 0 4px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-tool) 35%, transparent);
+  animation: pqat-fadeInSoft 0.28s ease-out both;
+}

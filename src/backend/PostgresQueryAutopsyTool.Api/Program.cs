@@ -6,6 +6,7 @@ using PostgresQueryAutopsyTool.Api.Auth;
 using PostgresQueryAutopsyTool.Api.Compare;
 using PostgresQueryAutopsyTool.Api.Persistence;
 using PostgresQueryAutopsyTool.Core.Analysis;
+using PostgresQueryAutopsyTool.Core.Comparison;
 using PostgresQueryAutopsyTool.Core.Parsing;
 using PostgresQueryAutopsyTool.Core.Services;
 
@@ -169,7 +170,7 @@ var analyzeEndpoint = app.MapPost("/api/analyze", async (
             ct,
             queryText: request.QueryText,
             explainMetadata: request.ExplainMetadata);
-        analysis = analysis with { PlanInputNormalization = nr.Info };
+        analysis = PersistedArtifactNormalizer.StampNewAnalyzeResponse(analysis with { PlanInputNormalization = nr.Info });
         store.SaveAnalysis(analysis, access);
         return ProgramAuthHelpers.JsonArtifact(analysis with { ArtifactAccess = access.ToStoredArtifact() });
     }
@@ -183,11 +184,12 @@ var analyzeEndpoint = app.MapPost("/api/analyze", async (
         });
     }
 
-    var legacy = await analysisService.AnalyzeAsync(
-        request.Plan,
-        ct,
-        queryText: request.QueryText,
-        explainMetadata: request.ExplainMetadata);
+    var legacy = PersistedArtifactNormalizer.StampNewAnalyzeResponse(
+        await analysisService.AnalyzeAsync(
+            request.Plan,
+            ct,
+            queryText: request.QueryText,
+            explainMetadata: request.ExplainMetadata));
     store.SaveAnalysis(legacy, access);
     return ProgramAuthHelpers.JsonArtifact(legacy with { ArtifactAccess = access.ToStoredArtifact() });
 }).WithName("AnalyzePlan").WithOpenApi();
@@ -218,8 +220,9 @@ var compareEndpoint = app.MapPost("/api/compare", async (
     var (err, comparison) = await CompareExecution.RunAsync(request, diagnostics, analysisService, ct);
     if (err is not null)
         return err;
-    store.SaveComparison(comparison!, access);
-    return ProgramAuthHelpers.JsonArtifact(comparison! with { ArtifactAccess = access.ToStoredArtifact() });
+    var stamped = PersistedArtifactNormalizer.StampNewCompareResponse(comparison!);
+    store.SaveComparison(stamped, access);
+    return ProgramAuthHelpers.JsonArtifact(stamped with { ArtifactAccess = access.ToStoredArtifact() });
 }).WithName("ComparePlans").WithOpenApi();
 if (rateLimitEnabled)
     compareEndpoint.RequireRateLimiting("pqatWrite");
@@ -232,9 +235,31 @@ app.MapGet("/api/analyses", (HttpContext http, IArtifactPersistenceStore store, 
 
 app.MapGet("/api/analyses/{analysisId}", (HttpContext http, string analysisId, IArtifactPersistenceStore store, IOptions<AuthOptions> authOptions) =>
 {
-    if (!store.TryGetAnalysis(analysisId, out var analysis) || analysis is null)
+    var read = store.ReadAnalysis(analysisId);
+    if (read.Status == ArtifactReadStatus.NotFound)
         return ProgramAuthHelpers.JsonStatus(new { error = "analysis_not_found", analysisId }, 404);
+    if (read.Status == ArtifactReadStatus.CorruptPayload)
+        return Results.Json(
+            new
+            {
+                error = read.ErrorCode,
+                message = read.Message,
+                analysisId,
+            },
+            statusCode: 422);
+    if (read.Status == ArtifactReadStatus.IncompatibleSchema)
+        return Results.Json(
+            new
+            {
+                error = read.ErrorCode,
+                message = read.Message,
+                analysisId,
+                schemaVersion = read.SchemaVersion,
+                maxSupported = ArtifactSchema.MaxSupported,
+            },
+            statusCode: 409);
 
+    var analysis = read.Value!;
     var auth = authOptions.Value;
     if (!ArtifactAccessEvaluator.CanRead(auth.Enabled, analysis.ArtifactAccess, http.GetPqatIdentity()))
         return ProgramAuthHelpers.JsonStatus(new { error = "access_denied", analysisId }, 403);
@@ -244,9 +269,31 @@ app.MapGet("/api/analyses/{analysisId}", (HttpContext http, string analysisId, I
 
 app.MapGet("/api/comparisons/{comparisonId}", (HttpContext http, string comparisonId, IArtifactPersistenceStore store, IOptions<AuthOptions> authOptions) =>
 {
-    if (!store.TryGetComparison(comparisonId, out var comparison) || comparison is null)
+    var read = store.ReadComparison(comparisonId);
+    if (read.Status == ArtifactReadStatus.NotFound)
         return ProgramAuthHelpers.JsonStatus(new { error = "comparison_not_found", comparisonId }, 404);
+    if (read.Status == ArtifactReadStatus.CorruptPayload)
+        return Results.Json(
+            new
+            {
+                error = read.ErrorCode,
+                message = read.Message,
+                comparisonId,
+            },
+            statusCode: 422);
+    if (read.Status == ArtifactReadStatus.IncompatibleSchema)
+        return Results.Json(
+            new
+            {
+                error = read.ErrorCode,
+                message = read.Message,
+                comparisonId,
+                schemaVersion = read.SchemaVersion,
+                maxSupported = ArtifactSchema.MaxSupported,
+            },
+            statusCode: 409);
 
+    var comparison = read.Value!;
     var auth = authOptions.Value;
     if (!ArtifactAccessEvaluator.CanRead(auth.Enabled, comparison.ArtifactAccess, http.GetPqatIdentity()))
         return ProgramAuthHelpers.JsonStatus(new { error = "access_denied", comparisonId }, 403);
@@ -438,6 +485,8 @@ app.MapPost("/api/compare/report/json", async (
 
     return ProgramAuthHelpers.JsonArtifact(comparison);
 }).WithOpenApi();
+
+app.MapE2eSeedEndpoints(app.Configuration);
 
 app.Run();
 

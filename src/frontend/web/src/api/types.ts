@@ -140,10 +140,18 @@ export type OptimizationSuggestion = {
   relatedIndexInsightNodeIds: string[]
   cautions: string[]
   validationSteps: string[]
+  /** Phase 47: UI grouping (snake_case from API). */
+  suggestionFamily?: string
+  recommendedNextAction?: string
+  whyItMatters?: string
+  targetDisplayLabel?: string | null
+  isGroupedCluster?: boolean
   /** Compare payload: stable finding diff ids (`fd_*`). */
   relatedFindingDiffIds?: string[] | null
   /** Compare payload: stable index insight diff ids (`ii_*`). */
   relatedIndexInsightDiffIds?: string[] | null
+  /** Phase 49: alternate ids (e.g. legacy carried compare suggestion ids) for deep links. */
+  alsoKnownAs?: string[] | null
 }
 
 export type PlanAnalysisResult = {
@@ -164,6 +172,10 @@ export type PlanAnalysisResult = {
   planInputNormalization?: PlanInputNormalizationInfo | null
   /** Phase 37: optional ownership / sharing metadata when auth is enabled. */
   artifactAccess?: StoredArtifactAccess | null
+  /** Phase 49: persisted JSON schema generation (0 = legacy implicit). */
+  artifactSchemaVersion?: number
+  /** Phase 49: optional persistence timestamp from server. */
+  artifactPersistedUtc?: string | null
 }
 
 /** Phase 37: mirrors backend StoredArtifactAccess (camelCase JSON). */
@@ -574,5 +586,8 @@ export type PlanComparisonResult = {
   compareOptimizationSuggestions?: OptimizationSuggestion[] | null
   diagnostics?: DiagnosticsPayload | null
   artifactAccess?: StoredArtifactAccess | null
+  /** Phase 49: persisted JSON schema generation. */
+  artifactSchemaVersion?: number
+  artifactPersistedUtc?: string | null
 }
 

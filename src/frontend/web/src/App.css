@@ -197,37 +197,58 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  padding: 14px clamp(16px, 3vw, 28px);
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-1) 72%, var(--bg));
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text-h) 4%, transparent);
 }
 
 .brandTitle {
-  font-weight: 700;
+  font-weight: 750;
+  font-size: 0.9375rem;
+  letter-spacing: -0.03em;
   color: var(--text-h);
 }
 
 .nav {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .navLink {
-  color: var(--text-h);
+  color: var(--text-secondary);
   text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 9px 14px;
+  border-radius: 999px;
   border: 1px solid transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .navLink:hover {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 35%, transparent);
+  border-color: color-mix(in srgb, var(--accent-border) 40%, transparent);
 }
 
+.navLink--active {
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 55%, transparent);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-border) 25%, transparent);
+}
+
+/* Phase 42: fluid workstation width — cap ultra-wide so prose-heavy rails stay readable; data panels use grid minmax. */
 .content {
-  padding: 16px;
-  width: 1126px;
-  max-width: 100%;
+  box-sizing: border-box;
+  padding: 22px clamp(14px, 2.8vw, 36px) 28px;
+  width: 100%;
+  max-width: min(2200px, 100%);
   margin: 0 auto;
+  flex: 1;
 }

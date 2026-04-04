@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { AppConfig, PlanAnalysisResult } from '../../api/types'
 import { getAnalysis } from '../../api/client'
 import { ArtifactSharingPanel } from '../ArtifactSharingPanel'
@@ -23,6 +24,7 @@ export type AnalyzeSummaryCardProps = {
 
 export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
   const { analysis, appConfig, sendExplainMetadata, selectedNodeId, locationPathname, copyShareLink, setAnalysis } = props
+  const [sharingReloadError, setSharingReloadError] = useState<string | null>(null)
 
   const shareLinkUi = {
     label: shareArtifactLinkLabel(appConfig?.authEnabled ?? false, analysis?.artifactAccess),
@@ -30,15 +32,19 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
   }
 
   return (
-    <div style={{ marginTop: 14, padding: 12, borderRadius: 12, border: '1px solid var(--border)' }} aria-label="Analysis summary">
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>AnalysisId</div>
-          <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all' }}>{analysis.analysisId}</div>
+    <div className="pqat-panel pqat-panel--capture" style={{ marginTop: 4, padding: '16px 18px' }} aria-label="Analysis summary">
+      <div className="pqat-eyebrow">Snapshot</div>
+      <div style={{ fontWeight: 750, fontSize: '1rem', color: 'var(--text-h)', marginBottom: 14 }}>Summary &amp; metadata</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="pqat-metricTile">
+          <div className="pqat-metricTile__label">Analysis id</div>
+          <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all', fontSize: 13, marginTop: 6, color: 'var(--text-h)' }}>
+            {analysis.analysisId}
+          </div>
         </div>
-        <div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>Summary</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+        <div className="pqat-metricTile">
+          <div className="pqat-metricTile__label">Plan metrics</div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 12, marginTop: 6, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
             nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} severe={analysis.summary.severeFindingsCount} timing=
             {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)} plannerCosts=
             {String(analysis.summary.plannerCosts ?? 'unknown')}
@@ -46,7 +52,7 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
         </div>
       </div>
       {analysis.planInputNormalization ? (
-        <div style={{ fontSize: 12, opacity: 0.82, marginTop: 10 }} aria-label="Plan input normalization">
+        <div className="pqat-hint" style={{ marginTop: 12 }} aria-label="Plan input normalization">
           {analysis.planInputNormalization.kind === 'queryPlanTable'
             ? 'Normalized pasted QUERY PLAN output'
             : analysis.planInputNormalization.kind === 'rawJson'
@@ -54,9 +60,10 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
               : `Input normalization: ${analysis.planInputNormalization.kind}`}
         </div>
       ) : null}
-      <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
         <button
           type="button"
+          className="pqat-btn pqat-btn--sm pqat-btn--primary"
           onClick={async () => {
             const path = analyzeDeepLinkPath(
               locationPathname,
@@ -67,16 +74,20 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
             )
             await copyShareLink.copy(`${window.location.origin}${path}`, shareLinkUi.toast)
           }}
-          style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
         >
           {shareLinkUi.label}
         </button>
-        {copyShareLink.status ? <span style={{ fontSize: 12, opacity: 0.85 }}>{copyShareLink.status}</span> : null}
+        {copyShareLink.status ? <span className="pqat-hint" style={{ margin: 0 }}>{copyShareLink.status}</span> : null}
       </div>
-      <div style={{ fontSize: 11, opacity: 0.78, marginTop: 8, fontFamily: 'var(--mono)' }}>
+      <div className="pqat-hint" style={{ marginTop: 10, fontFamily: 'var(--mono)', fontSize: 11 }}>
         Snapshots persist in server SQLite; share links survive API restart if the database file is kept.
         {appConfig?.authEnabled ? ' In auth mode, opening an artifact may require identity; link-style access depends on sharing settings.' : ''}
       </div>
+      {sharingReloadError ? (
+        <div className="pqat-hint" style={{ marginTop: 10, color: 'var(--text-h)' }} role="alert">
+          {sharingReloadError}
+        </div>
+      ) : null}
       <ArtifactSharingPanel
         authEnabled={appConfig?.authEnabled ?? false}
         authIdentityKind={appConfig?.authIdentityKind}
@@ -85,16 +96,21 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
         artifactId={analysis.analysisId}
         artifactAccess={analysis.artifactAccess}
         onSaved={async () => {
-          const data = await getAnalysis(analysis.analysisId)
-          setAnalysis(data)
+          setSharingReloadError(null)
+          try {
+            const data = await getAnalysis(analysis.analysisId)
+            setAnalysis(data)
+          } catch (e) {
+            setSharingReloadError(e instanceof Error ? e.message : String(e))
+          }
         }}
       />
       <div
-        style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 13 }}
+        style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-subtle)', fontSize: 13 }}
         aria-label="Plan source and EXPLAIN metadata"
       >
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Plan source / EXPLAIN metadata</div>
-        <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.92 }}>
+        <div style={{ fontWeight: 650, marginBottom: 8, color: 'var(--text-h)' }}>Plan source / EXPLAIN metadata</div>
+        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           <li>Source query: {analysis.queryText?.trim() ? 'provided' : 'not provided'}</li>
           <li>{plannerCostsLabel(analysis.summary.plannerCosts)}</li>
           {analysis.explainMetadata?.options ? (

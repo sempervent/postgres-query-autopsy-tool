@@ -77,6 +77,42 @@ public sealed class OptimizationSuggestionEngineTests
     }
 
     [Fact]
+    public void Misestimation_fixture_consolidates_overlapping_statistics_findings_into_one_cluster()
+    {
+        var analysis = AnalyzeFixture("nested_loop_misestimation.json");
+        var stats = analysis.OptimizationSuggestions
+            .Where(x => x.Category == OptimizationSuggestionCategory.StatisticsMaintenance)
+            .ToArray();
+        Assert.Single(stats);
+        Assert.True(stats[0].IsGroupedCluster);
+        Assert.False(string.IsNullOrWhiteSpace(stats[0].RecommendedNextAction));
+        Assert.False(string.IsNullOrWhiteSpace(stats[0].WhyItMatters));
+        Assert.Equal(OptimizationSuggestionFamily.StatisticsPlannerAccuracy, stats[0].SuggestionFamily);
+    }
+
+    [Fact]
+    public void Seq_scan_suggestion_includes_human_readable_fields_not_machine_concat()
+    {
+        var analysis = AnalyzeFixture("simple_seq_scan.json");
+        var s = analysis.OptimizationSuggestions.First(x => x.Category == OptimizationSuggestionCategory.IndexExperiment);
+        Assert.False(string.IsNullOrWhiteSpace(s.RecommendedNextAction));
+        Assert.False(string.IsNullOrWhiteSpace(s.WhyItMatters));
+        Assert.False(s.RecommendedNextAction.Contains("Confidence:", StringComparison.Ordinal));
+        Assert.False(s.Summary.Contains("Confidence:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void External_sort_suggestion_avoids_raw_node_path_in_summary()
+    {
+        var analysis = AnalyzeFixture("operator_sort_external.json");
+        var sortish = analysis.OptimizationSuggestions.Where(x =>
+            x.Category == OptimizationSuggestionCategory.SortOrdering ||
+            x.Title.Contains("sort", StringComparison.OrdinalIgnoreCase)).ToArray();
+        Assert.NotEmpty(sortish);
+        Assert.All(sortish, x => Assert.DoesNotContain("root.", x.Summary, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Complex_timescaledb_query_is_not_naive_index_only_story()
     {
         var analysis = AnalyzeFixture("complex_timescaledb_query.json");

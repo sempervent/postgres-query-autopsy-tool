@@ -74,9 +74,39 @@ Not implemented in Phase 38. Operate on the SQLite file (volume snapshot, `sqlit
 - **`VITE_AUTH_BEARER_TOKEN`** — adds **`Authorization: Bearer …`** (JWT or legacy bearer).
 - **`VITE_AUTH_API_KEY`** — adds **`X-Api-Key`** (if set, preferred over bearer for browser calls).
 
+### Reverse proxies, nginx, and auth headers (Phase 53)
+
+The browser talks to the **same origin** as the SPA; the UI’s **`fetch('/api/…')`** must reach the API with credentials intact.
+
+- **`Authorization`** — required for **`JwtBearer`** and legacy bearer modes.
+- **`X-Api-Key`** (or whatever **`Auth:ApiKey:HeaderName`** is) — required for **ApiKey** mode when the client sends a key.
+
+**Docker Compose `web` image:** **`nginx.conf`** proxies **`/api/`** to the API. nginx forwards normal client headers to **`proxy_pass`** by default; the repo documents this in **`nginx.conf`** comments. If you insert another reverse proxy (TLS terminator, CDN, corporate gateway), configure it to **forward** **`Authorization`**, **`X-Api-Key`**, and (for **`ProxyHeaders`** mode) **`X-PQAT-User`** / **`X-PQAT-Groups`** — do not strip them.
+
+**Trusted proxy (`ProxyHeaders`)** mode expects the **edge** to authenticate the user and set identity headers before traffic hits the API; the API does not validate a password at the HTTP layer for that mode.
+
 ### Environment variables
 
 ASP.NET Core binds nested config: **`Auth__Enabled`**, **`Auth__Mode`**, **`Auth__Jwt__Issuer`**, **`Auth__Jwt__Audience`**, **`Auth__Jwt__SigningKeyBase64`**, **`Auth__ApiKey__HeaderName`**, **`RateLimiting__Enabled`**, etc.
+
+### Automated browser E2E (Phase 52–54)
+
+The stack runs **one** auth mode at a time. Playwright projects and **`.env.testing.*`** files are paired; see **`docs/contributing.md`** and **`scripts/e2e-playwright-docker.sh --help`**.
+
+| Mode | Browser-covered? | Env / mechanism |
+|------|------------------|-----------------|
+| None (smoke) | Yes | **`.env.testing`**, project **`e2e-smoke`** |
+| **ApiKey** | Yes | **`.env.testing.auth`**, **`installApiKeyRoute`** → **`X-Api-Key`** on **`/api/*`** |
+| **JwtBearer** | Yes | **`.env.testing.jwt`**, **`installBearerRoute`** → **`Authorization: Bearer`** (HS256 via **`jwtMint.ts`**) |
+| **ProxyHeaders** | Yes (Phase 54) | **`.env.testing.proxy`**, **`installProxyHeadersRoute`** → **`X-PQAT-User`** / optional **`X-PQAT-Groups`** on **`/api/*`** (simulates an authenticated edge) |
+| **BearerSubject** (legacy) | **No** | Not browser-E2E’d; verify via integration or manual calls. Opaque bearer-as-user-id is easy to confuse with JWT in automation. |
+
+**JWT test secret:** UTF-8 **`pqat-jwt-e2e-sign-secret-key-32b`** → base64 **`cHFhdC1qd3QtZTJlLXNpZ24tc2VjcmV0LWtleS0zMmI=`**; subjects **`PQAT_JWT_SUB_A`** / **`PQAT_JWT_SUB_B`**.
+
+**ProxyHeaders E2E identities:** **`PQAT_PROXY_USER_ID_A`** / **`PQAT_PROXY_USER_ID_B`** (defaults **`e2e-proxy-user-a`** / **`e2e-proxy-user-b`**) — test-only strings, not secrets.
+
+- **Never** ship **`.env.testing.*`** files’ keys to production; they are test-only.
+- **`POST /api/e2e/seed/*`** remains gated by **`E2E:Enabled`** ( **`PQAT_E2E_ENABLED`** ), independent of auth mode.
 
 ## Trust summary
 

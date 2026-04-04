@@ -6,7 +6,7 @@ This page is published as part of the MkDocs documentation site and is the canon
 
 This file documents the Phase 3 MVP rule catalog, including triggering logic, evidence, and limitations.
 
-**Phase 32 note:** findings remain the primary **evidence catalog**. **`OptimizationSuggestion`** objects (returned separately on analyze/compare) **synthesize next steps** from findings, index insights, operator evidence, and (for compare) diffs. A finding says *what fired*; a suggestion says *what to try or measure next*, with explicit cautions and validation steps. They are not duplicates of each other.
+**Phase 32 + Phase 47 note:** findings remain the primary **evidence catalog**. **`OptimizationSuggestion`** objects (returned separately on analyze/compare) **synthesize next steps** from findings, index insights, operator evidence, and (for compare) diffs. A finding says *what fired*; a suggestion says *what to try or measure next*, with explicit cautions and validation steps. **Phase 47** adds presentation-oriented fields (**family**, **recommended next action**, **why it matters**, **target display label**) and **consolidates** overlapping statistics/findings-driven cards when they would repeat the same next step, so the UI stays readable without hiding evidence (expand/detail still shows linked finding text). They are not duplicates of each other.
 
 ## Severity / confidence scales
 

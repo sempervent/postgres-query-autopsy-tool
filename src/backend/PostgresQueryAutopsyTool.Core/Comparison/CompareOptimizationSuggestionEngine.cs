@@ -11,7 +11,24 @@ namespace PostgresQueryAutopsyTool.Core.Comparison;
 public static class CompareOptimizationSuggestionEngine
 {
     private const string ValExplain =
-        "Compare before/after with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON).";
+        "Re-run EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) on representative parameters and compare timing plus buffer counters before vs after your change.";
+
+    private static OptimizationSuggestionFamily CmpFamily(OptimizationSuggestionCategory category) => category switch
+    {
+        OptimizationSuggestionCategory.IndexExperiment => OptimizationSuggestionFamily.IndexExperiments,
+        OptimizationSuggestionCategory.StatisticsMaintenance => OptimizationSuggestionFamily.StatisticsPlannerAccuracy,
+        OptimizationSuggestionCategory.TimescaledbWorkload or OptimizationSuggestionCategory.PartitioningChunking =>
+            OptimizationSuggestionFamily.SchemaWorkloadShape,
+        OptimizationSuggestionCategory.ObserveBeforeChange => OptimizationSuggestionFamily.OperationalTuningValidation,
+        _ => OptimizationSuggestionFamily.QueryShapeOrdering
+    };
+
+    private static string CmpHumanLabel(string? nodeId, PlanAnalysisResult plan)
+    {
+        if (string.IsNullOrEmpty(nodeId)) return "";
+        var byId = plan.Nodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        return byId.TryGetValue(nodeId, out var n) ? NodeLabelFormatter.ShortLabel(n, byId) : nodeId;
+    }
 
     public static IReadOnlyList<OptimizationSuggestion> Build(PlanComparisonResultV2 cmp)
     {
@@ -20,10 +37,10 @@ public static class CompareOptimizationSuggestionEngine
         var idx = cmp.IndexComparison;
 
         AddResolvedAccessPathValidation(list, items, idx, cmp);
-        AddNewAccessPathConcern(list, items, idx);
+        AddNewAccessPathConcern(list, items, idx, cmp);
         AddChunkedPosture(list, cmp);
-        AddSortFindingShift(list, items);
-        AddIndexCorroborated(list, items, idx);
+        AddSortFindingShift(list, items, cmp);
+        AddIndexCorroborated(list, items, idx, cmp);
         AddRemainingHighPriorityFromPlanB(list, cmp.PlanB);
 
         return list
@@ -79,14 +96,20 @@ public static class CompareOptimizationSuggestionEngine
                 "Re-run with production-like predicates and measure shared reads/temp blocks on plan B.",
                 ValExplain
             },
-            string.IsNullOrEmpty(resolved.DiffId) ? null : new[] { resolved.DiffId },
-            null));
+            recommendedNextAction:
+            "Exercise plan B with production-like parameters and confirm buffer/timing wins you expect from the resolved access-path finding.",
+            whyItMatters:
+            "Resolved findings can hide regressions under different predicates; validation keeps the comparison honest.",
+            targetDisplayLabel: CmpHumanLabel(resolved.NodeIdB ?? resolved.NodeIdA, cmp.PlanB),
+            relatedFindingDiffIds: string.IsNullOrEmpty(resolved.DiffId) ? null : new[] { resolved.DiffId },
+            relatedIndexInsightDiffIds: null));
     }
 
     private static void AddNewAccessPathConcern(
         List<OptimizationSuggestion> list,
         IReadOnlyList<FindingDiffItem> items,
-        IndexComparisonSummary idx)
+        IndexComparisonSummary idx,
+        PlanComparisonResultV2 cmp)
     {
         var worrisome = items.FirstOrDefault(i =>
             (i.ChangeType == FindingChangeType.New || i.ChangeType == FindingChangeType.Worsened) &&
@@ -131,9 +154,18 @@ public static class CompareOptimizationSuggestionEngine
             Array.Empty<string>(),
             Array.Empty<string>(),
             new[] { "A rewrite can also regress; compare buffer/timing evidence, not only node types." },
-            new[] { ValExplain, "Check whether filter selectivity matches expectations on plan B." },
-            string.IsNullOrEmpty(worrisome.DiffId) ? null : new[] { worrisome.DiffId },
-            worrisomeIndexDiffIds));
+            new[]
+            {
+                "Check whether rows removed by filter drop after adding the candidate index or tightening predicates on plan B.",
+                ValExplain
+            },
+            recommendedNextAction:
+            "Start from predicates + selective indexes on plan B; measure shared reads and rows removed by filter before broader schema work.",
+            whyItMatters:
+            "New access-path stress after a change usually means the rewrite shifted selectivity or ordering—indexes help only when aligned with that new shape.",
+            targetDisplayLabel: CmpHumanLabel(worrisome.NodeIdB ?? worrisome.NodeIdA, cmp.PlanB),
+            relatedFindingDiffIds: string.IsNullOrEmpty(worrisome.DiffId) ? null : new[] { worrisome.DiffId },
+            relatedIndexInsightDiffIds: worrisomeIndexDiffIds));
     }
 
     private static void AddChunkedPosture(List<OptimizationSuggestion> list, PlanComparisonResultV2 cmp)
@@ -164,14 +196,18 @@ public static class CompareOptimizationSuggestionEngine
             new[]
             {
                 "Compare shared read totals with narrower time predicates.",
-                "Review whether ORDER BY forces a wide merge/sort after chunk union.",
+                "If this is a TimescaleDB workload, compare a narrower time window or pre-aggregated path before adding more indexes.",
                 ValExplain
             },
-            null,
-            null));
+            recommendedNextAction:
+            "Tighten time predicates or try continuous aggregates / pre-aggregation, then re-measure total shared reads across chunks.",
+            whyItMatters:
+            "Chunked bitmap work still dominates when many chunks qualify; another btree per chunk rarely fixes that root cause.",
+            relatedFindingDiffIds: null,
+            relatedIndexInsightDiffIds: null));
     }
 
-    private static void AddSortFindingShift(List<OptimizationSuggestion> list, IReadOnlyList<FindingDiffItem> items)
+    private static void AddSortFindingShift(List<OptimizationSuggestion> list, IReadOnlyList<FindingDiffItem> items, PlanComparisonResultV2 cmp)
     {
         var sortDiff = items.FirstOrDefault(i =>
             i.RuleId.Contains("sort-cost", StringComparison.OrdinalIgnoreCase) &&
@@ -197,15 +233,27 @@ public static class CompareOptimizationSuggestionEngine
             Array.Empty<string>(),
             Array.Empty<string>(),
             new[] { "work_mem tuning is a follow-up measurement, not a substitute for less work." },
-            new[] { "Confirm spill metrics move with your experiment.", ValExplain },
-            string.IsNullOrEmpty(sortDiff.DiffId) ? null : new[] { sortDiff.DiffId },
-            null));
+            new[]
+            {
+                "Re-run EXPLAIN (ANALYZE, BUFFERS) and confirm the sort no longer spills to disk (or shrinks materially) after your experiment.",
+                ValExplain
+            },
+            recommendedNextAction:
+            persists
+                ? "After this change, the sort is still expensive; test whether order-aligned indexing or reducing sorted rows changes that."
+                : "New sort pressure on plan B: prototype index-delivered ordering or cut rows feeding the sort before raising work_mem.",
+            whyItMatters:
+            "Sorts that survive a rewrite often mean ordering or row volume changed; treat them as a shape problem first.",
+            targetDisplayLabel: CmpHumanLabel(sortDiff.NodeIdB ?? sortDiff.NodeIdA, cmp.PlanB),
+            relatedFindingDiffIds: string.IsNullOrEmpty(sortDiff.DiffId) ? null : new[] { sortDiff.DiffId },
+            relatedIndexInsightDiffIds: null));
     }
 
     private static void AddIndexCorroborated(
         List<OptimizationSuggestion> list,
         IReadOnlyList<FindingDiffItem> items,
-        IndexComparisonSummary idx)
+        IndexComparisonSummary idx,
+        PlanComparisonResultV2 cmp)
     {
         foreach (var diff in idx.InsightDiffs.Where(d =>
                      (d.RelatedFindingDiffIds?.Count ?? 0) > 0 || d.RelatedFindingDiffIndexes.Count > 0))
@@ -237,9 +285,18 @@ public static class CompareOptimizationSuggestionEngine
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 new[] { "Corroboration is heuristic; low-confidence node matches can mis-link stories." },
-                new[] { ValExplain },
-                string.IsNullOrEmpty(f.DiffId) ? null : new[] { f.DiffId },
-                string.IsNullOrEmpty(diff.InsightDiffId) ? null : new[] { diff.InsightDiffId }));
+                new[]
+                {
+                    "Use EXPLAIN (ANALYZE, BUFFERS) to confirm the index delta and finding diff both tell the same story on plan B.",
+                    ValExplain
+                },
+                recommendedNextAction:
+                "Design the next experiment using both the index insight diff and the related finding change—then validate with buffers on plan B.",
+                whyItMatters:
+                "When two signals agree, you waste less time chasing a single-operator red herring.",
+                targetDisplayLabel: CmpHumanLabel(diff.NodeIdB ?? diff.NodeIdA, cmp.PlanB),
+                relatedFindingDiffIds: string.IsNullOrEmpty(f.DiffId) ? null : new[] { f.DiffId },
+                relatedIndexInsightDiffIds: string.IsNullOrEmpty(diff.InsightDiffId) ? null : new[] { diff.InsightDiffId }));
         }
     }
 
@@ -257,9 +314,22 @@ public static class CompareOptimizationSuggestionEngine
                 Title = $"After this change: {s.Title}",
                 Summary = s.Summary,
                 Rationale = $"Carried from plan B analysis — {s.Rationale}",
-                SuggestionId = CmpStableId("carry", s.Category, s.SuggestedActionType, s.Title)
+                SuggestionId = CmpCarriedFromPlanBId(s)
             });
         }
+    }
+
+    /// <summary>
+    /// Stable compare id for suggestions carried from plan B analysis: based on structured fields + source <c>sg_*</c> id, not the prefixed display title.
+    /// </summary>
+    private static string CmpCarriedFromPlanBId(OptimizationSuggestion s)
+    {
+        var tn = string.Join(",", s.TargetNodeIds.OrderBy(x => x, StringComparer.Ordinal));
+        var rf = string.Join(",", s.RelatedFindingIds.OrderBy(x => x, StringComparer.Ordinal));
+        var rii = string.Join(",", s.RelatedIndexInsightNodeIds.OrderBy(x => x, StringComparer.Ordinal));
+        var raw =
+            $"carry|planB|src={s.SuggestionId}|{s.Category}|{s.SuggestedActionType}|{s.SuggestionFamily}|{tn}|{rf}|{rii}";
+        return $"sg_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16].ToLowerInvariant()}";
     }
 
     private static OptimizationSuggestion CmpMake(
@@ -276,6 +346,10 @@ public static class CompareOptimizationSuggestionEngine
         IReadOnlyList<string> relatedIndexInsightNodeIds,
         IReadOnlyList<string> cautions,
         IReadOnlyList<string> validationSteps,
+        string recommendedNextAction,
+        string whyItMatters,
+        string? targetDisplayLabel = null,
+        bool isGroupedCluster = false,
         IReadOnlyList<string>? relatedFindingDiffIds = null,
         IReadOnlyList<string>? relatedIndexInsightDiffIds = null) =>
         new(
@@ -293,8 +367,21 @@ public static class CompareOptimizationSuggestionEngine
             relatedIndexInsightNodeIds,
             cautions,
             validationSteps,
+            CmpFamily(category),
+            recommendedNextAction,
+            whyItMatters,
+            targetDisplayLabel,
+            isGroupedCluster,
             relatedFindingDiffIds,
-            relatedIndexInsightDiffIds);
+            relatedIndexInsightDiffIds,
+            null);
+
+    /// <summary>
+    /// Pre–Phase-48 carried plan-B suggestions used <see cref="CmpStableId"/> with the prefixed display title.
+    /// Exposed for Phase 49 deep-link aliasing on persisted comparisons.
+    /// </summary>
+    public static string LegacyCarriedTitleBasedSuggestionId(OptimizationSuggestion s) =>
+        CmpStableId("cmp", s.Category, s.SuggestedActionType, s.Title, s.TargetNodeIds);
 
     private static string CmpStableId(string scope, OptimizationSuggestionCategory c, SuggestedActionType a, string title, IReadOnlyList<string>? nodes = null)
     {

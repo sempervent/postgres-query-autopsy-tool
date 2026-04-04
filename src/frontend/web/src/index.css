@@ -1,21 +1,45 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --text: #5c5668;
+  --text-h: #0c0a12;
+  --text-secondary: #6b6577;
+  --text-tertiary: #8a8496;
+  --bg: #fafaf8;
+  --border: #e2e0e6;
+  --border-subtle: #ebe9ef;
+  --code-bg: #f0eee8;
+  --accent: #7c3aed;
+  --accent-bg: rgba(124, 58, 237, 0.1);
+  --accent-border: rgba(124, 58, 237, 0.42);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(0, 0, 0, 0.08) 0 10px 24px -4px, rgba(0, 0, 0, 0.04) 0 4px 8px -2px;
+  --elev-1: 0 1px 0 color-mix(in srgb, var(--text-h) 5%, transparent), 0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  --elev-2: 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent), 0 12px 32px -10px rgba(0, 0, 0, 0.14);
+  --inset-glow: inset 0 1px 0 color-mix(in srgb, var(--text-h) 4%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent-border) 35%, transparent);
+  --surface-1: #ffffff;
+  --surface-2: #f7f6f9;
+  --surface-workspace: #ffffff;
+  --surface-rail: color-mix(in srgb, var(--accent-bg) 8%, #ffffff);
+  --surface-detail: #fbfbfd;
+  --surface-capture: #ffffff;
+  --surface-tool: #f3f2f6;
+  --surface-list: color-mix(in srgb, var(--accent-bg) 6%, #ffffff);
+  --surface-suggestion: color-mix(in srgb, var(--accent-bg) 5%, #ffffff);
+  --surface-input: #ffffff;
+  --surface-graph: #f4f3f8;
+  --surface-graph-canvas: #eceaf2;
+  --surface-metric: #ffffff;
+  --pqat-radius-panel: 14px;
+  --pqat-radius-control: 11px;
+  --pqat-gap-section: 18px;
+  --pqat-title-size: 1.125rem;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --heading: 'Segoe UI', system-ui, Roboto, sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  font: 17px/150% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
@@ -32,17 +56,37 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
+    --text: #b4b9c9;
+    --text-h: #f0f2f8;
+    --text-secondary: #8f96ab;
+    --text-tertiary: #6d7589;
+    --bg: #0c0d10;
+    --border: #2f3340;
+    --border-subtle: #252830;
+    --code-bg: #161820;
+    --accent: #b794f6;
+    --accent-bg: rgba(183, 148, 246, 0.14);
+    --accent-border: rgba(183, 148, 246, 0.48);
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+      rgba(0, 0, 0, 0.45) 0 12px 28px -6px, rgba(0, 0, 0, 0.35) 0 6px 12px -4px;
+    --elev-1: 0 1px 0 color-mix(in srgb, var(--text-h) 8%, transparent), 0 10px 28px -8px rgba(0, 0, 0, 0.55);
+    --elev-2: 0 1px 0 color-mix(in srgb, var(--text-h) 10%, transparent), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+    --inset-glow: inset 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent);
+    --focus-ring: color-mix(in srgb, var(--accent-border) 32%, transparent);
+    --surface-1: #14151b;
+    --surface-2: #1a1c24;
+    --surface-workspace: #12131a;
+    --surface-rail: color-mix(in srgb, var(--accent-bg) 12%, #14151b);
+    --surface-detail: #161821;
+    --surface-capture: #13141a;
+    --surface-tool: #101118;
+    --surface-list: color-mix(in srgb, var(--accent-bg) 10%, #14151b);
+    --surface-suggestion: color-mix(in srgb, var(--accent-bg) 8%, #14151b);
+    --surface-input: #0f1015;
+    --surface-graph: #0f1016;
+    --surface-graph-canvas: #0a0b0f;
+    --surface-metric: #15161e;
   }
 
   #social .button-icon {
@@ -50,20 +94,22 @@
   }
 }
 
+/* Phase 43: full-bleed root — workstation layout lives in .appShell / .content */
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  margin: 0;
+  text-align: initial;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background: var(--bg);
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
 h1,

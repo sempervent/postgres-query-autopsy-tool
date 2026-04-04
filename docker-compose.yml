@@ -1,3 +1,22 @@
+# Default: `docker compose up` starts **api** + **web** only (production-like app stack).
+# Testing: use `--profile testing` for the **playwright** service (browser automation; image bundles Chromium).
+#
+# E2E seed routes (`/api/e2e/seed/*`) require PQAT_E2E_ENABLED=true — use committed `.env.testing`
+# when running Playwright (never enable in real deployments).
+#
+# Auth-mode browser E2E:
+#   `.env.testing.auth` — API key + SQLite seeds
+#   `.env.testing.jwt` — HS256 JWT (Phase 53)
+# See docs/contributing.md.
+#
+# Examples:
+#   docker compose up -d --build
+#   docker compose --env-file .env.testing up -d --build api web
+#   docker compose --env-file .env.testing --profile testing run --rm playwright
+#   docker compose --env-file .env.testing.auth --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-api-key playwright
+#   docker compose --env-file .env.testing.jwt --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-jwt playwright
+#   docker compose --env-file .env.testing.proxy --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-proxy playwright
+
 volumes:
   pqat-api-data:
 
@@ -11,6 +30,25 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - Storage__DatabasePath=/app/data/autopsy.db
       - Storage__ArtifactTtlHours=720
+      - E2E__Enabled=${PQAT_E2E_ENABLED:-false}
+      # Phase 52: optional API-key auth for `.env.testing.auth` (all PQAT_* default empty → auth off).
+      - Auth__Enabled=${PQAT_AUTH_ENABLED:-false}
+      - Auth__Mode=${PQAT_AUTH_MODE:-None}
+      - Auth__RequireIdentityForWrites=${PQAT_AUTH_REQUIRE_IDENTITY_FOR_WRITES:-true}
+      - Auth__DefaultAccessScope=${PQAT_AUTH_DEFAULT_ACCESS_SCOPE:-private}
+      - Auth__ApiKey__HeaderName=${PQAT_AUTH_API_KEY_HEADER:-X-Api-Key}
+      - Auth__ApiKey__Seeds__0__Key=${PQAT_E2E_API_KEY_USER_A:-}
+      - Auth__ApiKey__Seeds__0__UserId=${PQAT_E2E_USER_ID_A:-}
+      - Auth__ApiKey__Seeds__0__Groups__0=${PQAT_E2E_SHARED_GROUP_ID:-}
+      - Auth__ApiKey__Seeds__1__Key=${PQAT_E2E_API_KEY_USER_B:-}
+      - Auth__ApiKey__Seeds__1__UserId=${PQAT_E2E_USER_ID_B:-}
+      - Auth__ApiKey__Seeds__1__Groups__0=${PQAT_E2E_SHARED_GROUP_ID:-}
+      - Auth__ApiKey__Seeds__2__Key=${PQAT_E2E_API_KEY_USER_C:-}
+      - Auth__ApiKey__Seeds__2__UserId=${PQAT_E2E_USER_ID_C:-}
+      # Phase 53: JWT (used when Auth__Mode=JwtBearer; empty when using API key only).
+      - Auth__Jwt__Issuer=${PQAT_JWT_ISSUER:-}
+      - Auth__Jwt__Audience=${PQAT_JWT_AUDIENCE:-}
+      - Auth__Jwt__SigningKeyBase64=${PQAT_JWT_SIGNING_KEY_BASE64:-}
     volumes:
       - pqat-api-data:/app/data
     ports:
@@ -24,4 +62,48 @@ services:
       - "3000:80"
     depends_on:
       - api
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1/api/health >/dev/null || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
+  # Opt-in: `docker compose --profile testing …` — not started on plain `docker compose up`.
+  # Playwright image includes Chromium; no separate Chrome service is required for this suite.
+  playwright:
+    profiles: ["testing"]
+    image: mcr.microsoft.com/playwright:v1.52.0-jammy
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      PLAYWRIGHT_SKIP_WEBSERVER: "1"
+      PLAYWRIGHT_BASE_URL: http://web
+      CI: "1"
+      # Default suite: non-auth smoke. Override: `--project=e2e-auth-api-key` or `e2e-auth-jwt`
+      PLAYWRIGHT_CLI_ARGS: --project=e2e-smoke
+      PQAT_E2E_API_KEY_USER_A: ${PQAT_E2E_API_KEY_USER_A:-}
+      PQAT_E2E_API_KEY_USER_B: ${PQAT_E2E_API_KEY_USER_B:-}
+      PQAT_E2E_API_KEY_USER_C: ${PQAT_E2E_API_KEY_USER_C:-}
+      PQAT_E2E_SHARED_GROUP_ID: ${PQAT_E2E_SHARED_GROUP_ID:-}
+      PQAT_JWT_ISSUER: ${PQAT_JWT_ISSUER:-}
+      PQAT_JWT_AUDIENCE: ${PQAT_JWT_AUDIENCE:-}
+      PQAT_JWT_SIGNING_KEY_BASE64: ${PQAT_JWT_SIGNING_KEY_BASE64:-}
+      PQAT_JWT_SUB_A: ${PQAT_JWT_SUB_A:-}
+      PQAT_JWT_SUB_B: ${PQAT_JWT_SUB_B:-}
+      PQAT_PROXY_USER_ID_A: ${PQAT_PROXY_USER_ID_A:-}
+      PQAT_PROXY_USER_ID_B: ${PQAT_PROXY_USER_ID_B:-}
+    working_dir: /workspace
+    volumes:
+      - ./src/frontend/web:/workspace
+    networks:
+      - default
+    command:
+      - bash
+      - -lc
+      - npm ci && npx playwright test --config playwright.config.mjs $${PLAYWRIGHT_CLI_ARGS}

@@ -91,19 +91,25 @@ public sealed class SqliteArtifactStore : IArtifactPersistenceStore
     }
 
     public void SaveAnalysis(PlanAnalysisResult analysis, ArtifactAccessWrite? access = null) =>
-        Upsert(KindAnalysis, analysis.AnalysisId, StripAnalysis(analysis), access);
+        Upsert(KindAnalysis, analysis.AnalysisId, PrepareAnalysisForStore(analysis), access);
 
     public void SaveComparison(PlanComparisonResultV2 comparison, ArtifactAccessWrite? access = null) =>
-        Upsert(KindComparison, comparison.ComparisonId, StripComparison(comparison), access);
+        Upsert(KindComparison, comparison.ComparisonId, PrepareComparisonForStore(comparison), access);
 
-    private static PlanAnalysisResult StripAnalysis(PlanAnalysisResult a) => a with { ArtifactAccess = null };
+    private static PlanAnalysisResult PrepareAnalysisForStore(PlanAnalysisResult a) =>
+        a with
+        {
+            ArtifactAccess = null,
+            ArtifactSchemaVersion = ArtifactSchema.Current,
+        };
 
-    private static PlanComparisonResultV2 StripComparison(PlanComparisonResultV2 c) =>
+    private static PlanComparisonResultV2 PrepareComparisonForStore(PlanComparisonResultV2 c) =>
         c with
         {
             ArtifactAccess = null,
-            PlanA = c.PlanA with { ArtifactAccess = null },
-            PlanB = c.PlanB with { ArtifactAccess = null },
+            ArtifactSchemaVersion = ArtifactSchema.Current,
+            PlanA = PrepareAnalysisForStore(c.PlanA),
+            PlanB = PrepareAnalysisForStore(c.PlanB),
         };
 
     private void Upsert(string kind, string id, object payload, ArtifactAccessWrite? access)
@@ -145,55 +151,96 @@ public sealed class SqliteArtifactStore : IArtifactPersistenceStore
         cmd.ExecuteNonQuery();
     }
 
-    public bool TryGetAnalysis(string analysisId, out PlanAnalysisResult? analysis)
+    /// <summary>
+    /// Inserts or replaces a row with a pre-serialized JSON payload. <b>Only for E2E / controlled tests</b> when <c>E2E:Enabled</c> is true.
+    /// </summary>
+    public void UpsertRawJsonForE2E(string kind, string id, string payloadJson)
     {
-        if (!TryGetRow<PlanAnalysisResult>(KindAnalysis, analysisId, out var row, out var a))
-        {
-            analysis = null;
-            return false;
-        }
+        ArgumentException.ThrowIfNullOrEmpty(kind);
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(payloadJson);
+        var now = DateTimeOffset.UtcNow;
+        var exp = _ttl is { } t ? now.Add(t) : (DateTimeOffset?)null;
+        var acc = new ArtifactAccessWrite(null, ArtifactAccessScope.Link, Array.Empty<string>(), true);
+        var groupsJson = JsonSerializer.Serialize(acc.SharedGroupIds.ToArray());
 
-        analysis = row! with { ArtifactAccess = a };
-        return true;
+        using var conn = Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            """
+            INSERT INTO artifact_store (
+                kind, id, payload_json, created_utc, expires_utc, last_access_utc,
+                owner_user_id, access_scope, shared_group_ids_json, allow_link_access, updated_utc)
+            VALUES ($k, $id, $json, $c, $e, $c, $owner, $scope, $groups, $link, $u)
+            ON CONFLICT(kind, id) DO UPDATE SET
+                payload_json = excluded.payload_json,
+                expires_utc = excluded.expires_utc,
+                last_access_utc = excluded.last_access_utc,
+                owner_user_id = excluded.owner_user_id,
+                access_scope = excluded.access_scope,
+                shared_group_ids_json = excluded.shared_group_ids_json,
+                allow_link_access = excluded.allow_link_access,
+                updated_utc = excluded.updated_utc;
+            """;
+        cmd.Parameters.AddWithValue("$k", kind);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.Parameters.AddWithValue("$json", payloadJson);
+        cmd.Parameters.AddWithValue("$c", FormatUtc(now));
+        cmd.Parameters.AddWithValue("$e", exp is { } x ? FormatUtc(x) : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("$owner", (object?)acc.OwnerUserId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$scope", acc.AccessScope);
+        cmd.Parameters.AddWithValue("$groups", groupsJson);
+        cmd.Parameters.AddWithValue("$link", acc.AllowLinkAccess ? 1 : 0);
+        cmd.Parameters.AddWithValue("$u", FormatUtc(now));
+        cmd.ExecuteNonQuery();
     }
 
-    public bool TryGetComparison(string comparisonId, out PlanComparisonResultV2? comparison)
-    {
-        if (!TryGetRow<PlanComparisonResultV2>(KindComparison, comparisonId, out var row, out var a))
-        {
-            comparison = null;
-            return false;
-        }
+    public ArtifactReadResult<PlanAnalysisResult> ReadAnalysis(string analysisId) =>
+        ReadArtifactRow<PlanAnalysisResult>(
+            KindAnalysis,
+            analysisId,
+            PersistedArtifactNormalizer.NormalizeLoadedAnalysis,
+            (a, acc) => a with { ArtifactAccess = acc });
 
-        comparison = row! with { ArtifactAccess = a };
-        return true;
-    }
+    public ArtifactReadResult<PlanComparisonResultV2> ReadComparison(string comparisonId) =>
+        ReadArtifactRow<PlanComparisonResultV2>(
+            KindComparison,
+            comparisonId,
+            PersistedArtifactNormalizer.NormalizeLoadedComparison,
+            (c, acc) => c with { ArtifactAccess = acc });
 
-    private bool TryGetRow<T>(string kind, string id, out T? row, out StoredArtifactAccess access) where T : class
+    private ArtifactReadResult<T> ReadArtifactRow<T>(
+        string kind,
+        string id,
+        Func<T, DateTimeOffset?, T> upgrade,
+        Func<T, StoredArtifactAccess, T> withAccess)
+        where T : class
     {
-        row = null;
-        access = new StoredArtifactAccess(null, ArtifactAccessScope.Link, Array.Empty<string>(), true);
         using var conn = Open();
         using var sel = conn.CreateCommand();
         sel.CommandText =
             """
-            SELECT payload_json, expires_utc, owner_user_id, access_scope, shared_group_ids_json, allow_link_access
+            SELECT payload_json, expires_utc, created_utc, owner_user_id, access_scope, shared_group_ids_json, allow_link_access
             FROM artifact_store WHERE kind = $k AND id = $id;
             """;
         sel.Parameters.AddWithValue("$k", kind);
         sel.Parameters.AddWithValue("$id", id);
         using var reader = sel.ExecuteReader();
         if (!reader.Read())
-            return false;
+            return ArtifactReadResult<T>.Missing();
 
         var expRaw = !reader.IsDBNull(1) ? reader.GetString(1) : null;
         if (expRaw is not null && TryParseUtc(expRaw, out var exp) && DateTimeOffset.UtcNow > exp)
         {
             DeleteRow(conn, kind, id);
-            return false;
+            return ArtifactReadResult<T>.Missing();
         }
 
         var json = reader.GetString(0);
+        DateTimeOffset? createdUtc = null;
+        if (reader.FieldCount > 2 && !reader.IsDBNull(2) && TryParseUtc(reader.GetString(2), out var created))
+            createdUtc = created;
+
         T? value;
         try
         {
@@ -201,15 +248,32 @@ public sealed class SqliteArtifactStore : IArtifactPersistenceStore
         }
         catch (JsonException)
         {
-            DeleteRow(conn, kind, id);
-            return false;
+            return ArtifactReadResult<T>.Corrupt(
+                "artifact_corrupt",
+                "Stored artifact JSON is unreadable (corrupt or incompatible shape). The row was left in the database for recovery.");
         }
 
         if (value is null)
-            return false;
+        {
+            return ArtifactReadResult<T>.Corrupt(
+                "artifact_corrupt",
+                "Stored artifact deserialized to null.");
+        }
 
-        row = value;
-        access = ReadAccessFromFullRow(reader);
+        try
+        {
+            value = upgrade(value, createdUtc);
+        }
+        catch (UnsupportedArtifactSchemaVersionException ex)
+        {
+            return ArtifactReadResult<T>.Incompatible(
+                ex.PayloadVersion,
+                "artifact_version_unsupported",
+                ex.Message);
+        }
+
+        var access = ReadAccessFromFullRow(reader);
+        value = withAccess(value, access);
         var now = DateTimeOffset.UtcNow;
         using var touch = conn.CreateCommand();
         touch.CommandText = "UPDATE artifact_store SET last_access_utc = $t WHERE kind = $k AND id = $id;";
@@ -217,16 +281,16 @@ public sealed class SqliteArtifactStore : IArtifactPersistenceStore
         touch.Parameters.AddWithValue("$k", kind);
         touch.Parameters.AddWithValue("$id", id);
         touch.ExecuteNonQuery();
-        return true;
+        return ArtifactReadResult<T>.OkResult(value);
     }
 
     private static StoredArtifactAccess ReadAccessFromFullRow(SqliteDataReader reader)
     {
-        string? owner = reader.FieldCount > 2 && !reader.IsDBNull(2) ? reader.GetString(2) : null;
-        var scope = reader.FieldCount > 3 && !reader.IsDBNull(3) ? reader.GetString(3) : ArtifactAccessScope.Link;
+        string? owner = reader.FieldCount > 3 && !reader.IsDBNull(3) ? reader.GetString(3) : null;
+        var scope = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetString(4) : ArtifactAccessScope.Link;
         if (!ArtifactAccessScope.IsValid(scope))
             scope = ArtifactAccessScope.Link;
-        var groupsRaw = reader.FieldCount > 4 && !reader.IsDBNull(4) ? reader.GetString(4) : "[]";
+        var groupsRaw = reader.FieldCount > 5 && !reader.IsDBNull(5) ? reader.GetString(5) : "[]";
         IReadOnlyList<string> groups = Array.Empty<string>();
         try
         {
@@ -238,8 +302,8 @@ public sealed class SqliteArtifactStore : IArtifactPersistenceStore
         }
 
         var link = true;
-        if (reader.FieldCount > 5 && !reader.IsDBNull(5))
-            link = reader.GetInt64(5) != 0;
+        if (reader.FieldCount > 6 && !reader.IsDBNull(6))
+            link = reader.GetInt64(6) != 0;
 
         return new StoredArtifactAccess(owner, scope, groups, link);
     }

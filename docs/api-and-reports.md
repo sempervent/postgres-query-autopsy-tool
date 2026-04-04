@@ -9,6 +9,7 @@
 - **`Storage:ArtifactTtlHours`** (optional): when greater than `0`, rows get an **`expires_utc`** and are purged on read and at startup; `0` or omitted means **no TTL** in typical config (see `appsettings.json`).
 - **`Storage:MaxArtifactRows`** (optional): when greater than `0`, oldest rows are deleted after inserts to cap total artifact rows (analyses + comparisons).
 - Payloads are **full JSON snapshots** of **`PlanAnalysisResult`** / **`PlanComparisonResultV2`** (same shape as API responses)—not recomputed from raw plan text on read.
+- **Phase 49 — artifact schema versioning:** New writes stamp **`artifactSchemaVersion`** (integer; **`0`** = legacy implicit / unversioned rows) and optional **`artifactPersistedUtc`**. On **read**, the API runs **`PersistedArtifactNormalizer`** to upgrade legacy JSON to the current DTO shape where safe (suggestion family/backfills, compare carried-suggestion **`alsoKnownAs`** aliases for older deep-link ids, etc.). **Unsupported future** payload versions return **409**; **unreadable JSON** returns **422** (row is **not** deleted). The SPA still applies a thin **display normalization** for missing suggestion fields as a safety net.
 
 ### `POST /api/analyze`
 
@@ -35,12 +36,14 @@
 
 ### User preferences (Phase 40)
 
-- **`GET /api/me/preferences/{key}`** — when **`Auth:Enabled`** is **false**, **404** `preferences_unavailable` (SPA uses **localStorage** only). When auth is on, requires a resolved identity (**401** without credentials); returns JSON **`{ "value": … }`** where **`value`** is **`null`** or any stored JSON subtree. Keys are opaque strings (for example **`analyze_workspace_v1`** for Analyze layout state).
+- **`GET /api/me/preferences/{key}`** — when **`Auth:Enabled`** is **false**, **404** `preferences_unavailable` (SPA uses **localStorage** only). When auth is on, requires a resolved identity (**401** without credentials); returns JSON **`{ "value": … }`** where **`value`** is **`null`** or any stored JSON subtree. Keys are opaque strings (for example **`analyze_workspace_v1`** for Analyze layout state, **`compare_workspace_v1`** for Compare layout state). Values are versioned JSON blobs (visibility flags, section/column orders, optional preset id); the SPA coerces invalid stored orders back to safe defaults (Phase 42).
 - **`PUT /api/me/preferences/{key}`** — same gates; JSON body **`{ "value": … }`**. Values persist in SQLite table **`user_preference`** in the same database file as artifacts (`Storage:DatabasePath`).
 
 ### `GET /api/analyses/{analysisId}`
 
-- returns the stored **`PlanAnalysisResult`** (including **`artifactAccess`** when present); **404** `{ error: "analysis_not_found", analysisId }` if missing or expired.
+- returns the stored **`PlanAnalysisResult`** (including **`artifactAccess`**, **`artifactSchemaVersion`**, **`artifactPersistedUtc`** when present); **404** `{ error: "analysis_not_found", analysisId }` if missing or expired.
+- **422** `{ error: "artifact_corrupt", message, analysisId }` if the row exists but JSON cannot be deserialized (corrupt or irreconcilable shape).
+- **409** `{ error: "artifact_version_unsupported", message, analysisId, schemaVersion, maxSupported }` if the stored **`artifactSchemaVersion`** is newer than this server supports (or is explicitly rejected).
 - When **`Auth:Enabled`** is **true**, **403** `{ error: "access_denied", analysisId }` if the caller is not allowed to read (owner / group / public / link policy per `ArtifactAccessEvaluator`).
 
 ### `GET /api/analyses`
@@ -66,8 +69,19 @@
 
 ### `GET /api/comparisons/{comparisonId}`
 
-- returns the stored comparison JSON (including **`artifactAccess`** when present); **404** `{ error: "comparison_not_found", comparisonId }` if missing/expired.
+- returns the stored comparison JSON (including **`artifactAccess`**, **`artifactSchemaVersion`**, **`artifactPersistedUtc`** when present); **404** `{ error: "comparison_not_found", comparisonId }` if missing/expired.
+- **422** / **409** — same **`artifact_corrupt`** / **`artifact_version_unsupported`** contract as analyses (with **`comparisonId`** instead of **`analysisId`**).
 - When **`Auth:Enabled`** is **true**, **403** `{ error: "access_denied", comparisonId }` when denied.
+
+#### Compatibility matrix (persisted artifacts)
+
+| Situation | HTTP | `error` | Notes |
+|-----------|------|---------|--------|
+| Missing / expired row | 404 | `analysis_not_found` / `comparison_not_found` | |
+| Auth denies read | 403 | `access_denied` | |
+| JSON parse / null payload | 422 | `artifact_corrupt` | Row retained for recovery |
+| Schema version too new | 409 | `artifact_version_unsupported` | Includes **`schemaVersion`**, **`maxSupported`** |
+| Legacy unversioned or older known shape | 200 | — | Server normalizes to current response shape when possible |
 
 ### Reports
 

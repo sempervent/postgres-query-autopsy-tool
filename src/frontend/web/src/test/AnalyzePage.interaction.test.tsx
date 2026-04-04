@@ -2,8 +2,10 @@ import { afterEach, expect, test, vi, beforeEach } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
+import { waitForAnalyzeAppReady } from './waitForLazyApp'
 import { AnalysisNotFoundError, analyzePlanWithQuery, PlanParseError } from '../api/client'
 import { ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY } from '../analyzeWorkspace/analyzeWorkspaceStorage'
+import '../components/analyze/AnalyzeOptimizationSuggestionsPanel'
 
 const { getAnalysisMock, fetchAppConfigMock } = vi.hoisted(() => ({
   getAnalysisMock: vi.fn(),
@@ -134,6 +136,10 @@ const mockAnalysis = {
       relatedIndexInsightNodeIds: [],
       cautions: ['caution line'],
       validationSteps: ['Run EXPLAIN (ANALYZE, BUFFERS).'],
+      suggestionFamily: 'index_experiments',
+      recommendedNextAction: 'Prototype a btree aligned with filters on users.',
+      whyItMatters: 'Seq scans on large relations deserve a measured index experiment.',
+      targetDisplayLabel: 'Parallel Seq Scan on users',
     },
   ],
 }
@@ -191,6 +197,7 @@ test(
         <App />
       </MemoryRouter>,
     )
+    await waitForAnalyzeAppReady()
 
     fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
     fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -208,6 +215,7 @@ test('Analyze findings and hotspots do not nest buttons (valid HTML)', async () 
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -225,6 +233,7 @@ test('selected node shows related optimization suggestion when targeted', async 
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -240,6 +249,7 @@ test('selected node shows Access path index insight when indexInsights match nod
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -256,6 +266,7 @@ test('selected node with workers shows worker summary cue and Workers grid', asy
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -277,6 +288,7 @@ test('optimization suggestions section shows title category and node jump', asyn
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -284,7 +296,10 @@ test('optimization suggestions section shows title category and node jump', asyn
   expect(within(optSection).getByText(/Mock optimization suggestion title/)).toBeInTheDocument()
 
   expect(screen.getByLabelText('Optimization suggestions')).toBeInTheDocument()
-  expect(within(optSection).getByText(/Index experiment/i)).toBeInTheDocument()
+  expect(within(optSection).getByText(/Index experiments/i)).toBeInTheDocument()
+  expect(within(optSection).getByText(/Medium confidence/i)).toBeInTheDocument()
+  expect(within(optSection).queryByText(/Confidence: medium/i)).toBeNull()
+  expect(within(optSection).getByText(/Try next/i)).toBeInTheDocument()
   expect(within(optSection).getByRole('button', { name: /Focus Parallel Seq Scan on users/i })).toBeInTheDocument()
 })
 
@@ -294,6 +309,7 @@ test('selected node shows Buffer I/O when plan node includes buffer counters', a
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -311,6 +327,7 @@ test('finding Copy uses clipboard without triggering row navigation side effects
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -330,6 +347,7 @@ test('deep link ?node= selects that node after analyze (before URL sync overwrit
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -351,6 +369,7 @@ test('?analysis= loads persisted analysis via getAnalysis', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   await screen.findByRole('button', { name: 'Finding: Test finding' })
   expect(getAnalysisMock).toHaveBeenCalledWith('persisted99')
@@ -363,6 +382,7 @@ test('invalid ?analysis= shows a clear error', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   expect(await screen.findByText(/No stored analysis/i)).toBeInTheDocument()
 })
@@ -373,6 +393,7 @@ test('normalization status shows after analyze when API returns planInputNormali
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -386,6 +407,7 @@ test('PlanParseError surfaces message and hint without stack trace', async () =>
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: 'x' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -400,6 +422,7 @@ test('Plan source / EXPLAIN metadata section shows planner cost line', async () 
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
@@ -413,6 +436,7 @@ test('suggested EXPLAIN copy uses clipboard', async () => {
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   const sourceSql = screen
     .getAllByRole('textbox')
@@ -451,9 +475,63 @@ test('auth mode shows Copy artifact link (private) when artifactAccess is privat
       <App />
     </MemoryRouter>,
   )
+  await waitForAnalyzeAppReady()
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
   await screen.findByRole('button', { name: 'Finding: Test finding' })
   expect(screen.getAllByRole('button', { name: /Copy artifact link \(private\)/i }).length).toBeGreaterThan(0)
+})
+
+test(
+  'plan workspace: text mode hides React Flow; graph mode shows canvas',
+  async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+    await waitForAnalyzeAppReady()
+
+    fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+    await screen.findByLabelText('Analyze workspace', {}, { timeout: 15_000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }))
+    expect(document.querySelector('.react-flow')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Graph' }))
+    await waitFor(
+      () => {
+        expect(document.querySelector('.react-flow')).not.toBeNull()
+      },
+      { timeout: 15_000 },
+    )
+  },
+  25_000,
+)
+
+test('customize workspace Down on guide order persists layout to localStorage', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })
+
+  const customizeSummaries = screen.getAllByText('Customize workspace').filter((n) => n.tagName === 'SUMMARY')
+  expect(customizeSummaries.length).toBeGreaterThan(0)
+  fireEvent.click(customizeSummaries[0])
+  const guideList = await screen.findByRole('list', { name: 'Plan guide section order' }, { timeout: 15_000 })
+  const downButtons = within(guideList).getAllByRole('button', { name: 'Down' })
+  fireEvent.click(downButtons[0])
+
+  const raw = localStorage.getItem(ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY)
+  expect(raw).toBeTruthy()
+  const stored = JSON.parse(raw!) as { guideSectionOrder: string[] }
+  expect(stored.guideSectionOrder[0]).toBe('whatHappened')
 })

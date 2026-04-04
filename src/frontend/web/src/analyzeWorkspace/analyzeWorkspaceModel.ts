@@ -19,7 +19,16 @@ export type AnalyzeGuideSectionId =
 /** Columns in the lower band (reorderable on desktop). */
 export type AnalyzeLowerBandColumnId = 'findings' | 'suggestions' | 'selectedNode'
 
-export type AnalyzeWorkspacePresetId = 'balanced' | 'focus' | 'detail'
+export type AnalyzeWorkspacePresetId =
+  | 'balanced'
+  | 'focus'
+  | 'detail'
+  /** Phase 42: maximize graph column — plan guide rail off. */
+  | 'wideGraph'
+  /** Findings → selected node → suggestions; all regions on (unlike focus). */
+  | 'reviewer'
+  /** Dense: hide summary, guide, and suggestions columns. */
+  | 'compact'
 
 /** Distinct from page headings / `aria-label`s so tests and assistive tech do not conflate toggles with sections. */
 export const analyzeWorkspaceRegionLabels: Record<AnalyzeWorkspaceRegionId, string> = {
@@ -109,6 +118,21 @@ export const analyzeWorkspacePresets: Record<
     guideSectionOrder: [...defaultGuideOrder],
     lowerBandOrder: ['suggestions', 'findings', 'selectedNode'],
   },
+  wideGraph: {
+    visibility: { ...allRegionsTrue(), guide: false },
+    guideSectionOrder: [...defaultGuideOrder],
+    lowerBandOrder: [...defaultLower],
+  },
+  reviewer: {
+    visibility: allRegionsTrue(),
+    guideSectionOrder: [...defaultGuideOrder],
+    lowerBandOrder: ['findings', 'selectedNode', 'suggestions'],
+  },
+  compact: {
+    visibility: { ...allRegionsTrue(), summary: false, guide: false, suggestions: false },
+    guideSectionOrder: [...defaultGuideOrder],
+    lowerBandOrder: ['findings', 'selectedNode', 'suggestions'],
+  },
 }
 
 export function applyAnalyzeWorkspacePreset(preset: AnalyzeWorkspacePresetId): AnalyzeWorkspaceLayoutState {
@@ -137,6 +161,31 @@ function isLowerColumnId(x: unknown): x is AnalyzeLowerBandColumnId {
   return x === 'findings' || x === 'suggestions' || x === 'selectedNode'
 }
 
+/** Returns a permutation of all guide sections, or null if invalid. */
+export function coerceAnalyzeGuideSectionOrder(candidate: readonly string[]): AnalyzeGuideSectionId[] | null {
+  const parsed = candidate.filter(isGuideSectionId)
+  if (parsed.length !== defaultGuideOrder.length || new Set(parsed).size !== defaultGuideOrder.length) return null
+  return parsed as AnalyzeGuideSectionId[]
+}
+
+/** Returns a permutation of all lower-band columns, or null if invalid. */
+export function coerceAnalyzeLowerBandOrder(candidate: readonly string[]): AnalyzeLowerBandColumnId[] | null {
+  const parsed = candidate.filter(isLowerColumnId)
+  if (parsed.length !== 3 || new Set(parsed).size !== 3) return null
+  return parsed as AnalyzeLowerBandColumnId[]
+}
+
+function isAnalyzePresetId(x: unknown): x is AnalyzeWorkspacePresetId {
+  return (
+    x === 'balanced' ||
+    x === 'focus' ||
+    x === 'detail' ||
+    x === 'wideGraph' ||
+    x === 'reviewer' ||
+    x === 'compact'
+  )
+}
+
 /** Merge partial / legacy stored JSON with current defaults (new panels default visible). */
 export function mergeAnalyzeWorkspaceLayout(raw: unknown): AnalyzeWorkspaceLayoutState {
   const base = defaultAnalyzeWorkspaceLayout()
@@ -144,8 +193,7 @@ export function mergeAnalyzeWorkspaceLayout(raw: unknown): AnalyzeWorkspaceLayou
   const o = raw as Record<string, unknown>
 
   const presetRaw = o.preset
-  const preset: AnalyzeWorkspacePresetId | null =
-    presetRaw === 'balanced' || presetRaw === 'focus' || presetRaw === 'detail' ? presetRaw : null
+  const preset: AnalyzeWorkspacePresetId | null = isAnalyzePresetId(presetRaw) ? presetRaw : null
 
   const visIn = o.visibility
   const visibility = { ...base.visibility }
@@ -158,18 +206,14 @@ export function mergeAnalyzeWorkspaceLayout(raw: unknown): AnalyzeWorkspaceLayou
 
   let guideSectionOrder = [...base.guideSectionOrder]
   if (Array.isArray(o.guideSectionOrder)) {
-    const parsed = o.guideSectionOrder.filter(isGuideSectionId)
-    if (parsed.length === defaultGuideOrder.length && new Set(parsed).size === defaultGuideOrder.length) {
-      guideSectionOrder = parsed as AnalyzeGuideSectionId[]
-    }
+    const coerced = coerceAnalyzeGuideSectionOrder(o.guideSectionOrder as string[])
+    if (coerced) guideSectionOrder = coerced
   }
 
   let lowerBandOrder = [...base.lowerBandOrder]
   if (Array.isArray(o.lowerBandOrder)) {
-    const parsed = o.lowerBandOrder.filter(isLowerColumnId)
-    if (parsed.length === 3 && new Set(parsed).size === 3) {
-      lowerBandOrder = parsed as AnalyzeLowerBandColumnId[]
-    }
+    const coerced = coerceAnalyzeLowerBandOrder(o.lowerBandOrder as string[])
+    if (coerced) lowerBandOrder = coerced
   }
 
   return {

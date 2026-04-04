@@ -120,6 +120,38 @@ public sealed class SuggestionConfidenceLevelJsonConverter : JsonConverter<Sugge
     }
 }
 
+public sealed class OptimizationSuggestionFamilyJsonConverter : JsonConverter<OptimizationSuggestionFamily>
+{
+    public override OptimizationSuggestionFamily Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var n))
+            return (OptimizationSuggestionFamily)n;
+        var s = reader.GetString();
+        return s switch
+        {
+            "index_experiments" => OptimizationSuggestionFamily.IndexExperiments,
+            "query_shape_ordering" => OptimizationSuggestionFamily.QueryShapeOrdering,
+            "statistics_planner_accuracy" => OptimizationSuggestionFamily.StatisticsPlannerAccuracy,
+            "schema_workload_shape" => OptimizationSuggestionFamily.SchemaWorkloadShape,
+            "operational_tuning_validation" => OptimizationSuggestionFamily.OperationalTuningValidation,
+            _ => Enum.TryParse<OptimizationSuggestionFamily>(s, true, out var e) ? e : OptimizationSuggestionFamily.QueryShapeOrdering
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, OptimizationSuggestionFamily value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            OptimizationSuggestionFamily.IndexExperiments => "index_experiments",
+            OptimizationSuggestionFamily.QueryShapeOrdering => "query_shape_ordering",
+            OptimizationSuggestionFamily.StatisticsPlannerAccuracy => "statistics_planner_accuracy",
+            OptimizationSuggestionFamily.SchemaWorkloadShape => "schema_workload_shape",
+            OptimizationSuggestionFamily.OperationalTuningValidation => "operational_tuning_validation",
+            _ => "query_shape_ordering"
+        });
+    }
+}
+
 public sealed class SuggestionPriorityLevelJsonConverter : JsonConverter<SuggestionPriorityLevel>
 {
     public override SuggestionPriorityLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

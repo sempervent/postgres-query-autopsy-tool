@@ -8,6 +8,8 @@ export type ClickableRowProps = {
   selected?: boolean
   /** How selection is shown when `selected` is true. `fill` tints the row; `accent-bar` keeps your background and adds a left accent bar (e.g. tinted callout cards). */
   selectedEmphasis?: ClickableRowSelectedEmphasis
+  /** Fired on mouse enter and focus — for lightweight prefetch (e.g. lazy pair detail) without blocking activate. */
+  onPointerIntent?: () => void
   style?: CSSProperties
   className?: string
   'aria-label'?: string
@@ -22,6 +24,7 @@ export function ClickableRow({
   children,
   selected,
   selectedEmphasis = 'fill',
+  onPointerIntent,
   style,
   className,
   'aria-label': ariaLabel,
@@ -46,6 +49,8 @@ export function ClickableRow({
       aria-label={ariaLabel}
       aria-pressed={selected}
       className={['clickableRow', selected ? 'clickableRow--selected' : '', className].filter(Boolean).join(' ')}
+      onMouseEnter={() => onPointerIntent?.()}
+      onFocus={() => onPointerIntent?.()}
       onClick={() => onActivate()}
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {

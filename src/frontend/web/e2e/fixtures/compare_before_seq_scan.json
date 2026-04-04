@@ -1,0 +1,26 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "products",
+      "Schema": "public",
+      "Alias": "products",
+      "Startup Cost": 0.0,
+      "Total Cost": 1000.0,
+      "Plan Rows": 50000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.01,
+      "Actual Total Time": 80.0,
+      "Actual Rows": 100,
+      "Actual Loops": 1,
+      "Filter": "(category_id = 10)",
+      "Buffers": {
+        "Shared Hit Blocks": 10,
+        "Shared Read Blocks": 4000,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]
+

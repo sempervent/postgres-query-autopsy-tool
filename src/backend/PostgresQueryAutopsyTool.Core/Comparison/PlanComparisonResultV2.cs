@@ -19,6 +19,10 @@ public sealed record PlanComparisonResultV2(
     string Narrative,
     IReadOnlyList<OptimizationSuggestion> CompareOptimizationSuggestions,
     ComparisonDiagnostics? Diagnostics = null,
+    /// <summary>Phase 49: persisted JSON schema generation.</summary>
+    int ArtifactSchemaVersion = 0,
+    /// <summary>Phase 49: filled from SQLite <c>created_utc</c> on read when absent in JSON.</summary>
+    DateTimeOffset? ArtifactPersistedUtc = null,
     /// <summary>Optional ownership/sharing metadata (Phase 37); merged from SQLite on read.</summary>
     StoredArtifactAccess? ArtifactAccess = null);
 

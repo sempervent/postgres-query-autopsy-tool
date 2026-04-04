@@ -8,10 +8,4 @@ export function moveIndex<T>(arr: T[], from: number, to: number): T[] {
   return next
 }
 
-export function swapWithNeighbor<T>(arr: T[], index: number, direction: -1 | 1): T[] {
-  const j = index + direction
-  if (j < 0 || j >= arr.length) return [...arr]
-  const next = [...arr]
-  ;[next[index], next[j]] = [next[j], next[index]]
-  return next
-}
+export { swapWithNeighbor } from '../workspaceLayout/reorder'

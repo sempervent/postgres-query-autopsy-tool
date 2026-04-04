@@ -22,4 +22,8 @@
     <InternalsVisibleTo Include="PostgresQueryAutopsyTool.Tests.Unit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="e2e-fixtures\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

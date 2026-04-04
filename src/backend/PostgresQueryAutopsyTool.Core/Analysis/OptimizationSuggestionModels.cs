@@ -54,6 +54,17 @@ public enum SuggestionPriorityLevel
     Critical
 }
 
+/// <summary>UI grouping: human-facing families, independent of <see cref="OptimizationSuggestionCategory"/>.</summary>
+[JsonConverter(typeof(OptimizationSuggestionFamilyJsonConverter))]
+public enum OptimizationSuggestionFamily
+{
+    IndexExperiments,
+    QueryShapeOrdering,
+    StatisticsPlannerAccuracy,
+    SchemaWorkloadShape,
+    OperationalTuningValidation
+}
+
 /// <summary>
 /// Evidence-backed, investigation-oriented next step. Not a prescription.
 /// </summary>
@@ -72,7 +83,18 @@ public sealed record OptimizationSuggestion(
     IReadOnlyList<string> RelatedIndexInsightNodeIds,
     IReadOnlyList<string> Cautions,
     IReadOnlyList<string> ValidationSteps,
+    OptimizationSuggestionFamily SuggestionFamily,
+    /// <summary>Imperative next experiment or review step (short).</summary>
+    string RecommendedNextAction,
+    /// <summary>Plain-language impact: why an operator should care.</summary>
+    string WhyItMatters,
+    /// <summary>Optional human-readable target (operators, relations)—not raw node ids in primary copy.</summary>
+    string? TargetDisplayLabel = null,
+    /// <summary>True when this card merged multiple overlapping signals.</summary>
+    bool IsGroupedCluster = false,
     /// <summary>Compare-only: stable finding diff row ids (<c>fd_*</c>).</summary>
     IReadOnlyList<string>? RelatedFindingDiffIds = null,
     /// <summary>Compare-only: stable index insight diff row ids (<c>ii_*</c>).</summary>
-    IReadOnlyList<string>? RelatedIndexInsightDiffIds = null);
+    IReadOnlyList<string>? RelatedIndexInsightDiffIds = null,
+    /// <summary>Phase 49: alternate ids for the same suggestion (e.g. pre–Phase-48 carried compare ids) for deep-link compatibility.</summary>
+    IReadOnlyList<string>? AlsoKnownAs = null);

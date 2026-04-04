@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Comparison;
@@ -17,6 +18,26 @@ public sealed class CompareOptimizationSuggestionEngineTests
         var analysis = AnalyzeFixture("simple_seq_scan.json");
         var cmp = new ComparisonEngine().Compare(analysis, analysis);
         Assert.NotNull(cmp.CompareOptimizationSuggestions);
+    }
+
+    [Fact]
+    public void Carried_high_priority_plan_B_suggestions_use_stable_structured_ids()
+    {
+        var a = AnalyzeFixture("simple_seq_scan.json");
+        var b = AnalyzeFixture("hash_join.json");
+        var cmp = new ComparisonEngine().Compare(a, b);
+        var first = CompareOptimizationSuggestionEngine.Build(cmp)
+            .Where(s => s.Title.StartsWith("After this change:", StringComparison.Ordinal))
+            .Select(s => s.SuggestionId)
+            .ToArray();
+        var second = CompareOptimizationSuggestionEngine.Build(cmp)
+            .Where(s => s.Title.StartsWith("After this change:", StringComparison.Ordinal))
+            .Select(s => s.SuggestionId)
+            .ToArray();
+
+        Assert.NotEmpty(first);
+        Assert.Equal(first, second);
+        Assert.All(first, id => Assert.StartsWith("sg_", id, StringComparison.Ordinal));
     }
 
     private static PlanAnalysisResult AnalyzeFixture(string fileName)

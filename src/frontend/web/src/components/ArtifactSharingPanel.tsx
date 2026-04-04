@@ -66,7 +66,11 @@ export function ArtifactSharingPanel({
   }
 
   return (
-    <details style={{ marginTop: 12 }} aria-label="Artifact sharing">
+    <details
+      data-testid="artifact-sharing-details"
+      style={{ marginTop: 12 }}
+      aria-label="Artifact sharing"
+    >
       <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Sharing</summary>
       <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div>
@@ -76,6 +80,7 @@ export function ArtifactSharingPanel({
         <div>
           <span style={{ opacity: 0.85, display: 'block', marginBottom: 4 }}>Access scope</span>
           <select
+            data-testid="artifact-sharing-access-scope"
             value={scope}
             onChange={(e) => setScope(e.target.value)}
             style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'inherit' }}
@@ -90,6 +95,7 @@ export function ArtifactSharingPanel({
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ opacity: 0.85 }}>Group ids (comma-separated)</span>
             <input
+              data-testid="artifact-sharing-groups-input"
               value={groupsText}
               onChange={(e) => setGroupsText(e.target.value)}
               placeholder="e.g. perf-team, dba"
@@ -98,11 +104,17 @@ export function ArtifactSharingPanel({
           </label>
         ) : null}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" checked={allowLink} onChange={(e) => setAllowLink(e.target.checked)} />
+          <input
+            data-testid="artifact-sharing-allow-link"
+            type="checkbox"
+            checked={allowLink}
+            onChange={(e) => setAllowLink(e.target.checked)}
+          />
           Allow link-style access (opaque URL works for others when policy allows)
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
+            data-testid="artifact-sharing-save"
             type="button"
             disabled={saving}
             onClick={() => void save()}
@@ -110,7 +122,11 @@ export function ArtifactSharingPanel({
           >
             {saving ? 'Saving…' : 'Save sharing'}
           </button>
-          {msg ? <span style={{ fontSize: 12, opacity: 0.9 }}>{msg}</span> : null}
+          {msg ? (
+            <span data-testid="artifact-sharing-status" style={{ fontSize: 12, opacity: 0.9 }}>
+              {msg}
+            </span>
+          ) : null}
         </div>
         <div style={{ fontSize: 11, opacity: 0.78 }}>
           {authHelp ? <p style={{ margin: '0 0 6px' }}>{authHelp}</p> : null}

@@ -50,51 +50,35 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
   } = props
 
   return (
-    <section style={{ minWidth: 0 }} aria-label="Plan capture input">
+    <section className="pqat-panel pqat-panel--capture" style={{ minWidth: 0, padding: '18px 20px' }} aria-label="Plan capture input">
+      <div className="pqat-eyebrow">Input</div>
       <h2>Input plan</h2>
-      <p style={{ opacity: 0.85, marginTop: -8, marginBottom: 12 }}>
+      <p className="pqat-hint pqat-hint--tight">
         Paste raw <code>EXPLAIN (…, FORMAT JSON)</code> output: plain JSON, or <code>psql</code> tabular output with a <code>QUERY PLAN</code> header and optional line wraps ending in <code>+</code>. The server normalizes common shapes before parsing. Planner <code>COSTS</code> are optional; cost fields are detected from the JSON.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
         <textarea
+          className="pqat-textarea"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           spellCheck={false}
-          style={{
-            width: '100%',
-            minHeight: 220,
-            padding: 12,
-            borderRadius: 12,
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            color: 'var(--text-h)',
-            fontFamily: 'var(--mono)',
-          }}
+          style={{ minHeight: 220 }}
           placeholder='JSON or psql QUERY PLAN cell text: [ { "Plan": { ... } } ]'
         />
-        <details>
-          <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Optional: source SQL query</summary>
+        <details className="pqat-details">
+          <summary>Optional: source SQL query</summary>
           <textarea
+            className="pqat-textarea"
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
             spellCheck={false}
-            style={{
-              width: '100%',
-              minHeight: 140,
-              marginTop: 8,
-              padding: 12,
-              borderRadius: 12,
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              color: 'var(--text-h)',
-              fontFamily: 'var(--mono)',
-            }}
+            style={{ minHeight: 140, marginTop: 8 }}
             placeholder="SELECT ... FROM ... WHERE ..."
           />
         </details>
-        <details style={{ marginTop: 4 }}>
-          <summary style={{ cursor: 'pointer', opacity: 0.9 }}>Suggested EXPLAIN command (copy-paste)</summary>
-          <p style={{ fontSize: 12, opacity: 0.82, marginTop: 8, marginBottom: 0 }}>
+        <details className="pqat-details" style={{ marginTop: 4 }}>
+          <summary>Suggested EXPLAIN command (copy-paste)</summary>
+          <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
             Wraps the optional source SQL below—no parsing, only text wrapping. Default matches a forensic-style capture; turn <strong>COSTS</strong> off to align with{' '}
             <code>EXPLAIN (…, COSTS false, …)</code> output.
           </p>
@@ -125,21 +109,11 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
             Optional: exact EXPLAIN command you ran (preserved verbatim when sent)
           </label>
           <textarea
+            className="pqat-textarea"
             value={recordedExplainCommand}
             onChange={(e) => setRecordedExplainCommand(e.target.value)}
             spellCheck={false}
-            style={{
-              width: '100%',
-              minHeight: 56,
-              marginTop: 6,
-              padding: 10,
-              borderRadius: 10,
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              color: 'var(--text-h)',
-              fontFamily: 'var(--mono)',
-              fontSize: 12,
-            }}
+            style={{ minHeight: 56, marginTop: 6, fontSize: 12 }}
             placeholder="EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) ..."
           />
           {suggestedExplainSql ? (
@@ -160,76 +134,75 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
               </pre>
               <button
                 type="button"
+                className="pqat-btn pqat-btn--sm"
                 onClick={() => suggestedExplainSql && void copySuggestedExplain.copy(suggestedExplainSql, 'Copied')}
-                style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
+                style={{ marginTop: 8 }}
               >
                 Copy suggested EXPLAIN
               </button>
               {copySuggestedExplain.status ? (
-                <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.85 }}>{copySuggestedExplain.status}</span>
+                <span className="pqat-hint" style={{ marginLeft: 8, marginBottom: 0 }}>
+                  {copySuggestedExplain.status}
+                </span>
               ) : null}
             </div>
           ) : (
-            <p style={{ fontSize: 12, opacity: 0.8, marginTop: 10 }}>Add source SQL above to generate a suggested command.</p>
+            <p className="pqat-hint" style={{ marginTop: 10 }}>
+              Add source SQL above to generate a suggested command.
+            </p>
           )}
         </details>
       </div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
+          type="button"
+          className="pqat-btn pqat-btn--primary"
           onClick={onAnalyze}
           disabled={loading || loadingPersisted || input.trim().length === 0}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 12,
-            border: '1px solid var(--accent-border)',
-            background: 'var(--accent-bg)',
-            color: 'var(--text-h)',
-            cursor: loading ? 'not-allowed' : 'pointer',
-          }}
+          style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
         >
           {loading ? 'Analyzing…' : 'Analyze'}
         </button>
-        <button
-          onClick={onClear}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text-h)',
-            cursor: 'pointer',
-          }}
-        >
+        <button type="button" className="pqat-btn pqat-btn--ghost" onClick={onClear}>
           Clear
         </button>
 
         <div style={{ flex: 1 }} />
 
-        <button disabled={!analysis} onClick={() => onExport('md')} style={{ padding: '8px 10px', borderRadius: 10 }}>
+        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('md')}>
           Export Markdown
         </button>
-        <button disabled={!analysis} onClick={() => onExport('html')} style={{ padding: '8px 10px', borderRadius: 10 }}>
+        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('html')}>
           Export HTML
         </button>
-        <button disabled={!analysis} onClick={() => onExport('json')} style={{ padding: '8px 10px', borderRadius: 10 }}>
+        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('json')}>
           Export JSON
         </button>
       </div>
 
       {loadingPersisted ? (
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
+        <div
+          className="pqat-panel pqat-panel--tool"
+          style={{ marginTop: 14, padding: 12 }}
+          data-testid="analyze-persisted-loading"
+        >
           Opening shared analysis…
         </div>
       ) : null}
 
       {error ? (
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid #f59e0b', color: 'var(--text-h)' }}>
+        <div
+          className="pqat-panel"
+          style={{ marginTop: 14, padding: 14, borderColor: 'color-mix(in srgb, #f59e0b 55%, var(--border))', background: 'color-mix(in srgb, #f59e0b 12%, var(--surface-1))' }}
+          role="alert"
+          data-testid="analyze-page-error"
+        >
           <b>Error:</b> {error}
         </div>
       ) : null}
 
       {!analysis ? (
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>
+        <div className="pqat-hint pqat-panel pqat-panel--tool" style={{ marginTop: 14, padding: 14, marginBottom: 0 }}>
           Paste a plan and click <b>Analyze</b>.
         </div>
       ) : null}

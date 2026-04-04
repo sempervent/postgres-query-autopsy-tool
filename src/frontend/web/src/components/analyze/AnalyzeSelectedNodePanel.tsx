@@ -1,9 +1,7 @@
-import type { CSSProperties } from 'react'
+import { lazy, Suspense } from 'react'
 import type { AnalysisFinding, AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../../api/types'
 import { joinLabelAndSubtitle } from '../../presentation/nodeLabels'
-import { joinSideContextLineForNode } from '../../presentation/joinPainHints'
-import { bufferCounterRowsForApiNode, planNodeApiHasAnyBufferCounter } from '../../presentation/bufferFieldsPresentation'
-import { getWorkersFromPlanNode, workerSummaryCue, workerTableRows } from '../../presentation/workerPresentation'
+import { getWorkersFromPlanNode, workerSummaryCue } from '../../presentation/workerPresentation'
 import { formatAccessPathSummaryLine, indexInsightsForNodeId } from '../../presentation/indexInsightPresentation'
 import { nodeReferenceText } from '../../presentation/nodeReferences'
 import {
@@ -15,9 +13,9 @@ import {
 import type { AppConfig } from '../../api/types'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 
-function severityLabel(sev: number) {
-  return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
-}
+const AnalyzeSelectedNodeHeavySections = lazy(() =>
+  import('./AnalyzeSelectedNodeHeavySections').then((m) => ({ default: m.AnalyzeSelectedNodeHeavySections })),
+)
 
 export function AnalyzeSelectedNodePanel(props: {
   analysis: PlanAnalysisResult
@@ -52,11 +50,12 @@ export function AnalyzeSelectedNodePanel(props: {
   }
 
   return (
-    <div style={{ minWidth: 0 }} aria-label="Selected node detail">
+    <div className="pqat-panel pqat-panel--detail" style={{ minWidth: 0, padding: '16px 18px' }} aria-label="Selected node detail">
+      <div className="pqat-eyebrow">Detail</div>
       <h2>Selected node</h2>
       {selectedNode ? (
-        <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-          <div style={{ fontWeight: 900 }}>{nodeLabel(selectedNode)}</div>
+        <div className="pqat-panel pqat-panel--workspace" style={{ padding: 14, marginTop: 4 }}>
+          <div style={{ fontWeight: 800, fontSize: '1.02rem', letterSpacing: '-0.02em' }}>{nodeLabel(selectedNode)}</div>
           {(() => {
             const js = joinLabelAndSubtitle(selectedNode, byId)
             if (!js?.subtitle) return null
@@ -77,6 +76,12 @@ export function AnalyzeSelectedNodePanel(props: {
               <b>Related optimization suggestion</b>
               <div style={{ marginTop: 4, fontWeight: 700 }}>{relatedOptimizationForSelectedNode.title}</div>
               <div style={{ marginTop: 4, opacity: 0.9 }}>{relatedOptimizationForSelectedNode.summary}</div>
+              {relatedOptimizationForSelectedNode.recommendedNextAction ? (
+                <div style={{ marginTop: 6, opacity: 0.88, lineHeight: 1.4 }}>
+                  <span style={{ fontWeight: 650 }}>Next · </span>
+                  {relatedOptimizationForSelectedNode.recommendedNextAction}
+                </div>
+              ) : null}
             </div>
           ) : null}
           {(() => {
@@ -131,121 +136,27 @@ export function AnalyzeSelectedNodePanel(props: {
             {copyNode.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyNode.status}</div> : null}
             {copyShareLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyShareLink.status}</div> : null}
           </div>
-          <details style={{ marginTop: 10 }}>
-            <summary style={{ cursor: 'pointer', opacity: 0.88 }}>Operator context signals</summary>
-            {(() => {
-              const ctx = (selectedNode as any).contextEvidence as any
-              const lines: string[] = []
-              const side = joinSideContextLineForNode(selectedNode)
-              if (side) lines.push(side)
-              const hash = ctx?.hashJoin?.childHash
-              if (hash?.hashBatches || hash?.diskUsageKb) {
-                lines.push(`hash build: batches=${String(hash?.hashBatches ?? '—')} disk=${String(hash?.diskUsageKb ?? '—')}kB`)
-              }
-              const sort = ctx?.sort
-              if (sort?.diskUsageKb || (sort?.sortMethod ?? '').toLowerCase().includes('external')) {
-                lines.push(`sort: method=${String(sort?.sortMethod ?? '—')} disk=${String(sort?.diskUsageKb ?? '—')}kB`)
-              }
-              const waste = ctx?.scanWaste
-              if (waste?.rowsRemovedByFilter || waste?.rowsRemovedByIndexRecheck || waste?.heapFetches) {
-                lines.push(
-                  `scan waste: removedByFilter=${String(waste?.rowsRemovedByFilter ?? '—')} recheck=${String(waste?.rowsRemovedByIndexRecheck ?? '—')} heapFetches=${String(waste?.heapFetches ?? '—')}`,
-                )
-              }
-              const memo = ctx?.memoize
-              if (memo?.hitRate != null) {
-                lines.push(
-                  `memoize: hitRate=${String(memo.hitRate)} hits=${String(memo.cacheHits ?? '—')} misses=${String(memo.cacheMisses ?? '—')}`,
-                )
-              }
-              if (lines.length === 0)
-                return <div style={{ marginTop: 8, opacity: 0.8, fontSize: 12 }}>No contextual evidence for this node.</div>
-              return (
-                <ul style={{ marginTop: 8 }}>
-                  {lines.map((l) => (
-                    <li key={l} style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
-                      {l}
-                    </li>
-                  ))}
-                </ul>
-              )
-            })()}
-          </details>
-          <details style={{ marginTop: 6 }}>
-            <summary style={{ cursor: 'pointer', opacity: 0.85 }}>Debug node id</summary>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.9, marginTop: 6 }}>{selectedNode.nodeId}</div>
-          </details>
-          {planNodeApiHasAnyBufferCounter(selectedNode.node) ? (
-            <div style={{ marginTop: 10 }}>
-              <b>Buffer I/O</b>
-              <div style={{ marginTop: 6, fontSize: 12, fontFamily: 'var(--mono)', lineHeight: 1.5 }}>
-                {bufferCounterRowsForApiNode(selectedNode.node).map((r) => (
-                  <div key={r.label}>
-                    {r.label}: {r.value}
-                  </div>
+          <Suspense
+            fallback={
+              <div
+                className="pqat-panelSkeleton"
+                role="status"
+                aria-busy="true"
+                aria-label="Loading extended node detail"
+                style={{ marginTop: 12 }}
+              >
+                {Array.from({ length: 5 }, (_, i) => (
+                  <div key={i} className="pqat-panelSkeleton__row" style={{ width: `${68 + (i % 4) * 6}%` }} />
                 ))}
               </div>
-            </div>
-          ) : analysis.summary.hasBuffers ? (
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
-              This operator has no buffer counters in the payload (often normal for parents); check hotter children or a worker-merged parent.
-            </div>
-          ) : null}
-          {(() => {
-            const ws = getWorkersFromPlanNode(selectedNode.node)
-            if (!ws.length) return null
-            const rows = workerTableRows(ws)
-            const cols =
-              'minmax(0,0.5fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.9fr) minmax(0,0.9fr) minmax(0,1fr)'
-            const cell: CSSProperties = { fontSize: 11, fontFamily: 'var(--mono)' }
-            return (
-              <details style={{ marginTop: 12 }} open={false}>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Parallel workers</summary>
-                <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
-                  Per-worker stats from EXPLAIN JSON (parent row above is the leader aggregate when present).
-                </div>
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }} aria-label="Parallel workers">
-                  <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '6px 10px', ...cell, fontWeight: 800, opacity: 0.85 }}>
-                    <div>#</div>
-                    <div>Total time</div>
-                    <div>Rows</div>
-                    <div>Shared hit</div>
-                    <div>Shared read</div>
-                    <div>Temp read / write</div>
-                  </div>
-                  {rows.map((r) => (
-                    <div key={r.workerNumber} style={{ display: 'grid', gridTemplateColumns: cols, gap: '6px 10px', ...cell }}>
-                      <div>{r.workerNumber}</div>
-                      <div>{r.totalTime}</div>
-                      <div>{r.rows}</div>
-                      <div>{r.sharedHit}</div>
-                      <div>{r.sharedRead}</div>
-                      <div>{r.temp}</div>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )
-          })()}
-          <details style={{ marginTop: 10 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Raw plan node JSON</summary>
-            <pre style={{ marginTop: 6, overflow: 'auto', fontSize: 11 }}>{JSON.stringify(selectedNode.node, null, 2)}</pre>
-          </details>
-          <details style={{ marginTop: 10 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Derived metrics (JSON)</summary>
-            <pre style={{ marginTop: 6, overflow: 'auto', fontSize: 11 }}>{JSON.stringify(selectedNode.metrics, null, 2)}</pre>
-          </details>
-
-          <div style={{ marginTop: 10 }}>
-            <b>Findings for this node ({findingsForSelectedNode.length})</b>
-            <ul style={{ marginTop: 6 }}>
-              {findingsForSelectedNode.slice(0, 12).map((f) => (
-                <li key={f.findingId}>
-                  [{severityLabel(f.severity)}] {f.title} <span style={{ opacity: 0.8 }}>({f.ruleId})</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+            }
+          >
+            <AnalyzeSelectedNodeHeavySections
+              analysis={analysis}
+              selectedNode={selectedNode}
+              findingsForSelectedNode={findingsForSelectedNode}
+            />
+          </Suspense>
         </div>
       ) : (
         <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>

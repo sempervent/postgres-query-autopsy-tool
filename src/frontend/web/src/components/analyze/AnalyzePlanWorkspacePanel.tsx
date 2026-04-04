@@ -1,8 +1,8 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import type { AnalyzedPlanNode } from '../../api/types'
 import type { AnalyzeGraph } from '../../presentation/analyzeGraphAdapter'
 import type { AnalyzeGraphSearchHit } from '../../presentation/analyzeGraphState'
-import { AnalyzePlanGraph } from '../AnalyzePlanGraph'
+import { AnalyzePlanGraphLazy, prefetchAnalyzePlanGraph } from '../AnalyzePlanGraphLazy'
 import { applyGraphView, shouldAutoFitOnVisibilityChange, toggleCollapsed } from '../../presentation/analyzeGraphState'
 import { AnalyzePlanTextTree } from './AnalyzePlanTextTree'
 import type { AnalyzeWorkspaceLayoutApi } from '../../analyzeWorkspace/useAnalyzeWorkspaceLayout'
@@ -62,145 +62,135 @@ export function AnalyzePlanWorkspacePanel(props: {
 
   const byId = new Map(analysis.nodes.map((n) => [n.nodeId, n]))
 
+  useEffect(() => {
+    if (treeMode !== 'graph' || !graph) return
+    const hasRic = typeof window.requestIdleCallback === 'function'
+    const handle = hasRic
+      ? window.requestIdleCallback(() => prefetchAnalyzePlanGraph(), { timeout: 4500 })
+      : window.setTimeout(() => prefetchAnalyzePlanGraph(), 2000)
+    return () => {
+      if (hasRic && typeof handle === 'number') window.cancelIdleCallback(handle)
+      else window.clearTimeout(handle as number)
+    }
+  }, [treeMode, graph])
+
   return (
-    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-        <h2 style={{ margin: 0 }}>Plan workspace</h2>
+    <div className="pqat-panel pqat-panel--workspace" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 20px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div className="pqat-eyebrow">Investigation</div>
+          <h2 style={{ margin: 0 }}>Plan workspace</h2>
+        </div>
         <div style={{ minWidth: 200, flex: '1 1 220px' }}>
           <AnalyzeWorkspaceCustomizer api={layoutApi} />
         </div>
       </div>
-      <p style={{ margin: 0, fontSize: 12, opacity: 0.82 }}>
+      <p className="pqat-hint">
         Narrative and inspect-next sit beside the graph on wide screens; narrow view stacks the guide under the graph. Use <b>Customize workspace</b> to show, hide, or reorder panels—preferences persist locally; with auth + API credentials they also sync to your account.
       </p>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setTreeMode('graph')}
-          style={{
-            padding: '8px 10px',
-            borderRadius: 10,
-            border: treeMode === 'graph' ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-            background: treeMode === 'graph' ? 'var(--accent-bg)' : 'transparent',
-            cursor: 'pointer',
-          }}
-        >
-          Graph
-        </button>
-        <button
-          onClick={() => setTreeMode('text')}
-          style={{
-            padding: '8px 10px',
-            borderRadius: 10,
-            border: treeMode === 'text' ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-            background: treeMode === 'text' ? 'var(--accent-bg)' : 'transparent',
-            cursor: 'pointer',
-          }}
-        >
-          Text
-        </button>
-        <div style={{ opacity: 0.8, fontSize: 12 }}>Tip: inspect-next and findings jump the graph selection.</div>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+        <div className="pqat-seg" role="group" aria-label="Plan view mode">
+          <button
+            type="button"
+            className={`pqat-seg__btn${treeMode === 'graph' ? ' pqat-seg__btn--active' : ''}`}
+            onClick={() => setTreeMode('graph')}
+            onMouseEnter={() => prefetchAnalyzePlanGraph()}
+            onFocus={() => prefetchAnalyzePlanGraph()}
+          >
+            Graph
+          </button>
+          <button
+            type="button"
+            className={`pqat-seg__btn${treeMode === 'text' ? ' pqat-seg__btn--active' : ''}`}
+            onClick={() => setTreeMode('text')}
+          >
+            Text
+          </button>
+        </div>
+        <div className="pqat-hint" style={{ margin: 0 }}>
+          Tip: inspect-next and findings jump the graph selection.
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
         <input
+          className="pqat-input"
           value={nodeSearch}
           onChange={(e) => setNodeSearch(e.target.value)}
           placeholder="Search nodes (type/relation/index)"
-          style={{
-            width: '100%',
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text-h)',
-          }}
         />
       </div>
       {treeMode === 'graph' && graph ? (
         <>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
             <input
+              className="pqat-input"
               value={graphSearch}
               onChange={(e) => {
                 setGraphSearch(e.target.value)
                 setMatchIdx(0)
               }}
               placeholder="Graph search (operator / relation / index)"
-              style={{
-                flex: 1,
-                minWidth: 220,
-                padding: '10px 12px',
-                borderRadius: 12,
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text-h)',
-              }}
+              style={{ flex: 1, minWidth: 220 }}
             />
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
               {graphSearch.trim().length ? `${graphHits.length} match${graphHits.length === 1 ? '' : 'es'}` : ''}
             </div>
             <button
+              type="button"
+              className="pqat-btn pqat-btn--sm"
               onClick={() => selectGraphHit(matchIdx - 1)}
               disabled={!graphHits.length}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 12,
-                cursor: graphHits.length ? 'pointer' : 'not-allowed',
-                opacity: graphHits.length ? 1 : 0.5,
-              }}
             >
               prev
             </button>
             <button
+              type="button"
+              className="pqat-btn pqat-btn--sm"
               onClick={() => selectGraphHit(matchIdx + 1)}
               disabled={!graphHits.length}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 12,
-                cursor: graphHits.length ? 'pointer' : 'not-allowed',
-                opacity: graphHits.length ? 1 : 0.5,
-              }}
             >
               next
             </button>
           </div>
           {graphSearch.trim().length && graphHits.length ? (
             <div
+              className="pqat-panel pqat-panel--tool"
               style={{
                 marginBottom: 8,
-                padding: 10,
-                borderRadius: 12,
-                border: '1px solid var(--border)',
+                padding: 12,
                 maxHeight: 220,
                 overflow: 'auto',
-                background: 'color-mix(in srgb, var(--bg) 88%, transparent)',
               }}
             >
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Matches (click to jump)</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 6 }}>Matches (click to jump)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {graphHits.slice(0, 25).map((h, i) => (
                   <button
+                    type="button"
                     key={h.nodeId}
                     onClick={() => jumpToNodeId(h.nodeId)}
+                    className="pqat-btn pqat-btn--ghost pqat-btn--sm"
                     style={{
                       textAlign: 'left',
-                      padding: '8px 10px',
-                      borderRadius: 10,
-                      border: i === matchIdx ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-                      background: i === matchIdx ? 'var(--accent-bg)' : 'transparent',
-                      cursor: 'pointer',
+                      justifyContent: 'flex-start',
+                      width: '100%',
+                      border: i === matchIdx ? '1px solid var(--accent-border)' : '1px solid var(--border-subtle)',
+                      background: i === matchIdx ? 'color-mix(in srgb, var(--accent-bg) 40%, transparent)' : 'transparent',
                     }}
                   >
                     <div style={{ fontWeight: 800, fontSize: 13 }}>{h.label}</div>
-                    {h.subtitle ? <div style={{ fontSize: 12, opacity: 0.8 }}>{h.subtitle}</div> : null}
+                    {h.subtitle ? <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{h.subtitle}</div> : null}
                   </button>
                 ))}
                 {graphHits.length > 25 ? (
-                  <div style={{ fontSize: 12, opacity: 0.75 }}>Showing first 25 results. Refine your search to narrow down.</div>
+                  <div className="pqat-hint" style={{ margin: 0 }}>
+                    Showing first 25 results. Refine your search to narrow down.
+                  </div>
                 ) : null}
               </div>
             </div>
           ) : null}
-          <AnalyzePlanGraph
+          <AnalyzePlanGraphLazy
             nodes={(graphView?.nodes ?? graph.nodes).map((n) => ({
               ...n,
               data: { ...n.data, hasChildren: (childrenById.get(n.id)?.length ?? 0) > 0 },
@@ -221,10 +211,10 @@ export function AnalyzePlanWorkspacePanel(props: {
             }}
             reframeToken={reframeToken}
           />
-          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+          <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
             Legend: <span style={{ fontFamily: 'var(--mono)' }}>hot ex</span> = exclusive runtime hotspot,{' '}
             <span style={{ fontFamily: 'var(--mono)' }}>hot reads</span> = shared-read hotspot.
-          </div>
+          </p>
         </>
       ) : rootId ? (
         <AnalyzePlanTextTree

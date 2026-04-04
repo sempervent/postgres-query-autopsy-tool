@@ -7,11 +7,12 @@ namespace PostgresQueryAutopsyTool.Api.Persistence;
 public interface IArtifactPersistenceStore
 {
     void SaveAnalysis(PlanAnalysisResult analysis, ArtifactAccessWrite? access = null);
-    bool TryGetAnalysis(string analysisId, out PlanAnalysisResult? analysis);
+    /// <summary>Phase 49: typed load outcome (corrupt / incompatible vs missing).</summary>
+    ArtifactReadResult<PlanAnalysisResult> ReadAnalysis(string analysisId);
     IReadOnlyList<string> ListAnalysisIds(UserIdentity? viewer, bool authEnabled);
 
     void SaveComparison(PlanComparisonResultV2 comparison, ArtifactAccessWrite? access = null);
-    bool TryGetComparison(string comparisonId, out PlanComparisonResultV2? comparison);
+    ArtifactReadResult<PlanComparisonResultV2> ReadComparison(string comparisonId);
 
     bool TryGetAnalysisAccess(string analysisId, out StoredArtifactAccess? access);
     bool TryGetComparisonAccess(string comparisonId, out StoredArtifactAccess? access);

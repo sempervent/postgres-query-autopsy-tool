@@ -1,5 +1,6 @@
 import type { CompareBranchRow, CompareBranchViewModel } from '../presentation/compareBranchContext'
 import { ClickableRow } from './ClickableRow'
+import { prefetchCompareSelectedPairHeavySections } from './compare/prefetchCompareSelectedPairHeavySections'
 
 export type CompareBranchStripProps = {
   model: CompareBranchViewModel
@@ -67,6 +68,7 @@ function InteractiveBranchRow({
       selected={row.isFocal}
       aria-label={`Plan ${side} branch row: ${row.label}`}
       onActivate={() => onSelectPair(pair)}
+      onPointerIntent={prefetchCompareSelectedPairHeavySections}
       style={{
         padding: '6px 8px',
         paddingLeft: 8 + row.depth * 12,

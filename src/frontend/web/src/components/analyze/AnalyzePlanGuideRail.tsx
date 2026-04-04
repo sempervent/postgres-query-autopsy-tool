@@ -8,7 +8,12 @@ import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { ClickableRow } from '../ClickableRow'
 import { ReferenceCopyButton } from '../ReferenceCopyButton'
 import type { AnalyzeGuideSectionId } from '../../analyzeWorkspace/analyzeWorkspaceModel'
-import { companionRailSurface } from './analyzePanelChrome'
+import { companionRailSurface, planGuideRailClassName } from './analyzePanelChrome'
+import {
+  suggestionConfidenceShort,
+  suggestionFamilyLabel,
+  suggestionPriorityShort,
+} from '../../presentation/optimizationSuggestionsPresentation'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -213,6 +218,7 @@ export function AnalyzePlanGuideRail(props: {
             {sortedOptimizationSuggestions.slice(0, 2).map((s) => {
               const target = (s.targetNodeIds ?? [])[0]
               const targetLabel = target && byId.get(target) ? nodeLabel(byId.get(target)!) : target
+              const focusName = (s.targetDisplayLabel ?? targetLabel ?? target)?.trim()
               return (
                 <div
                   key={`rail-sg-${s.suggestionId}`}
@@ -225,14 +231,24 @@ export function AnalyzePlanGuideRail(props: {
                   }}
                 >
                   <div style={{ fontWeight: 700 }}>{s.title}</div>
+                  <div style={{ marginTop: 3, fontSize: 10, opacity: 0.78 }}>
+                    {suggestionFamilyLabel(s.suggestionFamily)} · {suggestionConfidenceShort(s.confidence)} ·{' '}
+                    {suggestionPriorityShort(s.priority)}
+                  </div>
                   <div style={{ marginTop: 4, opacity: 0.9 }}>{s.summary}</div>
+                  {s.recommendedNextAction ? (
+                    <div style={{ marginTop: 4, opacity: 0.88, fontSize: 11 }}>
+                      <span style={{ fontWeight: 650 }}>Next · </span>
+                      {s.recommendedNextAction}
+                    </div>
+                  ) : null}
                   {target ? (
                     <button
                       type="button"
                       onClick={() => jumpToNodeId(target)}
                       style={{ marginTop: 6, fontSize: 11, padding: '4px 8px', borderRadius: 8, cursor: 'pointer' }}
                     >
-                      Focus {targetLabel ?? target}
+                      Focus {focusName || 'node'}
                     </button>
                   ) : null}
                 </div>
@@ -251,8 +267,9 @@ export function AnalyzePlanGuideRail(props: {
   }
 
   return (
-    <aside aria-label="Graph companion" style={{ ...companionRailSurface, minWidth: 0 }}>
-      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 12 }}>Plan guide</div>
+    <aside aria-label="Graph companion" className={planGuideRailClassName} style={{ ...companionRailSurface, minWidth: 0 }}>
+      <div className="pqat-eyebrow">Companion</div>
+      <div style={{ fontWeight: 750, fontSize: '0.9375rem', letterSpacing: '-0.02em', color: 'var(--text-h)', marginBottom: 12 }}>Plan guide</div>
       {guideSectionOrder.map((sid) => {
         const el = sections[sid]
         return el ? <div key={sid}>{el}</div> : null

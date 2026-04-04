@@ -11,7 +11,22 @@ namespace PostgresQueryAutopsyTool.Core.Analysis;
 public static class OptimizationSuggestionEngine
 {
     private const string ValExplainBuffers =
-        "Compare before/after with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON).";
+        "Re-run EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) on representative parameters and compare timing plus buffer counters before vs after your change.";
+
+    private static OptimizationSuggestionFamily FamilyFor(OptimizationSuggestionCategory category) => category switch
+    {
+        OptimizationSuggestionCategory.IndexExperiment => OptimizationSuggestionFamily.IndexExperiments,
+        OptimizationSuggestionCategory.StatisticsMaintenance => OptimizationSuggestionFamily.StatisticsPlannerAccuracy,
+        OptimizationSuggestionCategory.TimescaledbWorkload or OptimizationSuggestionCategory.PartitioningChunking =>
+            OptimizationSuggestionFamily.SchemaWorkloadShape,
+        OptimizationSuggestionCategory.ObserveBeforeChange => OptimizationSuggestionFamily.OperationalTuningValidation,
+        _ => OptimizationSuggestionFamily.QueryShapeOrdering
+    };
+
+    private static string HumanLabel(string? nodeId, IReadOnlyDictionary<string, AnalyzedPlanNode> byId) =>
+        string.IsNullOrEmpty(nodeId) || !byId.TryGetValue(nodeId, out var n)
+            ? nodeId ?? ""
+            : NodeLabelFormatter.ShortLabel(n, byId);
 
     public static IReadOnlyList<OptimizationSuggestion> Build(PlanAnalysisResult analysis)
     {
@@ -53,10 +68,7 @@ public static class OptimizationSuggestionEngine
         foreach (var f in findings.Where(x => x.RuleId.Equals("Q.nl-inner-index-support", StringComparison.OrdinalIgnoreCase)))
             AddNlInnerSuggestion(list, f, byId);
 
-        foreach (var f in findings.Where(x =>
-                     x.RuleId.Equals("G.potential-statistics-issue", StringComparison.OrdinalIgnoreCase) ||
-                     x.RuleId.Equals("A.row-misestimation", StringComparison.OrdinalIgnoreCase)))
-            AddStatisticsSuggestion(list, f);
+        AddStatisticsSuggestionsForPlan(list, findings, byId);
 
         foreach (var f in findings.Where(x => x.RuleId.Equals("L.hash-join-pressure", StringComparison.OrdinalIgnoreCase)))
             AddHashJoinSuggestion(list, f, byId);
@@ -114,7 +126,11 @@ public static class OptimizationSuggestionEngine
                 "Compare plans with a narrower time predicate and measure shared reads/temp blocks.",
                 "Review whether continuous aggregates or pre-aggregation can shrink scanned volume for this query shape.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            "Narrow the time window or change aggregation shape first; only then consider another index experiment, measured across all touched chunks.",
+            whyItMatters:
+            "Per-chunk bitmap paths can already be indexed; total work is often dominated by how many chunks qualify and how rows are merged afterward."));
 
         list.Add(Make(
             scope: "ana",
@@ -135,7 +151,11 @@ public static class OptimizationSuggestionEngine
             {
                 "Check whether final sort spill or external sort disappears when the driving time predicate is tighter.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            "Try aligning ORDER BY keys with chunk-serving indexes, or reduce rows entering the final sort/merge after the Append.",
+            whyItMatters:
+            "Chunk unions often feed a late sort; fixing ordering upstream avoids sorting a synthetic cross-chunk rowset."));
 
         list.Add(Make(
             scope: "ana",
@@ -156,7 +176,12 @@ public static class OptimizationSuggestionEngine
             {
                 "Capture buffers and timing with both narrow and wide windows.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            "If you test an index, compare shared reads and temp I/O for both narrow and representative wide windows on plan B.",
+            whyItMatters:
+            "A win on one chunk window can disappear when more chunks qualify or when sort/merge costs rise."));
+
     }
 
     private static void AddSeqScanIndexExperiment(
@@ -192,7 +217,12 @@ public static class OptimizationSuggestionEngine
             {
                 ValExplainBuffers,
                 "Confirm the planner stops using the costly seq scan or that runtime and reads improve materially."
-            }));
+            },
+            recommendedNextAction:
+            $"Draft a btree (or appropriate) index on `{rel}` that matches the scan’s filter and measure the plan with EXPLAIN (ANALYZE, BUFFERS).",
+            whyItMatters:
+            "Sequential scans on large relations often dominate I/O; an index is not always right, but it is the standard experiment when selectivity is favorable.",
+            targetDisplayLabel: HumanLabel(nodeId, byId)));
     }
 
     private static void AddPotentialIndexing(
@@ -219,7 +249,12 @@ public static class OptimizationSuggestionEngine
             new[] { f.FindingId },
             Array.Empty<string>(),
             new[] { "Correlations and data skew can make textbook indexes ineffective." },
-            new[] { ValExplainBuffers, "Check whether rows removed by filters move as expected after changes." }));
+            new[] { ValExplainBuffers, "Check whether rows removed by filters move as expected after changes." },
+            recommendedNextAction:
+            "Prototype an index whose leading columns match the hotspot predicates, then confirm filter rows removed and shared reads move the right direction.",
+            whyItMatters:
+            "When the planner already suspects indexing, validating predicate↔index alignment is faster than guessing join or sort fixes.",
+            targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : null));
     }
 
     private static void AddIndexStillHeavy(
@@ -255,7 +290,12 @@ public static class OptimizationSuggestionEngine
             {
                 ValExplainBuffers,
                 "Compare shared read blocks and heap fetches before vs after any index or query change."
-            }));
+            },
+            recommendedNextAction:
+            "Re-check whether heap fetches, recheck lossiness, and shared reads drop after column reorder, covering columns, or predicate tightening.",
+            whyItMatters:
+            "An index that cannot answer the predicate tightly still visits the heap often; the fix may be shape or column order, not ‘more indexes’.",
+            targetDisplayLabel: HumanLabel(nodeId, byId)));
     }
 
     private static void AddFromIndexInsight(
@@ -298,7 +338,12 @@ public static class OptimizationSuggestionEngine
                 {
                     ValExplainBuffers,
                     "Verify that rows removed by filter actually improve after the experiment."
-                }));
+                },
+                recommendedNextAction:
+                $"Sketch an index on `{rel}` aligned with the filters/join keys driving this scan, then validate with EXPLAIN (ANALYZE, BUFFERS).",
+                whyItMatters:
+                "Missing-index signals are leads: confirming filter selectivity and read reduction matters more than the index definition you first try.",
+                targetDisplayLabel: HumanLabel(insight.NodeId, byId)));
         }
 
         if (insight.SignalKinds.Contains(IndexSignalAnalyzer.SignalIndexPathStillCostly))
@@ -349,7 +394,16 @@ public static class OptimizationSuggestionEngine
                 "Covering or column reorder may help—or the predicate may resist index-only plans.",
                 chunkedWorkload ? "Chunk fan-out can inflate total reads even when each step uses an index." : ""
             }.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray(),
-            new[] { ValExplainBuffers }));
+            new[]
+            {
+                "Compare heap fetches and shared reads after any index definition tweak; index-only paths are not automatic.",
+                ValExplainBuffers
+            },
+            recommendedNextAction:
+            "Inspect whether composite column order or covering columns removes heap hits; pair that with buffer evidence from EXPLAIN.",
+            whyItMatters:
+            "High read volume on an index scan usually means the index is not selective enough or cannot satisfy the projection.",
+            targetDisplayLabel: HumanLabel(insight.NodeId, byId)));
     }
 
     private static void AddSortFromInsight(
@@ -386,7 +440,14 @@ public static class OptimizationSuggestionEngine
             {
                 "Confirm whether sort spill disappears or runtime drops meaningfully.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            string.IsNullOrWhiteSpace(keys)
+                ? "Measure rows entering the sort and trial an index that can emit rows in the required order."
+                : $"Trial an index that supports `{Truncate(keys!, 80)}` in scan order so the sort node shrinks or disappears.",
+            whyItMatters:
+            "Presorted access avoids CPU and temp files for large sorts; it is usually preferable to raising work_mem without reducing rows.",
+            targetDisplayLabel: HumanLabel(insight.NodeId, byId)));
     }
 
     private static void AddNlFromInsight(
@@ -420,7 +481,12 @@ public static class OptimizationSuggestionEngine
             {
                 "Compare alternative plans after a focused index experiment.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            $"Add or tighten an index on `{innerRel}` so each inner probe does less heap work for the join predicate.",
+            whyItMatters:
+            "Nested loops multiply inner cost by outer cardinality; a small inner improvement can dominate total runtime.",
+            targetDisplayLabel: HumanLabel(insight.NodeId, byId)));
     }
 
     private static void AddSortSuggestion(
@@ -431,17 +497,22 @@ public static class OptimizationSuggestionEngine
         var nodeId = f.NodeIds?.FirstOrDefault();
         byId.TryGetValue(nodeId ?? "", out var n);
         var keys = n?.Node.SortKey;
+        var human = HumanLabel(nodeId, byId);
+        var shareText = f.Evidence.TryGetValue("exclusiveTimeShareOfPlan", out var sh) && sh is double d
+            ? $" It accounts for about {d:P0} of the plan’s measured time."
+            : "";
+
+        var summary = string.IsNullOrWhiteSpace(keys)
+            ? $"The sort at {human} is a major hotspot.{shareText} Reduce rows feeding the sort or test whether an index can supply ordering before tuning work_mem."
+            : $"The sort at {human} is costly.{shareText} Keys include {Truncate(keys!, 160)}. See whether a supporting index can shrink or remove this sort.";
 
         list.Add(Make(
             scope: "ana",
             category: OptimizationSuggestionCategory.SortOrdering,
             action: SuggestedActionType.ChangeGroupingOrOrderingStrategy,
-            title: "Reduce sort cost or align order with indexes",
-            summary:
-            string.IsNullOrWhiteSpace(keys)
-                ? f.Suggestion
-                : $"{f.Summary} Sort keys: `{Truncate(keys, 160)}`.",
-            details: f.Explanation,
+            title: "Try to eliminate or shrink this expensive sort",
+            summary,
+            details: $"{f.Explanation}\n\nOriginal finding summary: {f.Summary}",
             $"Finding `{f.RuleId}`: {f.Summary}",
             MapConfidence(f.Confidence),
             MapPriority(f.Severity),
@@ -454,9 +525,16 @@ public static class OptimizationSuggestionEngine
             },
             new[]
             {
-                "Confirm spill or external sort metrics improve after changes.",
+                "Re-run EXPLAIN (ANALYZE, BUFFERS) and confirm the sort no longer spills to disk (or shrinks materially) after your change.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            string.IsNullOrWhiteSpace(keys)
+                ? "Cut rows entering the sort (predicates, join order) or add an index-ordered path; measure spill bytes and timing."
+                : "Prototype an index aligned with the ORDER BY / sort keys and compare sort method and disk usage in EXPLAIN output.",
+            whyItMatters:
+            "Large sorts distort memory use and can spill; fixing row volume or sort order at the source usually beats repeatedly raising work_mem.",
+            targetDisplayLabel: human));
     }
 
     private static void AddNlInnerSuggestion(
@@ -474,9 +552,10 @@ public static class OptimizationSuggestionEngine
             scope: "ana",
             category: OptimizationSuggestionCategory.JoinStrategy,
             action: SuggestedActionType.CreateIndexCandidate,
-            title: $"Investigate inner-side index support ({innerHint})",
-            summary: f.Suggestion,
-            details: f.Explanation,
+            title: $"Nested loop inner access on {innerHint} may need tighter index support",
+            summary:
+            "The inner branch of this nested loop runs many times; if each probe is expensive, a better index on the inner predicate is usually the first experiment.",
+            details: $"{f.Explanation}\n\nOriginal suggestion text: {f.Suggestion}",
             $"Finding `{f.RuleId}`: {f.Summary}",
             MapConfidence(f.Confidence),
             MapPriority(f.Severity),
@@ -486,24 +565,116 @@ public static class OptimizationSuggestionEngine
             new[] { "High loop counts amplify any inner-side weakness—small improvements can matter." },
             new[]
             {
-                "Compare with EXPLAIN after a targeted index experiment on the inner predicate.",
+                "After an index trial, compare loops × inner time and shared reads on the inner node.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            $"Target `{innerHint}` with an index that matches the inner join/filter predicates, then re-measure nested-loop cost.",
+            whyItMatters:
+            "Nested-loop cost scales with outer rows; weak inner indexes show up as repeated heap access or bitmap churn.",
+            targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : innerHint));
     }
 
-    private static void AddStatisticsSuggestion(List<OptimizationSuggestion> list, AnalysisFinding f)
+    private static void AddStatisticsSuggestionsForPlan(
+        List<OptimizationSuggestion> list,
+        IReadOnlyList<AnalysisFinding> findings,
+        IReadOnlyDictionary<string, AnalyzedPlanNode> byId)
     {
-        var nodeId = f.NodeIds?.FirstOrDefault();
+        var statFindings = findings.Where(x =>
+                x.RuleId.Equals("G.potential-statistics-issue", StringComparison.OrdinalIgnoreCase) ||
+                x.RuleId.Equals("A.row-misestimation", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (statFindings.Count == 0) return;
+        if (statFindings.Count >= 2)
+        {
+            AddMergedStatisticsSuggestion(list, statFindings, byId);
+            return;
+        }
+
+        AddSingleStatisticsSuggestion(list, statFindings[0], byId);
+    }
+
+    private static void AddMergedStatisticsSuggestion(
+        List<OptimizationSuggestion> list,
+        List<AnalysisFinding> statFindings,
+        IReadOnlyDictionary<string, AnalyzedPlanNode> byId)
+    {
+        var nodeIds = statFindings
+            .SelectMany(f => f.NodeIds ?? Array.Empty<string>())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
+        var findingIds = statFindings.Select(f => f.FindingId).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var conf = statFindings.Select(f => MapConfidence(f.Confidence)).OrderByDescending(ConfidenceOrder).First();
+        var pri = statFindings.Max(f => MapPriority(f.Severity));
+
+        string TLabel()
+        {
+            if (nodeIds.Length == 0) return "Multiple plan nodes";
+            if (nodeIds.Length <= 2) return string.Join(" · ", nodeIds.Select(id => HumanLabel(id, byId)));
+            return $"{nodeIds.Length} nodes ({string.Join(", ", nodeIds.Take(2).Select(id => HumanLabel(id, byId)))}, …)";
+        }
+
+        var details = string.Join("\n", statFindings.Select(f => $"• `{f.RuleId}` — {f.Summary}"));
+
         list.Add(Make(
             scope: "ana",
             category: OptimizationSuggestionCategory.StatisticsMaintenance,
             action: SuggestedActionType.RefreshStatistics,
-            title: f.Title,
-            summary: f.Suggestion,
-            details: f.Explanation,
+            title: "Planner estimates look unreliable—tighten statistics before big index or join changes",
+            summary:
+            "Multiple findings agree cardinality estimates do not match what executed. Run ANALYZE (and extended statistics where predicates correlate) before chasing speculative indexes.",
+            details: details,
+            rationale: string.Join(" ", findingIds.Select(id => $"`{id}`")),
+            conf,
+            pri,
+            nodeIds,
+            findingIds,
+            Array.Empty<string>(),
+            new[]
+            {
+                "Bad statistics can mimic an index problem; fix estimates before large DDL.",
+                "Consider extended statistics when errors track specific column combinations."
+            },
+            new[]
+            {
+                "After ANALYZE, compare estimated vs actual rows on the join and scan nodes involved here.",
+                "If misestimates remain on correlated filters, trial extended statistics on those column groups.",
+                ValExplainBuffers
+            },
+            recommendedNextAction:
+            "Run ANALYZE on the relations behind the worst mismatches, then re-run EXPLAIN (ANALYZE) and diff estimates vs actuals on the listed nodes.",
+            whyItMatters:
+            "Misestimated cardinalities steer join order, nested-loop choices, and memory; correcting the model often moves the plan more than a blind index.",
+            targetDisplayLabel: TLabel(),
+            isGroupedCluster: true));
+    }
+
+    private static void AddSingleStatisticsSuggestion(
+        List<OptimizationSuggestion> list,
+        AnalysisFinding f,
+        IReadOnlyDictionary<string, AnalyzedPlanNode> byId)
+    {
+        var nodeId = f.NodeIds?.FirstOrDefault();
+        var human = HumanLabel(nodeId, byId);
+        var isRowMis = f.RuleId.StartsWith("A.", StringComparison.Ordinal);
+        var title = isRowMis
+            ? "Investigate why the planner badly underestimated row counts here"
+            : f.Title;
+        var summary = isRowMis
+            ? $"Estimated rows diverged strongly from actuals at {human}. Verify ANALYZE freshness, predicate selectivity, and whether extended statistics are needed before large schema experiments."
+            : f.Suggestion;
+
+        list.Add(Make(
+            scope: "ana",
+            category: OptimizationSuggestionCategory.StatisticsMaintenance,
+            action: SuggestedActionType.RefreshStatistics,
+            title,
+            summary,
+            details: $"{f.Explanation}\n\nOriginal finding summary: {f.Summary}",
             $"Finding `{f.RuleId}`: {f.Summary}",
             MapConfidence(f.Confidence),
-            f.RuleId.StartsWith("A.", StringComparison.Ordinal) ? SuggestionPriorityLevel.High : SuggestionPriorityLevel.Medium,
+            isRowMis ? SuggestionPriorityLevel.High : MapPriority(f.Severity),
             nodeId is not null ? new[] { nodeId } : Array.Empty<string>(),
             new[] { f.FindingId },
             Array.Empty<string>(),
@@ -514,8 +685,14 @@ public static class OptimizationSuggestionEngine
             },
             new[]
             {
-                "Re-run EXPLAIN (ANALYZE) after ANALYZE and compare row estimates vs actuals on hot nodes."
-            }));
+                "After ANALYZE, compare estimated vs actual rows on the join and scan nodes involved here.",
+                ValExplainBuffers
+            },
+            recommendedNextAction:
+            "Refresh statistics on the driving relations, then re-check EXPLAIN estimates vs actual rows on this subtree.",
+            whyItMatters:
+            "When estimates are off by orders of magnitude, the planner may pick the wrong join order or memory strategy; fixing stats is cheaper than guessing indexes.",
+            targetDisplayLabel: string.IsNullOrEmpty(human) ? null : human));
     }
 
     private static void AddHashJoinSuggestion(
@@ -546,7 +723,12 @@ public static class OptimizationSuggestionEngine
             {
                 "Check hash batch and disk usage before vs after query rewrites.",
                 ValExplainBuffers
-            }));
+            },
+            recommendedNextAction:
+            "Reduce build-side rows (stronger filters, better join order) or trial a controlled work_mem change while watching hash batch/disk counters.",
+            whyItMatters:
+            "Hash joins that spill trade CPU for disk; shrinking the build side usually beats repeatedly raising memory without measurement.",
+            targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : null));
     }
 
     private static void AddMaterializeSuggestion(
@@ -569,11 +751,21 @@ public static class OptimizationSuggestionEngine
             new[] { f.FindingId },
             Array.Empty<string>(),
             new[] { "May indicate repeated work that a rewrite or different join order could avoid." },
-            new[] { ValExplainBuffers }));
+            new[]
+            {
+                "Capture whether memoize/materialize loops drop after rewriting duplicated subtrees or changing join order.",
+                ValExplainBuffers
+            },
+            recommendedNextAction:
+            "Inspect whether the same subtree is recomputed; consider rewriting to share results or changing join order to avoid repeated materialization.",
+            whyItMatters:
+            "Memoize/materialize nodes often flag quadratic or repeated work that indexes alone cannot fix.",
+            targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : null));
     }
 
     private static void AddTempSortSpillFromNodes(List<OptimizationSuggestion> list, IReadOnlyList<AnalyzedPlanNode> nodes)
     {
+        var byIdLocal = nodes.ToDictionary(x => x.NodeId, StringComparer.Ordinal);
         foreach (var n in nodes)
         {
             var sort = n.ContextEvidence?.Sort;
@@ -606,12 +798,18 @@ public static class OptimizationSuggestionEngine
                 {
                     "Confirm spill disappears and compare buffers/timing after changes.",
                     ValExplainBuffers
-                }));
+                },
+                recommendedNextAction:
+                "Reduce rows or width entering the sort, or add an index-ordered path; only then revisit work_mem using EXPLAIN sort metrics.",
+                whyItMatters:
+                "External sorts are both slow and a signal that too many rows are being ordered; removing work beats hiding spill with memory.",
+                targetDisplayLabel: HumanLabel(n.NodeId, byIdLocal)));
         }
     }
 
     private static void AddParallelSkewFromNodes(List<OptimizationSuggestion> list, IReadOnlyList<AnalyzedPlanNode> nodes)
     {
+        var byIdLocal = nodes.ToDictionary(x => x.NodeId, StringComparer.Ordinal);
         foreach (var n in nodes)
         {
             var w = n.Node.Workers;
@@ -641,7 +839,12 @@ public static class OptimizationSuggestionEngine
                 {
                     "Inspect per-worker rows and buffer counters in EXPLAIN (ANALYZE, BUFFERS) output.",
                     ValExplainBuffers
-                }));
+                },
+                recommendedNextAction:
+                "Compare per-worker actual rows and buffer counters; if skew is real, revisit data distribution or parallel thresholds for this query.",
+                whyItMatters:
+                "Uneven parallel work leaves some workers idle while others carry the query; fixing skew improves wall-clock time more than adding random indexes.",
+                targetDisplayLabel: HumanLabel(n.NodeId, byIdLocal)));
         }
     }
 
@@ -659,7 +862,11 @@ public static class OptimizationSuggestionEngine
         IReadOnlyList<string> relatedFindingIds,
         IReadOnlyList<string> relatedIndexInsightNodeIds,
         IReadOnlyList<string> cautions,
-        IReadOnlyList<string> validationSteps)
+        IReadOnlyList<string> validationSteps,
+        string recommendedNextAction,
+        string whyItMatters,
+        string? targetDisplayLabel = null,
+        bool isGroupedCluster = false)
     {
         var id = StableSuggestionId(scope, category, action, title, targetNodeIds, relatedFindingIds);
         return new OptimizationSuggestion(
@@ -676,7 +883,15 @@ public static class OptimizationSuggestionEngine
             relatedFindingIds,
             relatedIndexInsightNodeIds,
             cautions,
-            validationSteps);
+            validationSteps,
+            FamilyFor(category),
+            recommendedNextAction,
+            whyItMatters,
+            targetDisplayLabel,
+            isGroupedCluster,
+            null,
+            null,
+            null);
     }
 
     private static string StableSuggestionId(

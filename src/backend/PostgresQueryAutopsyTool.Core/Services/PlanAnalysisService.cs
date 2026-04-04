@@ -197,7 +197,7 @@ AnalysisId: {analysis.AnalysisId}
 
 ## Optimization suggestions (investigation-oriented)
 {(analysis.OptimizationSuggestions.Count == 0 ? "- none generated for this plan snapshot" : string.Join("\n", analysis.OptimizationSuggestions.Take(8).Select(s =>
-    $"- `[{s.SuggestionId}]` **[{s.Priority}] [{s.Confidence}] {s.Category}** {s.Title}: {s.Summary}\n  - Validate: {string.Join("; ", s.ValidationSteps.Take(2))}")))}
+    $"- `[{s.SuggestionId}]` **{s.Title}** ({s.SuggestionFamily}, priority {s.Priority}, confidence {s.Confidence})\n  - Summary: {s.Summary}\n  - Next: {s.RecommendedNextAction}\n  - Why: {s.WhyItMatters}\n  - Validate: {string.Join("; ", s.ValidationSteps.Take(2))}")))}
 {(analysis.OptimizationSuggestions.Count > 0 ? "\nThese are evidence-linked next steps, not guaranteed fixes. Use validation steps and EXPLAIN (ANALYZE, BUFFERS) before production changes." : "")}
 
 ## Limitations
@@ -256,7 +256,7 @@ AnalysisId: {analysis.AnalysisId}
       {(analysis.OptimizationSuggestions.Count == 0
         ? "<li>none for this snapshot</li>"
         : string.Join("", analysis.OptimizationSuggestions.Take(8).Select(s =>
-            $"<li><b>[{s.Priority}] [{s.Confidence}] {s.Category}</b> {System.Net.WebUtility.HtmlEncode(s.Title)}<br/>{System.Net.WebUtility.HtmlEncode(s.Summary)}</li>")))}
+            $"<li><b>{System.Net.WebUtility.HtmlEncode(s.Title)}</b> <span style=\"opacity:.75\">({s.SuggestionFamily}, priority {s.Priority}, confidence {s.Confidence})</span><br/>{System.Net.WebUtility.HtmlEncode(s.Summary)}<br/><i>Next:</i> {System.Net.WebUtility.HtmlEncode(s.RecommendedNextAction)}</li>")))}
     </ul>
     <h2>Limitations</h2>
     <ul>
@@ -372,7 +372,7 @@ ComparisonId: {comparison.ComparisonId}
 {(comparison.CompareOptimizationSuggestions.Count == 0
     ? "- No compare-scoped suggestions (or plans are very similar)."
     : string.Join("\n", comparison.CompareOptimizationSuggestions.Take(6).Select(s =>
-        $"- `[{s.SuggestionId}]` **[{s.Priority}] [{s.Confidence}]** {s.Title}: {s.Summary}")))}
+        $"- `[{s.SuggestionId}]` **{s.Title}** (priority {s.Priority}, confidence {s.Confidence})\n  - {s.Summary}\n  - Next: {s.RecommendedNextAction}")))}
 {(comparison.CompareOptimizationSuggestions.Count > 0
     ? "\nCompare suggestions emphasize what to try on plan B given the diff—not a repeat of the full analyze list."
     : "")}
