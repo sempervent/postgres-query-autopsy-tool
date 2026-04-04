@@ -49,6 +49,9 @@ export function CompareWorkspaceCustomizerInner({ api }: { api: CompareWorkspace
 
   return (
     <div className="pqat-customizer__body">
+      <p className="pqat-hint pqat-fieldHint" style={{ marginTop: 0 }}>
+        Tune Compare&apos;s columns and summary stack — settings persist locally like Analyze.
+      </p>
       <fieldset className="pqat-fieldset">
         <legend>Presets</legend>
         <div className="pqat-presetRow">

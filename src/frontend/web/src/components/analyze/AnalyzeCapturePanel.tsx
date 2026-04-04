@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { PlanAnalysisResult } from '../../api/types'
+import { ArtifactErrorBanner } from '../ArtifactErrorBanner'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 
 type ExplainToggles = { analyze: boolean; verbose: boolean; buffers: boolean; costs: boolean }
@@ -65,7 +66,7 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
           style={{ minHeight: 220 }}
           placeholder='JSON or psql QUERY PLAN cell text: [ { "Plan": { ... } } ]'
         />
-        <details className="pqat-details">
+        <details className="pqat-details pqat-details--meta">
           <summary>Optional: source SQL query</summary>
           <textarea
             className="pqat-textarea"
@@ -76,7 +77,7 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
             placeholder="SELECT ... FROM ... WHERE ..."
           />
         </details>
-        <details className="pqat-details" style={{ marginTop: 4 }}>
+        <details className="pqat-details pqat-details--meta" style={{ marginTop: 4 }}>
           <summary>Suggested EXPLAIN command (copy-paste)</summary>
           <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
             Wraps the optional source SQL below—no parsing, only text wrapping. Default matches a forensic-style capture; turn <strong>COSTS</strong> off to align with{' '}
@@ -190,24 +191,7 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
         </div>
       ) : null}
 
-      {error ? (
-        <div
-          className={`pqat-stateBanner ${/access denied/i.test(error) ? 'pqat-stateBanner--denial' : /422|409|corrupt|incompatible/i.test(error) ? 'pqat-stateBanner--warn' : 'pqat-stateBanner--error'}`}
-          role="alert"
-          data-testid="analyze-page-error"
-        >
-          <span className="pqat-stateBanner__title">
-            {/access denied/i.test(error)
-              ? 'Access blocked'
-              : /422|409|corrupt|incompatible/i.test(error)
-                ? 'Artifact issue'
-                : 'Could not complete request'}
-          </span>
-          <div className="pqat-stateBanner__body">
-            <strong>Error:</strong> {error}
-          </div>
-        </div>
-      ) : null}
+      {error ? <ArtifactErrorBanner message={error} testId="analyze-page-error" /> : null}
 
       {!analysis ? (
         <div className="pqat-emptyHint pqat-hint" style={{ marginBottom: 0 }}>

@@ -153,7 +153,8 @@ public static class IndexSignalAnalyzer
         if (!hasFilter && rowsRemoved < 50 && wasteShare is null or < 0.15 && timeShare < 0.35 && readShare < 0.35)
             return null;
 
-        var headline = $"Seq Scan on `{n.Node.RelationName ?? "unknown"}` — filter/index investigation may be warranted";
+        var headline =
+            $"Seq Scan on `{n.Node.RelationName ?? "unknown"}` — filter selectivity and whether a btree on filter/join keys is worth an experiment (not a blanket “add index” claim).";
         return new PlanIndexInsight(
             n.NodeId,
             IndexAccessPathTokens.SeqScan,
@@ -203,8 +204,8 @@ public static class IndexSignalAnalyzer
             return null;
 
         var headline = family == IndexAccessPathTokens.IndexOnlyScan
-            ? $"Index Only Scan still shows large volume or heap/recheck work — verify selectivity and covering columns"
-            : $"Index Scan path still concentrates reads/heap work — index may be weak, non-selective, or fighting correlation";
+            ? "Index Only Scan still shows volume or heap/recheck work — revisit covering columns vs selected fields, and whether the index truly matches predicates."
+            : "Index Scan still drives heavy shared reads or heap fetches — the path is indexed but selectivity, correlation, or join order may be wrong; test stronger predicates or a better-aligned composite before adding more indexes.";
 
         var kinds = new List<string> { SignalIndexPathStillCostly };
         if (recheckRemoved > 0 || !string.IsNullOrWhiteSpace(n.Node.RecheckCond))
@@ -278,7 +279,7 @@ public static class IndexSignalAnalyzer
             null,
             null,
             new[] { SignalSortOrderSupportOpportunity },
-            "Expensive sort with explicit keys — investigate whether an index can provide order earlier (or reduce rows pre-sort)",
+            "Expensive sort with explicit keys — consider ORDER BY / merge alignment (index-delivered ordering) versus shrinking rows before the sort; filter support alone may not fix ordering cost.",
             Facts(n, ctx,
                 ("sortKey", n.Node.SortKey),
                 ("sortMethod", n.Node.SortMethod),
@@ -311,7 +312,7 @@ public static class IndexSignalAnalyzer
             inner.Node.RelationName,
             inner.Node.IndexName,
             new[] { SignalJoinInnerIndexSupport },
-            "Nested loop inner side repeats often with seq/bitmap access — stronger or better-aligned index on the inner predicate may help",
+            "Nested loop inner repeats with seq/bitmap access — join-key / inner predicate index alignment often matters more than another unrelated filter index; measure inner loops × reads.",
             Facts(inner, ctx,
                 ("nestedLoopNodeId", n.NodeId),
                 ("innerLoops", loops),

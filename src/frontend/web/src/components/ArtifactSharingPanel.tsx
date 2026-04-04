@@ -66,14 +66,16 @@ export function ArtifactSharingPanel({
   }
 
   return (
-    <details data-testid="artifact-sharing-details" className="pqat-sharingDetails" aria-label="Artifact sharing">
+    <details
+      data-testid="artifact-sharing-details"
+      className="pqat-sharingDetails pqat-metaPanel"
+      aria-label="Artifact sharing"
+    >
       <summary>Sharing &amp; access</summary>
       <div className="pqat-sharingDetails__body">
-        <div>
+        <div className="pqat-sharingDetails__row">
           <span className="pqat-signalLine__label">Owner</span>{' '}
-          <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-h)' }}>
-            {artifactAccess.ownerUserId?.trim() || '—'}
-          </span>
+          <span className="pqat-sharingDetails__mono">{artifactAccess.ownerUserId?.trim() || '—'}</span>
         </div>
         <div>
           <label className="pqat-fieldLabel pqat-fieldLabel--sm" htmlFor={`pqat-share-scope-${artifactId}`}>
@@ -82,8 +84,7 @@ export function ArtifactSharingPanel({
           <select
             id={`pqat-share-scope-${artifactId}`}
             data-testid="artifact-sharing-access-scope"
-            className="pqat-select"
-            style={{ marginTop: 6, maxWidth: '100%' }}
+            className="pqat-select pqat-select--meta"
             value={scope}
             onChange={(e) => setScope(e.target.value)}
           >
@@ -94,23 +95,22 @@ export function ArtifactSharingPanel({
           </select>
         </div>
         {scope === 'group' ? (
-          <label className="pqat-fieldLabel pqat-fieldLabel--sm" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="pqat-fieldLabel pqat-fieldLabel--sm pqat-fieldLabel--stack">
             Group ids (comma-separated)
             <input
               data-testid="artifact-sharing-groups-input"
-              className="pqat-input"
+              className="pqat-input pqat-input--meta"
               value={groupsText}
               onChange={(e) => setGroupsText(e.target.value)}
               placeholder="e.g. perf-team, dba"
-              style={{ fontFamily: 'var(--mono)', fontSize: '0.8125rem' }}
             />
           </label>
         ) : null}
-        <label className="pqat-checkRow" style={{ cursor: 'pointer', marginTop: 2 }}>
+        <label className="pqat-checkRow pqat-checkRow--meta">
           <input data-testid="artifact-sharing-allow-link" type="checkbox" checked={allowLink} onChange={(e) => setAllowLink(e.target.checked)} />
           <span>Allow link-style access (opaque URL when policy allows)</span>
         </label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="pqat-sharingDetails__actions">
           <button
             data-testid="artifact-sharing-save"
             type="button"
@@ -121,24 +121,25 @@ export function ArtifactSharingPanel({
             {saving ? 'Saving…' : 'Save sharing'}
           </button>
           {msg ? (
-            <span data-testid="artifact-sharing-status" className="pqat-hint" style={{ margin: 0, color: 'var(--text-h)' }}>
+            <span data-testid="artifact-sharing-status" className="pqat-sharingDetails__status">
               {msg}
             </span>
           ) : null}
         </div>
-        <div className="pqat-stateBanner pqat-stateBanner--info" style={{ marginTop: 4, padding: '10px 12px' }}>
-          {authHelp ? <p style={{ margin: '0 0 8px', color: 'var(--text)' }}>{authHelp}</p> : null}
-          <p style={{ margin: 0, fontSize: '0.6875rem', lineHeight: 1.45, color: 'var(--text-secondary)' }}>
-            Server enforces access. For browser calls:{' '}
+        <div className="pqat-authHelpCard">
+          <p className="pqat-authHelpCard__title">Server &amp; browser</p>
+          {authHelp ? <p className="pqat-authHelpCard__text">{authHelp}</p> : null}
+          <p className="pqat-authHelpCard__fine">
+            The API enforces access on every request. For calls from this browser:{' '}
             {authIdentityKind === 'api_key' ? (
               <>
-                set <span style={{ fontFamily: 'var(--mono)' }}>VITE_AUTH_API_KEY</span> (or{' '}
-                <span style={{ fontFamily: 'var(--mono)' }}>VITE_AUTH_BEARER_TOKEN</span> if your gateway maps it).
+                set <code className="pqat-codeInline">VITE_AUTH_API_KEY</code> (or{' '}
+                <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> if your gateway maps it).
               </>
             ) : (
               <>
-                set <span style={{ fontFamily: 'var(--mono)' }}>VITE_AUTH_BEARER_TOKEN</span> (JWT or legacy bearer) or{' '}
-                <span style={{ fontFamily: 'var(--mono)' }}>VITE_AUTH_API_KEY</span> for API-key mode.
+                set <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> (JWT or legacy bearer) or{' '}
+                <code className="pqat-codeInline">VITE_AUTH_API_KEY</code> for API-key mode.
               </>
             )}
           </p>

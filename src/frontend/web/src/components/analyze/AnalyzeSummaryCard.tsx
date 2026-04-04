@@ -10,6 +10,8 @@ import {
   shareArtifactLinkLabel,
   copyArtifactShareToast,
 } from '../../presentation/artifactLinks'
+import { planStoryDeckTitle, planStoryHasContent } from '../../presentation/storyPresentation'
+import { normalizeStoryPropagationBeat } from '../../presentation/planReferencePresentation'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 
 export type AnalyzeSummaryCardProps = {
@@ -20,10 +22,12 @@ export type AnalyzeSummaryCardProps = {
   locationPathname: string
   copyShareLink: ReturnType<typeof useCopyFeedback>
   setAnalysis: (a: PlanAnalysisResult) => void
+  jumpToNodeId?: (id: string) => void
 }
 
 export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
-  const { analysis, appConfig, sendExplainMetadata, selectedNodeId, locationPathname, copyShareLink, setAnalysis } = props
+  const { analysis, appConfig, sendExplainMetadata, selectedNodeId, locationPathname, copyShareLink, setAnalysis, jumpToNodeId } =
+    props
   const [sharingReloadError, setSharingReloadError] = useState<string | null>(null)
 
   const shareLinkUi = {
@@ -51,6 +55,62 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
           </div>
         </div>
       </div>
+      {planStoryHasContent(analysis.planStory) ? (
+        <div
+          className="pqat-callout pqat-callout--accent"
+          style={{ marginTop: 14 }}
+          aria-label="Structured plan story"
+        >
+          <div className="pqat-callout__title">{planStoryDeckTitle()}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text)' }}>{analysis.planStory!.planOverview}</div>
+          <ul className="pqat-bulletList pqat-bulletList--tight" style={{ marginTop: 10, marginBottom: 0 }}>
+            <li>
+              <span className="pqat-inlineMeta">Work · </span>
+              {analysis.planStory!.workConcentration}
+            </li>
+            <li>
+              <span className="pqat-inlineMeta">Cost drivers · </span>
+              {analysis.planStory!.likelyExpenseDrivers}
+            </li>
+            <li>
+              <span className="pqat-inlineMeta">Start here · </span>
+              {analysis.planStory!.inspectFirstPath}
+            </li>
+          </ul>
+          {analysis.planStory!.propagationBeats?.length ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              <span className="pqat-inlineMeta">Flow · </span>
+              <ul className="pqat-bulletList pqat-bulletList--tight" style={{ marginTop: 6, marginBottom: 0 }}>
+                {analysis.planStory!.propagationBeats.map((raw, i) => {
+                  const b = normalizeStoryPropagationBeat(raw)
+                  return (
+                    <li key={`${i}-${b.text.slice(0, 24)}`} style={{ marginBottom: 8 }}>
+                      <span>{b.text}</span>
+                      {b.focusNodeId && jumpToNodeId ? (
+                        <div style={{ marginTop: 4 }}>
+                          <button
+                            type="button"
+                            className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                            onClick={() => jumpToNodeId(b.focusNodeId!)}
+                          >
+                            Focus {b.anchorLabel?.trim() ? `· ${b.anchorLabel}` : 'operator'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ) : null}
+          {analysis.planStory!.indexShapeNote?.trim() ? (
+            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9, lineHeight: 1.45 }}>
+              <span className="pqat-inlineMeta">Index / shape · </span>
+              {analysis.planStory!.indexShapeNote}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {analysis.planInputNormalization ? (
         <div className="pqat-hint" style={{ marginTop: 12 }} aria-label="Plan input normalization">
           {analysis.planInputNormalization.kind === 'queryPlanTable'

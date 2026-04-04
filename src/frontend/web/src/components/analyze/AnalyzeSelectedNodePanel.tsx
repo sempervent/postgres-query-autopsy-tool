@@ -61,6 +61,26 @@ export function AnalyzeSelectedNodePanel(props: {
             if (!js?.subtitle) return null
             return <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{js.subtitle}</div>
           })()}
+          {selectedNode.operatorInterpretation?.trim() ? (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+                background: 'color-mix(in srgb, var(--accent-bg) 18%, transparent)',
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: 'var(--text)',
+              }}
+              aria-label="Operator interpretation"
+            >
+              <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                What this operator is doing
+              </div>
+              {selectedNode.operatorInterpretation}
+            </div>
+          ) : null}
           {(() => {
             const ws = getWorkersFromPlanNode(selectedNode.node)
             const cue = workerSummaryCue(ws)

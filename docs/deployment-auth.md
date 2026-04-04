@@ -70,10 +70,14 @@ Not implemented in Phase 38. Operate on the SQLite file (volume snapshot, `sqlit
 
 ### Frontend
 
+- **Fonts (Phase 56):** The SPA bundles **@fontsource** packages; strict CSP or air-gapped deploys do **not** need **`fonts.googleapis.com`**. If you strip font files from the build, CSS still defines **`--sans` / `--heading` / `--mono`** stacks so the UI stays readable with system faces.
+
 - **`GET /api/config`** exposes **`authEnabled`**, **`authMode`**, **`authIdentityKind`** (`none` \| `proxy` \| `legacy_bearer` \| `jwt` \| `api_key`), **`authHelp`** (non-secret summary), **`rateLimitingEnabled`**, and storage path.
 - **`VITE_AUTH_BEARER_TOKEN`** — adds **`Authorization: Bearer …`** (JWT or legacy bearer).
 - **`VITE_AUTH_API_KEY`** — adds **`X-Api-Key`** (if set, preferred over bearer for browser calls).
 - **Phase 55:** When auth is on, the **Sharing & access** panel (Analyze/Compare summary) surfaces **`authHelp`** and browser env hints inside a compact **info** callout; controls use shared **`pqat-*`** inputs/buttons for consistency with the rest of the workstation.
+- **Phase 56:** Persisted and request errors on **Analyze** and **Compare** share **`ArtifactErrorBanner`** (**`artifactErrorPresentation`**) so **access denied**, **not found**, **422 corrupt**, **409 schema**, and parse failures use the same **severity** classes and human titles as the rest of the workstation state language.
+- **Phase 57:** Error bodies use tone-specific kickers (**Policy** / **Notice** / **Error**) instead of a single **“Error:”** prefix; **Sharing & access** uses **`pqat-metaPanel`** + **`pqat-authHelpCard`** aligned with workspace customizer chrome.
 
 ### Reverse proxies, nginx, and auth headers (Phase 53)
 

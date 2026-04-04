@@ -38,6 +38,7 @@ import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useCompareWorkspaceLayout } from '../compareWorkspace/useCompareWorkspaceLayout'
 import { CompareCapturePanel } from '../components/compare/CompareCapturePanel'
+import { ArtifactErrorBanner } from '../components/ArtifactErrorBanner'
 import { CompareIntroPanel } from '../components/compare/CompareIntroPanel'
 import { CompareNavigatorPanel } from '../components/compare/CompareNavigatorPanel'
 import { ComparePairColumn } from '../components/compare/ComparePairColumn'
@@ -593,18 +594,7 @@ export default function ComparePage() {
         </div>
       ) : null}
 
-      {error ? (
-        <div
-          className={`pqat-stateBanner ${/access denied/i.test(error) ? 'pqat-stateBanner--denial' : 'pqat-stateBanner--error'}`}
-          role="alert"
-          data-testid="compare-page-error"
-        >
-          <span className="pqat-stateBanner__title">{/access denied/i.test(error) ? 'Access blocked' : 'Could not complete request'}</span>
-          <div className="pqat-stateBanner__body">
-            <strong>Error:</strong> {error}
-          </div>
-        </div>
-      ) : null}
+      {error ? <ArtifactErrorBanner message={error} testId="compare-page-error" /> : null}
 
       {!comparison && !loading && !loadingPersistedComparison && !error ? (
         <div className="pqat-emptyHint pqat-hint" style={{ padding: '18px 20px' }}>

@@ -1,4 +1,4 @@
-.PHONY: help up down logs test test-backend test-frontend e2e-playwright-docker e2e-playwright-docker-auth e2e-playwright-docker-jwt e2e-playwright-docker-proxy e2e-playwright-docker-all-auth lint format docs-install docs-serve docs-build
+.PHONY: help up down logs test test-backend test-frontend e2e-playwright-docker e2e-playwright-docker-auth e2e-playwright-docker-jwt e2e-playwright-docker-proxy e2e-playwright-docker-visual e2e-playwright-docker-all-auth lint format docs-install docs-serve docs-build
 
 help:
 	@echo "Targets:"
@@ -48,6 +48,9 @@ e2e-playwright-docker-jwt:
 
 e2e-playwright-docker-proxy:
 	./scripts/e2e-playwright-docker.sh --proxy
+
+e2e-playwright-docker-visual:
+	./scripts/e2e-playwright-docker.sh --visual
 
 e2e-playwright-docker-all-auth:
 	./scripts/e2e-playwright-docker.sh --all-auth

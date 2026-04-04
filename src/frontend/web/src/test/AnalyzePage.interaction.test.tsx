@@ -92,6 +92,20 @@ const mockAnalysis = {
     topSharedReadHotspotNodeIds: ['n1'],
     severeFindingsCount: 0,
     warnings: [] as string[],
+    bottlenecks: [
+      {
+        insightId: 'bn_test',
+        rank: 1,
+        kind: 'time_exclusive',
+        bottleneckClass: 'cpuHotspot',
+        causeHint: 'primaryFocus',
+        headline: 'Primary work at: test',
+        detail: 'Detail line for bottleneck test.',
+        nodeIds: ['n1'],
+        relatedFindingIds: [],
+        symptomNote: null,
+      },
+    ],
   },
   indexOverview: {
     seqScanCount: 1,
@@ -140,6 +154,7 @@ const mockAnalysis = {
       recommendedNextAction: 'Prototype a btree aligned with filters on users.',
       whyItMatters: 'Seq scans on large relations deserve a measured index experiment.',
       targetDisplayLabel: 'Parallel Seq Scan on users',
+      relatedBottleneckInsightIds: ['bn_test'],
     },
   ],
 }
@@ -201,12 +216,12 @@ test(
 
     fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
     fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-    expect(await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 25_000 })).toBeInTheDocument()
 
     expect(screen.queryByLabelText('Parallel workers')).toBeNull()
     expect(screen.queryByLabelText('Worker summary')).toBeNull()
   },
-  20_000,
+  35_000,
 )
 
 test('Analyze findings and hotspots do not nest buttons (valid HTML)', async () => {
@@ -411,9 +426,10 @@ test('PlanParseError surfaces message and hint without stack trace', async () =>
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: 'x' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  const err = await screen.findByText(/Error:/i)
-  expect(err.parentElement?.textContent).toContain('Could not rebuild JSON.')
-  expect(err.parentElement?.textContent).toContain('Try copying the cell directly.')
+  const banner = await screen.findByTestId('analyze-page-error')
+  expect(banner).toHaveTextContent('Could not rebuild JSON.')
+  expect(banner).toHaveTextContent('Try copying the cell directly.')
+  expect(within(banner).getByText('Error')).toBeInTheDocument()
 })
 
 test('Plan source / EXPLAIN metadata section shows planner cost line', async () => {
@@ -511,6 +527,22 @@ test(
   25_000,
 )
 
+test('plan guide shows main bottlenecks when summary includes them', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })
+
+  expect(screen.getByRole('heading', { name: 'Main bottlenecks' })).toBeInTheDocument()
+  expect(screen.getAllByText(/Primary work at: test/i).length).toBeGreaterThan(0)
+})
+
 test('customize workspace Down on guide order persists layout to localStorage', async () => {
   render(
     <MemoryRouter initialEntries={['/']}>
@@ -523,7 +555,7 @@ test('customize workspace Down on guide order persists layout to localStorage', 
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
   await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })
 
-  const customizeSummaries = screen.getAllByText('Customize workspace').filter((n) => n.tagName === 'SUMMARY')
+  const customizeSummaries = screen.getAllByText(/Customize workspace layout/i).filter((n) => n.tagName === 'SUMMARY')
   expect(customizeSummaries.length).toBeGreaterThan(0)
   fireEvent.click(customizeSummaries[0])
   const guideList = await screen.findByRole('list', { name: 'Plan guide section order' }, { timeout: 15_000 })

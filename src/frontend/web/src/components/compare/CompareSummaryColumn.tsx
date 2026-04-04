@@ -12,6 +12,7 @@ import type { CompareSummarySectionId, CompareWorkspaceLayoutState } from '../..
 import { ArtifactSharingPanel } from '../ArtifactSharingPanel'
 import { CompareCaptureContextColumn } from './CompareCaptureContextColumn'
 import { prefetchCompareSelectedPairHeavySections } from './prefetchCompareSelectedPairHeavySections'
+import { normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
 
 export type CompareSummaryColumnProps = {
   layout: CompareWorkspaceLayoutState
@@ -99,7 +100,11 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         )
       case 'summaryCaptureContext':
         return (
-          <details className="pqat-details pqat-details--muted" style={{ marginTop: 12 }} aria-label="Plan capture and EXPLAIN context">
+          <details
+            className="pqat-details pqat-details--muted pqat-details--meta"
+            style={{ marginTop: 12 }}
+            aria-label="Plan capture and EXPLAIN context"
+          >
             <summary>Plan capture / EXPLAIN context (A vs B)</summary>
             <div className="pqat-detailsBody pqat-formGrid2 pqat-formGrid2--tight">
               <CompareCaptureContextColumn title="Plan A (baseline)" plan={comparison.planA} />
@@ -259,6 +264,56 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
       case 'summaryMeta':
         return (
           <div className="pqat-metaRow">
+            {comparison.comparisonStory?.overview?.trim() ? (
+              <div className="pqat-callout pqat-callout--accent" style={{ marginBottom: 12 }} aria-label="Change story">
+                <div className="pqat-callout__title">Change story</div>
+                <p style={{ margin: '0 0 8px', fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>
+                  {comparison.comparisonStory.overview}
+                </p>
+                {comparison.comparisonStory.changeBeats?.length ? (
+                  <ul className="pqat-bulletList pqat-bulletList--tight" style={{ marginBottom: 8 }}>
+                    {comparison.comparisonStory.changeBeats.map((raw, i) => {
+                      const b = normalizeComparisonStoryBeat(raw)
+                      return (
+                        <li key={`cb-${i}-${b.text.slice(0, 20)}`}>
+                          <div>{b.text}</div>
+                          {b.focusNodeIdA && b.focusNodeIdB ? (
+                            <button
+                              type="button"
+                              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                              style={{ marginTop: 6 }}
+                              onMouseEnter={prefetchCompareSelectedPairHeavySections}
+                              onFocus={prefetchCompareSelectedPairHeavySections}
+                              onClick={() => setSelectedPair({ a: b.focusNodeIdA!, b: b.focusNodeIdB! })}
+                            >
+                              Open pair
+                              {b.pairAnchorLabel?.trim() ? ` · ${b.pairAnchorLabel}` : ''}
+                            </button>
+                          ) : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
+                <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 6 }}>
+                  <span className="pqat-inlineMeta">Walkthrough · </span>
+                  {comparison.comparisonStory.investigationPath}
+                </div>
+                <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 0, opacity: 0.88 }}>
+                  {comparison.comparisonStory.structuralReading}
+                </div>
+              </div>
+            ) : null}
+            {comparison.bottleneckBrief?.lines?.length ? (
+              <div className="pqat-callout pqat-callout--muted" style={{ marginBottom: 12 }} aria-label="Bottleneck posture A vs B">
+                <div className="pqat-callout__title">Bottleneck posture (A vs B)</div>
+                <ul className="pqat-bulletList pqat-bulletList--tight" style={{ marginBottom: 0 }}>
+                  {comparison.bottleneckBrief.lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <div className="pqat-monoMuted">
               findings: +{findingsNewCount} new · -{findingsResolvedCount} resolved
             </div>

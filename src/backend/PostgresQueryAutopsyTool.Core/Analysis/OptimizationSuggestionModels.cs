@@ -96,5 +96,7 @@ public sealed record OptimizationSuggestion(
     IReadOnlyList<string>? RelatedFindingDiffIds = null,
     /// <summary>Compare-only: stable index insight diff row ids (<c>ii_*</c>).</summary>
     IReadOnlyList<string>? RelatedIndexInsightDiffIds = null,
+    /// <summary>Phase 59: stable bottleneck insight ids (<c>bn_*</c>) this suggestion responds to.</summary>
+    IReadOnlyList<string>? RelatedBottleneckInsightIds = null,
     /// <summary>Phase 49: alternate ids for the same suggestion (e.g. pre–Phase-48 carried compare ids) for deep-link compatibility.</summary>
     IReadOnlyList<string>? AlsoKnownAs = null);

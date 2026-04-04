@@ -10,6 +10,8 @@
 
 After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
 
+**Phase 58:** each side’s analyze pass builds **`PlanSummary.bottlenecks`** and the expanded narrative/suggestion cohesion described in [Analyze workflow](analyze-workflow.md). **Phase 59:** the compare API adds **`bottleneckBrief`** — a short list of lines describing **bottleneck posture (A vs B)**. **Phase 60:** **`comparisonStory`** adds a compact **change story** (runtime/structure/findings beats, investigation walkthrough, structural vs superficial heuristic) rendered in the summary meta column **before** bottleneck posture; persisted comparisons missing the field get it **backfilled on read**. **Phase 61:** change beats are structured **`ComparisonStoryBeat`** rows (`text`, optional **`focusNodeIdA`/`focusNodeIdB`**, **`pairAnchorLabel`**) so the summary can offer **Open pair** for the primary regression without naming internal ids; compare **narrative** lines for findings use the same human-reference builder as Analyze. Markdown compare reports include a **Change story** section with pair labels when present.
+
 ## Visual hierarchy (Phase 43) + Phase 55 polish
 
 Compare uses the same **`pqat-*`** styling as Analyze: capture card, summary **metric tiles**, navigator and pair **workspace** panels, and a dashed **customizer** well. **Phase 55** adds the same **state banners** for reopen/load/errors, a **comparing** info banner during POST, **intro** top accent strip, and **summary shell** glow/border tuning. Intro copy sits in a structured overview card. Behavior, URL params, and layout persistence are unchanged.

@@ -43,6 +43,9 @@ export function AnalyzeWorkspaceCustomizerInner({ api }: { api: AnalyzeWorkspace
 
   return (
     <div className="pqat-customizer__body">
+      <p className="pqat-hint pqat-fieldHint" style={{ marginTop: 0 }}>
+        Presets, visibility, and column order persist in this browser (and to your account when auth preference sync ships).
+      </p>
       <fieldset className="pqat-fieldset">
         <legend>Presets</legend>
         <div className="pqat-presetRow">

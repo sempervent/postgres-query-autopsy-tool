@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Comparison;
@@ -40,6 +41,7 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         });
         _comparisonEngine = new ComparisonEngine();
     }
@@ -68,7 +70,8 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
 
         var analyzedNodes = _metricsEngine.Compute(root);
         var rankedFindings = _findingsEngine.EvaluateAndRank(root.NodeId, analyzedNodes);
-        var summary = PlanSummaryBuilder.Build(root.NodeId, analyzedNodes, rankedFindings);
+        var summary = PlanSummaryBuilder.Build(root.NodeId, analyzedNodes, rankedFindings, queryText: queryText);
+        analyzedNodes = PlanNodeInterpretationAugmentor.Augment(analyzedNodes, root.NodeId, summary, queryText);
         var narrative = NarrativeGenerator.From(summary, analyzedNodes, rankedFindings);
         var findingCtx = new FindingEvaluationContext(root.NodeId, analyzedNodes);
         var indexOverview = IndexSignalAnalyzer.BuildOverview(analyzedNodes, findingCtx);
@@ -88,12 +91,26 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             Summary: summary,
             IndexOverview: indexOverview,
             IndexInsights: indexInsights,
-            OptimizationSuggestions: Array.Empty<OptimizationSuggestion>());
+            OptimizationSuggestions: Array.Empty<OptimizationSuggestion>(),
+            PlanStory: null);
 
-        return analysisCore with
+        var withSuggestions = analysisCore with
         {
             OptimizationSuggestions = OptimizationSuggestionEngine.Build(analysisCore)
         };
+
+        var story = PlanStoryBuilder.Build(
+            root.NodeId,
+            summary,
+            analyzedNodes,
+            rankedFindings,
+            narrative,
+            indexOverview,
+            indexInsights,
+            withSuggestions.OptimizationSuggestions,
+            queryText);
+
+        return withSuggestions with { PlanStory = story };
     }
 
     public async Task<PlanComparisonResultV2> CompareAsync(
@@ -170,13 +187,43 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
 
         var captureSection = PlanCaptureMarkdownFormatter.FormatCaptureSectionMarkdown(analysis);
 
+        var bottleneckMarkdown = analysis.Summary.Bottlenecks.Count == 0
+            ? "- None identified from this snapshot (often missing timing or sparse buffer data)."
+            : string.Join("\n", analysis.Summary.Bottlenecks.Select(b =>
+            {
+                var note = string.IsNullOrWhiteSpace(b.SymptomNote) ? "" : $" _(Note: {b.SymptomNote})_";
+                var prop = string.IsNullOrWhiteSpace(b.PropagationNote) ? "" : $" _(Flow: {b.PropagationNote})_";
+                var hum = string.IsNullOrWhiteSpace(b.HumanAnchorLabel) ? "" : $" _(Where: {b.HumanAnchorLabel})_";
+                return $"- **({b.Rank}) [{b.Kind}]** {b.Headline}: {b.Detail}{hum}{note}{prop}";
+            }));
+
+        var planStoryMd = analysis.PlanStory is null
+            ? ""
+            : $@"
+## Plan story (structured)
+- **Plan overview:** {analysis.PlanStory.PlanOverview}
+- **Work concentration:** {analysis.PlanStory.WorkConcentration}
+- **Likely expense drivers:** {analysis.PlanStory.LikelyExpenseDrivers}
+- **Execution shape:** {analysis.PlanStory.ExecutionShape}
+- **Inspect first:** {analysis.PlanStory.InspectFirstPath}
+{(analysis.PlanStory.PropagationBeats.Count == 0
+    ? ""
+    : "- **Flow hints:**\n" + string.Join("\n", analysis.PlanStory.PropagationBeats.Select(x =>
+        string.IsNullOrWhiteSpace(x.AnchorLabel)
+            ? $"  - {x.Text}"
+            : $"  - {x.Text} _(focus: {x.AnchorLabel})_")))}
+{(string.IsNullOrWhiteSpace(analysis.PlanStory.IndexShapeNote)
+    ? ""
+    : $"- **Index / shape angle:** {analysis.PlanStory.IndexShapeNote}")}
+";
+
         return $@"# Postgres Query Autopsy Report
 
 AnalysisId: {analysis.AnalysisId}
 
 ## Overview
 {analysis.Narrative.WhatHappened}
-
+{planStoryMd}
 ## Where Time Went
 {analysis.Narrative.WhereTimeWent}
 {querySection}
@@ -191,6 +238,9 @@ AnalysisId: {analysis.AnalysisId}
 - Has buffers: {analysis.Summary.HasBuffers}
 - Planner costs (detected from JSON): {PlanCaptureMarkdownFormatter.PlannerCostsShortLabel(analysis.Summary.PlannerCosts)}
 - Root inclusive time (ms): {(analysis.Summary.RootInclusiveActualTimeMs?.ToString("F2") ?? "n/a")}
+
+## Prioritized bottlenecks
+{bottleneckMarkdown}
 
 ## Headline Findings ({findings})
 {string.Join("\n", analysis.Findings.Take(12).Select(f => $"- `[{f.FindingId}]` **[{f.Severity}] [{f.Confidence}] {f.Category}** {f.Title}: {f.Summary}{ContextHint(f, byId)}"))}
@@ -221,6 +271,45 @@ AnalysisId: {analysis.AnalysisId}
             $@"<div class=""finding""><b>[{f.Severity}] [{f.Confidence}] {f.Category}</b> {System.Net.WebUtility.HtmlEncode(f.Title)}<br/>{System.Net.WebUtility.HtmlEncode(f.Summary)}<div class=""rule"">{System.Net.WebUtility.HtmlEncode(f.RuleId)}</div></div>"
         ));
 
+        var bottleneckHtml = analysis.Summary.Bottlenecks.Count == 0
+            ? "<li>None identified from this snapshot.</li>"
+            : string.Join("", analysis.Summary.Bottlenecks.Select(b =>
+            {
+                var note = string.IsNullOrWhiteSpace(b.SymptomNote)
+                    ? ""
+                    : $" <i>Note:</i> {System.Net.WebUtility.HtmlEncode(b.SymptomNote!)}";
+                var prop = string.IsNullOrWhiteSpace(b.PropagationNote)
+                    ? ""
+                    : $" <i>Flow:</i> {System.Net.WebUtility.HtmlEncode(b.PropagationNote!)}";
+                var hum = string.IsNullOrWhiteSpace(b.HumanAnchorLabel)
+                    ? ""
+                    : $" <i>Where:</i> {System.Net.WebUtility.HtmlEncode(b.HumanAnchorLabel!)}";
+                return
+                    $"<li><b>({b.Rank}) [{System.Net.WebUtility.HtmlEncode(b.Kind)}]</b> {System.Net.WebUtility.HtmlEncode(b.Headline)}: {System.Net.WebUtility.HtmlEncode(b.Detail)}{hum}{note}{prop}</li>";
+            }));
+
+        var flowHtml = analysis.PlanStory is null || analysis.PlanStory.PropagationBeats.Count == 0
+            ? ""
+            : "<li><b>Flow hints:</b><ul>" + string.Join("", analysis.PlanStory.PropagationBeats.Select(x =>
+            {
+                var line = System.Net.WebUtility.HtmlEncode(x.Text);
+                var a = string.IsNullOrWhiteSpace(x.AnchorLabel)
+                    ? ""
+                    : $" <span style=\"opacity:.85\">(focus: {System.Net.WebUtility.HtmlEncode(x.AnchorLabel)})</span>";
+                return $"<li>{line}{a}</li>";
+            })) + "</ul></li>";
+
+        var planStoryHtml = analysis.PlanStory is null
+            ? ""
+            : $@"<h2>Plan story</h2>
+<p>{System.Net.WebUtility.HtmlEncode(analysis.PlanStory.PlanOverview)}</p>
+<ul>
+<li><b>Work:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.WorkConcentration)}</li>
+<li><b>Drivers:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.LikelyExpenseDrivers)}</li>
+<li><b>Inspect first:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.InspectFirstPath)}</li>
+{flowHtml}
+</ul>";
+
         return $@"<!doctype html>
 <html>
   <head>
@@ -243,7 +332,12 @@ AnalysisId: {analysis.AnalysisId}
       <li><b>Has buffers:</b> {analysis.Summary.HasBuffers}</li>
       <li><b>Planner costs (from JSON):</b> {System.Net.WebUtility.HtmlEncode(PlanCaptureMarkdownFormatter.PlannerCostsShortLabel(analysis.Summary.PlannerCosts))}</li>
     </ul>
+    <h2>Prioritized bottlenecks</h2>
+    <ul>
+      {bottleneckHtml}
+    </ul>
     {PlanCaptureMarkdownFormatter.FormatCaptureSectionHtml(analysis)}
+    {planStoryHtml}
     <h2>Overview</h2>
     <p>{System.Net.WebUtility.HtmlEncode(analysis.Narrative.WhatHappened)}</p>
     <h2>Where Time Went</h2>
@@ -316,6 +410,27 @@ ComparisonId: {comparison.ComparisonId}
 - Node count Δ: {s.NodeCountDelta}
 - Max depth Δ: {s.MaxDepthDelta}
 - Severe findings Δ: {s.SevereFindingsDelta}
+
+## Change story
+{(comparison.ComparisonStory is null
+    ? "- No structured change story (legacy payload)."
+    : $@"{comparison.ComparisonStory.Overview}
+
+**Investigation path:** {comparison.ComparisonStory.InvestigationPath}
+
+**Structural read:** {comparison.ComparisonStory.StructuralReading}
+
+{(comparison.ComparisonStory.ChangeBeats.Count == 0
+    ? ""
+    : string.Join("\n", comparison.ComparisonStory.ChangeBeats.Select(b =>
+        string.IsNullOrWhiteSpace(b.PairAnchorLabel)
+            ? $"- {b.Text}"
+            : $"- {b.Text} _(pair: {b.PairAnchorLabel})_")))}")}
+
+## Bottleneck posture (A vs B)
+{(comparison.BottleneckBrief is null || comparison.BottleneckBrief.Lines.Count == 0
+    ? "- No compact bottleneck delta lines (often both plans lack ranked bottlenecks)."
+    : string.Join("\n", comparison.BottleneckBrief.Lines.Select(l => $"- {l}")))}
 
 ## Narrative
 {comparison.Narrative}

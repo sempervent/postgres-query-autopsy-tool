@@ -15,6 +15,8 @@ public sealed record PlanAnalysisResult(
     PlanIndexOverview IndexOverview,
     IReadOnlyList<PlanIndexInsight> IndexInsights,
     IReadOnlyList<OptimizationSuggestion> OptimizationSuggestions,
+    /// <summary>Phase 60: structured plan story (orientation, work flow, investigation path). Filled on analyze; backfilled on load when absent.</summary>
+    PlanStory? PlanStory = null,
     /// <summary>Set when the API normalized pasted text (e.g. psql QUERY PLAN); null for legacy <c>plan</c> JSON body.</summary>
     PlanInputNormalizationInfo? PlanInputNormalization = null,
     /// <summary>Phase 49: persisted JSON schema generation; <see cref="ArtifactSchema.LegacyImplicit"/> when omitted in storage.</summary>

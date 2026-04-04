@@ -8,6 +8,8 @@ This file documents the Phase 3 MVP rule catalog, including triggering logic, ev
 
 **Phase 32 + Phase 47 note:** findings remain the primary **evidence catalog**. **`OptimizationSuggestion`** objects (returned separately on analyze/compare) **synthesize next steps** from findings, index insights, operator evidence, and (for compare) diffs. A finding says *what fired*; a suggestion says *what to try or measure next*, with explicit cautions and validation steps. **Phase 47** adds presentation-oriented fields (**family**, **recommended next action**, **why it matters**, **target display label**) and **consolidates** overlapping statistics/findings-driven cards when they would repeat the same next step, so the UI stays readable without hiding evidence (expand/detail still shows linked finding text). They are not duplicates of each other.
 
+**Phase 61 note:** human-facing narrative (hotspot lists, compare finding deltas, bottleneck cards, story beats) prefers **`PlanNodeReferenceBuilder`** / **`SafePrimary`** labels derived from plan evidence. Canonical **`nodeId`** values remain the stable join key for UI focus, deep links, and persistence; they are not intended as primary user-visible copy when a better operator/relation/role label exists.
+
 ## Severity / confidence scales
 
 - Severity: `Info`, `Low`, `Medium`, `High`, `Critical`
@@ -134,13 +136,29 @@ This file documents the Phase 3 MVP rule catalog, including triggering logic, ev
 
 ## Rule M — `M.materialize-loops-concern`
 
-- Purpose: flag materialize nodes in heavily repeated execution zones.
-- Trigger: `Materialize` with loops \(\ge 20\) plus meaningful subtree time or I/O share.
+- Purpose: flag **Materialize** and **Memoize** nodes in heavily repeated execution zones (plan-evidence only).
+- Trigger: `Materialize` or `Memoize` with loops \(\ge 20\) (memoize uses a slightly higher loop threshold) plus meaningful subtree time or I/O share.
 - Evidence:
   - `loops`
   - `subtreeTimeShareOfPlan`, `subtreeSharedReadShareOfPlan`
   - `subtreeSharedReadBlocks`
 - Limitations: materialization can be beneficial; this rule only triggers when cost signals are non-trivial.
+
+## Query-shape boundary — `S.query-shape-boundary` (Phase 58)
+
+- Purpose: surface **CTE Scan** / **Subquery Scan** boundaries where row volume or nested-loop repetition suggests **query-shape** cost (not SQL parsing).
+- Trigger (any): high `Actual Rows` at the boundary, or **inner-side** scan under **Nested Loop** with high `Actual Loops` combined with medium/large row counts (conservative thresholds).
+- Evidence: `nodeType`, `actualRowsTotal` / `Actual Rows`, `Actual Loops`, `underNestedLoopParent`.
+- Severity: scales with rows and loops; never claims the CTE “should” be inlined—only that the visible boundary merits investigation.
+- Limitations: cannot see SQL text semantics; some boundaries are cheap by design.
+
+## Plan bottleneck summary — `PlanBottleneckInsight` (Phase 58–59)
+
+- **Not a finding rule:** ranked lines in **`PlanSummary.bottlenecks`** consolidate timing, shared-read, severe findings, and (when not redundant) **`S.query-shape-boundary`** into a small cap (≤4) for the UI and narrative orientation.
+- **Phase 59 typing:** each row carries **`BottleneckClass`** (e.g. CPU vs I/O vs sort/spill vs join amplification vs scan fan-out vs aggregation vs query-shape boundary vs planner mis-estimation vs access-path mismatch) and **`BottleneckCauseHint`** (**primary focus** vs **downstream symptom** vs **ambiguous**) — conservative, evidence-derived hints, not proven causality.
+- **Symptom notes:** optional text when cost may be driven upstream (e.g. nested-loop inner).
+- **Compare:** **`BottleneckComparisonBrief`** summarizes how the top bottleneck *classes* and framing differ between plans A and B.
+- **Phase 60 propagation:** optional **`propagationNote`** on each insight—short “because → likely” lines (hedged) to hint how pressure may propagate (e.g. sort fed by upstream row volume); not causal proof.
 
 ## Rule N — `N.high-fanout-join-warning`
 
@@ -171,9 +189,10 @@ This file documents the Phase 3 MVP rule catalog, including triggering logic, ev
 - Evidence: `accessPathFamily`, relation/index names, `heapFetches`, `rowsRemovedByIndexRecheck`, read/time shares, `isBitmapHeap`.
 - Limitations: suppressed for per-chunk bitmap noise when `Append` + many bitmap heaps (see P).
 
-## Rule S — `S.bitmap-recheck-attention`
+## Rule S (bitmap) — `S.bitmap-recheck-attention`
 
 - Purpose: bitmap heap with **recheck expression or recheck-row removal** worth reviewing (lossy/coarse bitmap narrative).
+- Note: a different **`S.query-shape-boundary`** rule exists for CTE/subquery scan boundaries (Phase 58); both use an `S.` prefix by convention, not the same signal.
 - Trigger: `Bitmap Heap Scan` with recheck signals and non-trivial heap/read/recheck counts; **not** emitted for each chunk when the P pattern applies.
 - Evidence: `recheckCond`, `rowsRemovedByIndexRecheck`, `heapFetches`, read share.
 - Limitations: recheck can be normal; phrased as investigation.

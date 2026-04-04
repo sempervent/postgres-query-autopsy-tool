@@ -72,7 +72,7 @@ test('workspace customizer loads reorder list after opening details', async () =
   const planHeading = screen.getAllByRole('heading', { name: 'Plan inputs' })[0]!
   const capturePanel = planHeading.closest('.pqat-panel')! as HTMLElement
   const summarize = within(capturePanel)
-    .getAllByText('Customize workspace')
+    .getAllByText(/Customize workspace layout/i)
     .find((el) => el.tagName === 'SUMMARY')
   expect(summarize).toBeTruthy()
   const det = summarize!.closest('details') as HTMLDetailsElement

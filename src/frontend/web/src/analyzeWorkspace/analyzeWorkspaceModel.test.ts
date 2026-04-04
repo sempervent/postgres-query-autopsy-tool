@@ -20,7 +20,15 @@ describe('analyzeWorkspaceModel', () => {
       v: 1,
       preset: null,
       visibility: { guide: false, findings: false },
-      guideSectionOrder: ['hotspots', 'selection', 'whatHappened', 'topFindings', 'nextSteps', 'sourceQuery'],
+      guideSectionOrder: [
+        'hotspots',
+        'selection',
+        'whatHappened',
+        'mainBottlenecks',
+        'topFindings',
+        'nextSteps',
+        'sourceQuery',
+      ],
       lowerBandOrder: ['selectedNode', 'findings', 'suggestions'],
     })
     expect(m.visibility.guide).toBe(false)
@@ -57,7 +65,18 @@ describe('analyzeWorkspaceModel', () => {
 
   it('coerceAnalyzeGuideSectionOrder rejects partial or duplicate lists', () => {
     expect(coerceAnalyzeGuideSectionOrder(['selection'])).toBeNull()
-    expect(coerceAnalyzeGuideSectionOrder(['selection', 'selection', 'hotspots', 'topFindings', 'nextSteps', 'sourceQuery'])).toBeNull()
+    expect(
+      coerceAnalyzeGuideSectionOrder([
+        'selection',
+        'selection',
+        'whatHappened',
+        'mainBottlenecks',
+        'hotspots',
+        'topFindings',
+        'nextSteps',
+        'sourceQuery',
+      ]),
+    ).toBeNull()
   })
 
   it('coerceAnalyzeLowerBandOrder rejects invalid permutations', () => {

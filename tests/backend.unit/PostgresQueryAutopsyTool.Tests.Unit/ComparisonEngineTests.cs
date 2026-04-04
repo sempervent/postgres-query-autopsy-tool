@@ -53,6 +53,23 @@ public sealed class ComparisonEngineTests
         Assert.Contains(cmp.FindingsDiff.Items, i => i.ChangeType is FindingChangeType.New or FindingChangeType.Resolved or FindingChangeType.Improved or FindingChangeType.Worsened);
     }
 
+    [Fact]
+    public void Compare_includes_bottleneck_posture_brief_when_both_plans_have_bottlenecks()
+    {
+        var a = AnalyzeFixture("compare_before_seq_scan.json");
+        var b = AnalyzeFixture("compare_after_index_scan.json");
+
+        var cmp = new ComparisonEngine().Compare(a, b);
+
+        Assert.NotNull(cmp.BottleneckBrief);
+        Assert.NotEmpty(cmp.BottleneckBrief.Lines);
+        Assert.Contains(
+            cmp.BottleneckBrief.Lines,
+            line => line.Contains("bottleneck", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(cmp.ComparisonStory);
+        Assert.False(string.IsNullOrWhiteSpace(cmp.ComparisonStory!.Overview));
+    }
+
     private static PlanAnalysisResult AnalyzeFixture(string fileName)
     {
         var json = ReadFixture(fileName);
@@ -78,6 +95,7 @@ public sealed class ComparisonEngineTests
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);

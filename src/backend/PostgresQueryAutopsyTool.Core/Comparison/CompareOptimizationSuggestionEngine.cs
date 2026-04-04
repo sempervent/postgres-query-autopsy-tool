@@ -374,6 +374,7 @@ public static class CompareOptimizationSuggestionEngine
             isGroupedCluster,
             relatedFindingDiffIds,
             relatedIndexInsightDiffIds,
+            null,
             null);
 
     /// <summary>

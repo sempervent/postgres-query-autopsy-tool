@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import type { AnalyzedPlanNode, OptimizationSuggestion } from '../../api/types'
+import type { AnalyzedPlanNode, OptimizationSuggestion, PlanBottleneckInsight } from '../../api/types'
+import { bottleneckClassShortLabel } from '../../presentation/bottleneckPresentation'
 import {
   flattenGroupedSuggestionsForVirtualList,
   groupOptimizationSuggestionsForUi,
@@ -21,8 +22,9 @@ function SuggestionCardBody(props: {
   jumpToNodeId: (id: string) => void
   byId: Map<string, AnalyzedPlanNode>
   nodeLabel: (n: AnalyzedPlanNode) => string
+  bottleneckByInsightId: Map<string, PlanBottleneckInsight>
 }) {
-  const { s, expanded, setExpandedOptimizationId, jumpToNodeId, byId, nodeLabel } = props
+  const { s, expanded, setExpandedOptimizationId, jumpToNodeId, byId, nodeLabel, bottleneckByInsightId } = props
   const target = (s.targetNodeIds ?? [])[0]
   const derivedTargetLabel = target && byId.get(target) ? nodeLabel(byId.get(target)!) : target
   const focusLabel = (s.targetDisplayLabel ?? derivedTargetLabel ?? target)?.trim() || 'node'
@@ -61,6 +63,20 @@ function SuggestionCardBody(props: {
             {why}
           </div>
         </div>
+        {(() => {
+          const bid = (s.relatedBottleneckInsightIds ?? [])[0]
+          if (!bid) return null
+          const bn = bottleneckByInsightId.get(bid)
+          if (!bn) return null
+          return (
+            <div className="pqat-signalLine" aria-label="Linked bottleneck">
+              <span className="pqat-signalLine__label">Because of bottleneck</span>
+              <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
+                #{bn.rank} · {bottleneckClassShortLabel(bn.bottleneckClass)} — {bn.headline}
+              </div>
+            </div>
+          )
+        })()}
       </div>
       {s.validationSteps?.length ? (
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -126,6 +142,7 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
   jumpToNodeId: (id: string) => void
   byId: Map<string, AnalyzedPlanNode>
   nodeLabel: (n: AnalyzedPlanNode) => string
+  bottlenecks?: PlanBottleneckInsight[] | null
 }) {
   const {
     sortedOptimizationSuggestions,
@@ -134,7 +151,14 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
     jumpToNodeId,
     byId,
     nodeLabel,
+    bottlenecks,
   } = props
+
+  const bottleneckByInsightId = useMemo(() => {
+    const m = new Map<string, PlanBottleneckInsight>()
+    for (const b of bottlenecks ?? []) m.set(b.insightId, b)
+    return m
+  }, [bottlenecks])
 
   const normalized = useMemo(
     () => normalizeOptimizationSuggestionsForDisplay(sortedOptimizationSuggestions),
@@ -168,6 +192,7 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
         jumpToNodeId={jumpToNodeId}
         byId={byId}
         nodeLabel={nodeLabel}
+        bottleneckByInsightId={bottleneckByInsightId}
       />
     )
   }

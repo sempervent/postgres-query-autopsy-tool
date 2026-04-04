@@ -1,5 +1,6 @@
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
+using PostgresQueryAutopsyTool.Core.Findings;
 using PostgresQueryAutopsyTool.Core.OperatorEvidence;
 using IndexSig = PostgresQueryAutopsyTool.Core.Analysis.IndexSignalAnalyzer;
 
@@ -50,7 +51,9 @@ public sealed class ComparisonEngine
         var pairDetails = matches.Select(m =>
             BuildPairDetail(comparisonId, a, b, m, byIdA[m.NodeIdA], byIdB[m.NodeIdB], findingsLinked, indexLinked)).ToArray();
 
-        var narrative = BuildNarrative(summary, improved, worsened, pairDetails, findingsLinked, indexLinked);
+        var narrative = BuildNarrative(a, b, summary, improved, worsened, pairDetails, findingsLinked, indexLinked);
+        var bottleneckBrief = BottleneckComparisonBuilder.Build(a, b);
+        var comparisonStory = ComparisonStoryBuilder.Build(a, b, summary, worsened, improved, findingsLinked);
 
         var core = new PlanComparisonResultV2(
             ComparisonId: comparisonId,
@@ -68,6 +71,8 @@ public sealed class ComparisonEngine
             IndexComparison: indexLinked,
             Narrative: narrative,
             CompareOptimizationSuggestions: Array.Empty<OptimizationSuggestion>(),
+            BottleneckBrief: bottleneckBrief,
+            ComparisonStory: comparisonStory,
             Diagnostics: diagnostics);
 
         return core with
@@ -409,6 +414,8 @@ public sealed class ComparisonEngine
     }
 
     private static string BuildNarrative(
+        PlanAnalysisResult planA,
+        PlanAnalysisResult planB,
         ComparisonSummary summary,
         IReadOnlyList<NodeDelta> improved,
         IReadOnlyList<NodeDelta> worsened,
@@ -445,14 +452,14 @@ public sealed class ComparisonEngine
             var d = worsened[0];
             var p = FindPair(pairDetails, d.NodeIdA, d.NodeIdB);
             driverLines.Add("Primary regression:");
-            driverLines.Add(FormatPairEvidence(p, d));
+            driverLines.Add(FormatPairEvidence(p, d, planA, planB));
         }
         if (improved.Count > 0)
         {
             var d = improved[0];
             var p = FindPair(pairDetails, d.NodeIdA, d.NodeIdB);
             driverLines.Add("Primary improvement:");
-            driverLines.Add(FormatPairEvidence(p, d));
+            driverLines.Add(FormatPairEvidence(p, d, planA, planB));
         }
         if (driverLines.Count > 0)
             sections.Add(string.Join(" ", driverLines));
@@ -488,10 +495,24 @@ public sealed class ComparisonEngine
         var majorNew = findingsDiff.Items.FirstOrDefault(i => i.ChangeType is FindingChangeType.New or FindingChangeType.Worsened);
         var majorResolved = findingsDiff.Items.FirstOrDefault(i => i.ChangeType == FindingChangeType.Resolved);
 
+        var ctxA = new FindingEvaluationContext(planA.RootNodeId, planA.Nodes);
+        var ctxB = new FindingEvaluationContext(planB.RootNodeId, planB.Nodes);
+
         if (majorNew is not null)
-            changeLines.Add($"New/worsened finding: `{majorNew.RuleId}` ({majorNew.ChangeType}) near node `{majorNew.NodeIdB ?? majorNew.NodeIdA}`.");
+        {
+            var near = majorNew.NodeIdB is not null
+                ? PlanNodeReferenceBuilder.SafePrimary(majorNew.NodeIdB, ctxB)
+                : PlanNodeReferenceBuilder.SafePrimary(majorNew.NodeIdA, ctxA);
+            changeLines.Add($"New/worsened finding: `{majorNew.RuleId}` ({majorNew.ChangeType}) near {near}.");
+        }
+
         if (majorResolved is not null)
-            changeLines.Add($"Resolved finding: `{majorResolved.RuleId}` near node `{majorResolved.NodeIdA ?? majorResolved.NodeIdB}`.");
+        {
+            var near = majorResolved.NodeIdA is not null
+                ? PlanNodeReferenceBuilder.SafePrimary(majorResolved.NodeIdA, ctxA)
+                : PlanNodeReferenceBuilder.SafePrimary(majorResolved.NodeIdB, ctxB);
+            changeLines.Add($"Resolved finding: `{majorResolved.RuleId}` near {near}.");
+        }
 
         if (changeLines.Count > 0)
             sections.Add(string.Join(" ", changeLines));
@@ -528,10 +549,34 @@ public sealed class ComparisonEngine
     private static NodePairDetail? FindPair(IReadOnlyList<NodePairDetail> pairs, string nodeIdA, string nodeIdB)
         => pairs.FirstOrDefault(p => p.Identity.NodeIdA == nodeIdA && p.Identity.NodeIdB == nodeIdB);
 
-    private static string FormatPairEvidence(NodePairDetail? pair, NodeDelta d)
+    private static string FormatPairEvidence(
+        NodePairDetail? pair,
+        NodeDelta d,
+        PlanAnalysisResult? planA = null,
+        PlanAnalysisResult? planB = null)
     {
-        var nodeA = $"{d.NodeTypeA}";
-        var nodeB = $"{d.NodeTypeB}";
+        string nodeA;
+        string nodeB;
+        if (planA is not null && planB is not null)
+        {
+            var ctxA = new FindingEvaluationContext(planA.RootNodeId, planA.Nodes);
+            var ctxB = new FindingEvaluationContext(planB.RootNodeId, planB.Nodes);
+            if (ctxA.ById.TryGetValue(d.NodeIdA, out var na) && ctxB.ById.TryGetValue(d.NodeIdB, out var nb))
+            {
+                nodeA = PlanNodeReferenceBuilder.DisplayLine(PlanNodeReferenceBuilder.Build(na, ctxA));
+                nodeB = PlanNodeReferenceBuilder.DisplayLine(PlanNodeReferenceBuilder.Build(nb, ctxB));
+            }
+            else
+            {
+                nodeA = d.NodeTypeA;
+                nodeB = d.NodeTypeB;
+            }
+        }
+        else
+        {
+            nodeA = d.NodeTypeA;
+            nodeB = d.NodeTypeB;
+        }
 
         string? rel = pair?.Identity.RelationNameA ?? pair?.Identity.RelationNameB ?? d.RelationName;
         string relPart = rel is not null ? $" on `{rel}`" : string.Empty;

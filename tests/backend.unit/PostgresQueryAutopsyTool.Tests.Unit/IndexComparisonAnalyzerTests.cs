@@ -86,6 +86,7 @@ public sealed class IndexComparisonAnalyzerTests
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);

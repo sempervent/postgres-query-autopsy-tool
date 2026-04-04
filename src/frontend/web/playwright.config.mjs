@@ -16,13 +16,21 @@ import { defineConfig } from '@playwright/test'
  *
  * Local Vite + API: API on 8080 with E2E__Enabled=true, `npm run dev`, then
  * `PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 PLAYWRIGHT_SKIP_WEBSERVER=1 npm run test:e2e`
+ *
+ * Visual regression: `e2e-visual` — run against `.env.testing` stack; update snapshots on Linux (CI/Docker).
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3000'
 
 export default defineConfig({
   testDir: './e2e',
   timeout: 120_000,
-  expect: { timeout: 25_000 },
+  expect: {
+    timeout: 25_000,
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.04,
+      animations: 'disabled',
+    },
+  },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -38,6 +46,11 @@ export default defineConfig({
     { name: 'e2e-auth-api-key', testMatch: '**/auth-artifact-access.spec.ts' },
     { name: 'e2e-auth-jwt', testMatch: '**/jwt-auth-smoke.spec.ts' },
     { name: 'e2e-auth-proxy', testMatch: '**/proxy-auth-smoke.spec.ts' },
+    {
+      name: 'e2e-visual',
+      testMatch: '**/visual/**/*.spec.ts',
+      retries: 0,
+    },
   ],
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined

@@ -28,9 +28,21 @@ public static class PersistedArtifactNormalizer
             throw new UnsupportedArtifactSchemaVersionException(raw.ArtifactSchemaVersion, ArtifactSchema.MaxSupported, isAnalysis: true);
 
         var suggestions = raw.OptimizationSuggestions.Select(OptimizationSuggestionCompat.NormalizeFields).ToArray();
-        return raw with
+        var withSugs = raw with { OptimizationSuggestions = suggestions };
+        var story = withSugs.PlanStory ?? PlanStoryBuilder.Build(
+            withSugs.RootNodeId,
+            withSugs.Summary,
+            withSugs.Nodes,
+            withSugs.Findings,
+            withSugs.Narrative,
+            withSugs.IndexOverview,
+            withSugs.IndexInsights,
+            withSugs.OptimizationSuggestions,
+            withSugs.QueryText);
+
+        return withSugs with
         {
-            OptimizationSuggestions = suggestions,
+            PlanStory = story,
             ArtifactSchemaVersion = ArtifactSchema.Current,
             ArtifactPersistedUtc = raw.ArtifactPersistedUtc ?? storeCreatedUtc
         };
@@ -44,11 +56,20 @@ public static class PersistedArtifactNormalizer
         var planA = NormalizeLoadedAnalysis(raw.PlanA, storeCreatedUtc);
         var planB = NormalizeLoadedAnalysis(raw.PlanB, storeCreatedUtc);
         var compareSugs = raw.CompareOptimizationSuggestions.Select(NormalizeCompareSuggestionForDeepLinks).ToArray();
+        var cmpStory = raw.ComparisonStory ?? ComparisonStoryBuilder.Build(
+            planA,
+            planB,
+            raw.Summary,
+            raw.TopWorsenedNodes,
+            raw.TopImprovedNodes,
+            raw.FindingsDiff);
+
         return raw with
         {
             PlanA = planA,
             PlanB = planB,
             CompareOptimizationSuggestions = compareSugs,
+            ComparisonStory = cmpStory,
             ArtifactSchemaVersion = ArtifactSchema.Current,
             ArtifactPersistedUtc = raw.ArtifactPersistedUtc ?? storeCreatedUtc
         };

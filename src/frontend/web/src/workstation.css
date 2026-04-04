@@ -402,6 +402,20 @@
   opacity: 0.92;
 }
 
+/* Phase 57 — optional capture / metadata disclosures (Analyze + Compare family) */
+.pqat-details--meta {
+  margin-top: 6px;
+  padding: 10px 12px 12px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 12%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 40%, transparent);
+}
+
+.pqat-details--meta > summary {
+  font-weight: 650;
+  color: var(--text-h);
+}
+
 /* --- Workspace customizer --- */
 .pqat-customizer {
   font-size: 0.8125rem;
@@ -418,15 +432,48 @@
   color: var(--accent);
 }
 
+/* Phase 56 — align with sharing panel chrome */
+.pqat-customizer--chrome {
+  margin-top: 12px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 14%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 65%, var(--surface-1));
+  overflow: hidden;
+  /* Top accent line comes from .pqat-metaPanel when combined (Phase 57). */
+}
+
+.pqat-customizer--chrome > summary {
+  padding: 10px 14px;
+  list-style: none;
+  color: var(--text-h);
+  transition: background 0.15s ease;
+}
+
+.pqat-customizer--chrome > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pqat-customizer--chrome > summary:hover {
+  background: color-mix(in srgb, var(--accent-bg) 8%, transparent);
+}
+
 .pqat-customizer__body {
-  margin-top: 10px;
-  padding: 14px 16px;
-  border-radius: var(--pqat-radius-panel, 14px);
-  border: 1px dashed color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
-  background: var(--surface-tool);
+  margin-top: 0;
+  padding: 14px 16px 16px;
+  border-radius: 0;
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-tool) 88%, var(--surface-workspace));
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.pqat-customizer:not(.pqat-customizer--chrome) .pqat-customizer__body {
+  margin-top: 10px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: var(--surface-tool);
 }
 
 .pqat-fieldset {

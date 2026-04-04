@@ -12,7 +12,8 @@ export function RouteFallback({ label = 'Loading workspace…' }: { label?: stri
 export function CustomizerBodyFallback() {
   return (
     <div className="pqat-customizerFallback" role="status" aria-live="polite">
-      Loading customization controls…
+      <span className="pqat-customizerFallback__label">Loading layout controls…</span>
+      <span className="pqat-customizerFallback__hint">Reorder lists and presets load on first open to keep the initial bundle small.</span>
     </div>
   )
 }

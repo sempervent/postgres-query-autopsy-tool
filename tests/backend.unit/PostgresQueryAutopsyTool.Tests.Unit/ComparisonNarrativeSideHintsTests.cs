@@ -140,7 +140,7 @@ public sealed class ComparisonNarrativeSideHintsTests
         var m = typeof(ComparisonEngine).GetMethod("FormatPairEvidence", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(m);
 
-        var line = (string)m!.Invoke(null, new object?[] { pair, d })!;
+        var line = (string)m!.Invoke(null, new object?[] { pair, d, null, null })!;
         Assert.Contains("Build side", line, StringComparison.OrdinalIgnoreCase);
     }
 }

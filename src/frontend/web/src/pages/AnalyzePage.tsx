@@ -368,6 +368,7 @@ export default function AnalyzePage() {
           jumpToNodeId={jumpToNodeId}
           byId={byId}
           nodeLabel={nodeLabel}
+          bottlenecks={analysis.summary.bottlenecks ?? undefined}
         />
       )
     }
@@ -446,6 +447,7 @@ export default function AnalyzePage() {
           locationPathname={location.pathname}
           copyShareLink={copyShareLink}
           setAnalysis={setAnalysis}
+          jumpToNodeId={jumpToNodeId}
         />
       ) : null}
 

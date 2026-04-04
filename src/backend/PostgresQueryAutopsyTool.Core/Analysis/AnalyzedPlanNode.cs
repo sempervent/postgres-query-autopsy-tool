@@ -9,5 +9,7 @@ public sealed record AnalyzedPlanNode(
     IReadOnlyList<string> ChildNodeIds,
     NormalizedPlanNode Node,
     DerivedNodeMetrics Metrics,
-    OperatorContextEvidence? ContextEvidence = null);
+    OperatorContextEvidence? ContextEvidence = null,
+    /// <summary>Phase 59: human interpretive paragraph for selected-node UI; null when not computed.</summary>
+    string? OperatorInterpretation = null);
 

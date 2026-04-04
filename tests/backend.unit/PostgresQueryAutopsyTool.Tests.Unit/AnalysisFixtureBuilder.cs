@@ -27,7 +27,11 @@ internal static class AnalysisFixtureBuilder
         var insights = IndexSignalAnalyzer.BuildInsights(metrics, ctx, overview);
         var core = new PlanAnalysisResult(
             "t", root.NodeId, null, null, metrics, findings, narrative, summary, overview, insights,
-            Array.Empty<OptimizationSuggestion>());
-        return core with { OptimizationSuggestions = OptimizationSuggestionEngine.Build(core) };
+            Array.Empty<OptimizationSuggestion>(),
+            PlanStory: null);
+        var withSug = core with { OptimizationSuggestions = OptimizationSuggestionEngine.Build(core) };
+        var story = PlanStoryBuilder.Build(
+            root.NodeId, summary, metrics, findings, narrative, overview, insights, withSug.OptimizationSuggestions);
+        return withSug with { PlanStory = story };
     }
 }

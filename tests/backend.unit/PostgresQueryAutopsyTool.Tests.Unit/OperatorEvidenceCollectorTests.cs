@@ -58,6 +58,7 @@ public sealed class OperatorEvidenceCollectorTests
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);

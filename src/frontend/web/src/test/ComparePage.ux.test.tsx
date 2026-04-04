@@ -267,6 +267,23 @@ function mockComparisonPayload(): any {
           },
         ],
         narrative: 'n',
+        bottleneckBrief: {
+          lines: ['Primary bottleneck class is unchanged (CPU / operator hotspot). Use pair timing to judge magnitude.'],
+        },
+        comparisonStory: {
+          overview: 'Plan B is ~20ms slower than A at root inclusive time (~20% of A).',
+          changeBeats: [
+            {
+              text: 'Largest measured shift is in mapped pair “Seq Scan on users → Seq Scan on users”—open it for deltas.',
+              focusNodeIdA: 'a1',
+              focusNodeIdB: 'b1',
+              pairAnchorLabel: 'Seq Scan on users → Seq Scan on users',
+            },
+            'Both plans carry ranked bottlenecks—compare posture lines with pair deltas.',
+          ],
+          investigationPath: 'Start with the top worsened mapped pair to see what regressed in place.',
+          structuralReading: 'Heuristic read: similar node counts with big runtime swing often mean selectivity or access-path changes.',
+        },
         diagnostics: null,
   }
 }
@@ -369,6 +386,26 @@ test('selected pair: eager copy actions and confidence line; heavy block include
     },
     { timeout: 15_000 },
   )
+})
+
+test('summary meta shows bottleneck posture when bottleneckBrief lines are present', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  await screen.findByText('Summary', {}, { timeout: 15_000 })
+  expect(screen.getByLabelText('Change story')).toBeInTheDocument()
+  expect(screen.getByText(/Plan B is ~20ms slower/i)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Open pair/i })).toBeInTheDocument()
+  expect(screen.getByLabelText('Bottleneck posture A vs B')).toBeInTheDocument()
+  expect(screen.getByText(/Primary bottleneck class is unchanged/i)).toBeInTheDocument()
 })
 
 test('compare navigator worsened row hover invokes pair heavy prefetch helper', async () => {
@@ -619,7 +656,7 @@ test('customize workspace hides findings diff list until re-enabled', async () =
   fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
   await screen.findByRole('heading', { name: 'Findings diff' })
 
-  const cust = screen.getAllByText('Customize workspace').find((el) => el.tagName === 'SUMMARY')
+  const cust = screen.getAllByText(/Customize workspace layout/i).find((el) => el.tagName === 'SUMMARY')
   expect(cust).toBeTruthy()
   fireEvent.click(cust!)
   const findingsToggle = await waitFor(
@@ -646,7 +683,7 @@ test('customize workspace Down on navigator order persists layout to localStorag
   fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
   await screen.findByRole('heading', { name: 'Findings diff' })
 
-  const customizeSummaries = screen.getAllByText('Customize workspace').filter((n) => n.tagName === 'SUMMARY')
+  const customizeSummaries = screen.getAllByText(/Customize workspace layout/i).filter((n) => n.tagName === 'SUMMARY')
   expect(customizeSummaries.length).toBeGreaterThan(0)
   fireEvent.click(customizeSummaries[0])
   const navList = await screen.findByRole('list', { name: 'Compare navigator block order' })

@@ -18,6 +18,10 @@ public sealed record PlanComparisonResultV2(
     IndexComparisonSummary IndexComparison,
     string Narrative,
     IReadOnlyList<OptimizationSuggestion> CompareOptimizationSuggestions,
+    /// <summary>Phase 59: compact bottleneck posture comparison (null when absent in JSON).</summary>
+    BottleneckComparisonBrief? BottleneckBrief = null,
+    /// <summary>Phase 60: before/after execution story (works with <see cref="BottleneckBrief"/>).</summary>
+    ComparisonStory? ComparisonStory = null,
     ComparisonDiagnostics? Diagnostics = null,
     /// <summary>Phase 49: persisted JSON schema generation.</summary>
     int ArtifactSchemaVersion = 0,

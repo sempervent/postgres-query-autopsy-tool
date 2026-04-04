@@ -62,7 +62,8 @@ public sealed class NarrativeGeneratorLabelTests
             TopInclusiveTimeHotspotNodeIds: Array.Empty<string>(),
             TopSharedReadHotspotNodeIds: Array.Empty<string>(),
             SevereFindingsCount: 0,
-            Warnings: Array.Empty<string>());
+            Warnings: Array.Empty<string>(),
+            Bottlenecks: Array.Empty<PlanBottleneckInsight>());
 
         var narrative = NarrativeGenerator.From(summary, nodes, Array.Empty<AnalysisFinding>());
         Assert.Contains("Seq Scan on users", narrative.WhereTimeWent);

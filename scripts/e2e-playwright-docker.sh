@@ -6,6 +6,7 @@
 #   ./scripts/e2e-playwright-docker.sh --auth       # `.env.testing.auth` → e2e-auth-api-key
 #   ./scripts/e2e-playwright-docker.sh --jwt        # `.env.testing.jwt` → e2e-auth-jwt
 #   ./scripts/e2e-playwright-docker.sh --proxy      # `.env.testing.proxy` → e2e-auth-proxy
+#   ./scripts/e2e-playwright-docker.sh --visual     # `.env.testing` → e2e-visual (screenshot baselines; Linux/CI)
 #   ./scripts/e2e-playwright-docker.sh --all-auth   # sequential: api-key, jwt, proxy (tear down between)
 #   ./scripts/e2e-playwright-docker.sh --help
 #
@@ -25,6 +26,7 @@ Usage: e2e-playwright-docker.sh [OPTION]
   --auth       API key auth — .env.testing.auth, e2e-auth-api-key
   --jwt        JWT bearer — .env.testing.jwt, e2e-auth-jwt
   --proxy      Trusted proxy headers — .env.testing.proxy, e2e-auth-proxy
+  --visual     Visual regression — .env.testing, e2e-visual (canonical screenshots)
   --all-auth   Run --auth, then --jwt, then --proxy (fresh volume each time)
   -h, --help   This help
 
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --proxy)
       MODE="proxy"
+      shift
+      ;;
+    --visual)
+      MODE="visual"
       shift
       ;;
     --all-auth)
@@ -121,6 +127,11 @@ case "$MODE" in
     ENV_FILE=".env.testing.proxy"
     PROJECT="e2e-auth-proxy"
     LABEL="trusted proxy headers auth"
+    ;;
+  visual)
+    ENV_FILE=".env.testing"
+    PROJECT="e2e-visual"
+    LABEL="visual regression (canonical screenshots)"
     ;;
   *)
     echo "internal: bad MODE=$MODE" >&2

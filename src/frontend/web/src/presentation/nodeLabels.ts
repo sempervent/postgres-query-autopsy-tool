@@ -142,7 +142,14 @@ export function nodeShortLabel(n: AnalyzedPlanNode, byId?: Map<string, AnalyzedP
     return type
   }
 
-  if (type.toLowerCase().includes('sort') && c.sortKey) return `Sort on ${c.sortKey}`
+  if (type.toLowerCase().includes('sort') && c.sortKey) {
+    if (byId) {
+      const child0 = n.childNodeIds?.[0]
+      const feedRel = child0 ? firstDescendantWithRelation(child0, byId) : null
+      return feedRel ? `Sort on ${feedRel} by ${c.sortKey}` : `Sort by ${c.sortKey}`
+    }
+    return `Sort by ${c.sortKey}`
+  }
   if (type.toLowerCase().includes('aggregate') && c.groupKey) return `Aggregate by ${c.groupKey}`
 
   return type

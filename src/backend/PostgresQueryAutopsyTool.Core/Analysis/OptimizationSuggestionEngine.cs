@@ -76,12 +76,15 @@ public static class OptimizationSuggestionEngine
         foreach (var f in findings.Where(x => x.RuleId.Equals("M.materialize-loops-concern", StringComparison.OrdinalIgnoreCase)))
             AddMaterializeSuggestion(list, f, byId);
 
+        foreach (var f in findings.Where(x => x.RuleId.Equals("S.query-shape-boundary", StringComparison.OrdinalIgnoreCase)))
+            AddQueryShapeBoundarySuggestion(list, f, byId);
+
         AddTempSortSpillFromNodes(list, analysis.Nodes);
         AddParallelSkewFromNodes(list, analysis.Nodes);
 
-        return DedupeAndRank(list)
-            .Take(16)
-            .ToArray();
+        return EnrichWithBottleneckLinks(
+            DedupeAndRank(list).Take(16).ToArray(),
+            analysis.Summary);
     }
 
     private static void AddChunkedTimescaleSuggestions(
@@ -763,6 +766,87 @@ public static class OptimizationSuggestionEngine
             targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : null));
     }
 
+    private static void AddQueryShapeBoundarySuggestion(
+        List<OptimizationSuggestion> list,
+        AnalysisFinding f,
+        IReadOnlyDictionary<string, AnalyzedPlanNode> byId)
+    {
+        var nodeId = f.NodeIds?.FirstOrDefault();
+        list.Add(Make(
+            scope: "ana",
+            category: OptimizationSuggestionCategory.QueryRewrite,
+            action: SuggestedActionType.ReviewJoinShape,
+            title: "Investigate CTE/subquery boundary cost",
+            summary: f.Suggestion,
+            details: f.Explanation,
+            $"Finding `{f.RuleId}`: {f.Summary}",
+            MapConfidence(f.Confidence),
+            MapPriority(f.Severity),
+            nodeId is not null ? new[] { nodeId } : Array.Empty<string>(),
+            new[] { f.FindingId },
+            Array.Empty<string>(),
+            new[]
+            {
+                "CTEs and subqueries are not always “optimized away”; the visible scan boundary is the evidence anchor.",
+                "Rewrites must preserve semantics—validate row counts and results, not only wall time."
+            },
+            new[]
+            {
+                "Compare plans when inlining is possible (e.g. plain CTE) vs materialized behavior; measure buffers and timing.",
+                ValExplainBuffers
+            },
+            recommendedNextAction:
+            "Test whether filters, projections, or aggregates can move earlier relative to this boundary so downstream joins/sorts see fewer rows.",
+            whyItMatters:
+            "Large intermediate rowsets at CTE/subquery scans often dominate later joins and sorts; shrinking what crosses the boundary is a high-leverage rewrite experiment.",
+            targetDisplayLabel: nodeId is not null ? HumanLabel(nodeId, byId) : null));
+    }
+
+    private static IReadOnlyList<OptimizationSuggestion> EnrichWithBottleneckLinks(
+        IReadOnlyList<OptimizationSuggestion> ranked,
+        PlanSummary summary)
+    {
+        if (summary.Bottlenecks.Count == 0) return ranked;
+        var b0 = summary.Bottlenecks[0];
+        var hint = b0.NodeIds.Count > 0
+            ? $"Primary bottleneck — {b0.Headline}: "
+            : null;
+
+        return ranked
+            .Select(s =>
+            {
+                var ids = new HashSet<string>(StringComparer.Ordinal);
+                if (s.RelatedBottleneckInsightIds is { Count: > 0 })
+                {
+                    foreach (var x in s.RelatedBottleneckInsightIds)
+                        ids.Add(x);
+                }
+
+                foreach (var b in summary.Bottlenecks)
+                {
+                    if (b.NodeIds.Any(n => s.TargetNodeIds.Contains(n, StringComparer.Ordinal)))
+                        ids.Add(b.InsightId);
+                    if (b.RelatedFindingIds.Any(f => s.RelatedFindingIds.Contains(f, StringComparer.Ordinal)))
+                        ids.Add(b.InsightId);
+                }
+
+                var rationale = s.Rationale;
+                if (hint is not null &&
+                    b0.NodeIds.Count > 0 &&
+                    s.TargetNodeIds.Any(t => b0.NodeIds.Contains(t, StringComparer.Ordinal)) &&
+                    !rationale.Contains("Primary bottleneck", StringComparison.OrdinalIgnoreCase))
+                    rationale = hint + rationale;
+
+                var arr = ids.Count > 0 ? ids.OrderBy(x => x, StringComparer.Ordinal).ToArray() : Array.Empty<string>();
+                return s with
+                {
+                    Rationale = rationale,
+                    RelatedBottleneckInsightIds = arr.Length > 0 ? arr : null
+                };
+            })
+            .ToArray();
+    }
+
     private static void AddTempSortSpillFromNodes(List<OptimizationSuggestion> list, IReadOnlyList<AnalyzedPlanNode> nodes)
     {
         var byIdLocal = nodes.ToDictionary(x => x.NodeId, StringComparer.Ordinal);
@@ -866,7 +950,8 @@ public static class OptimizationSuggestionEngine
         string recommendedNextAction,
         string whyItMatters,
         string? targetDisplayLabel = null,
-        bool isGroupedCluster = false)
+        bool isGroupedCluster = false,
+        IReadOnlyList<string>? relatedBottleneckInsightIds = null)
     {
         var id = StableSuggestionId(scope, category, action, title, targetNodeIds, relatedFindingIds);
         return new OptimizationSuggestion(
@@ -891,6 +976,7 @@ public static class OptimizationSuggestionEngine
             isGroupedCluster,
             null,
             null,
+            relatedBottleneckInsightIds,
             null);
     }
 

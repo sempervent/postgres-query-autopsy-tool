@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore
+      - name: Test
+        run: dotnet test PostgresQueryAutopsyTool.sln --configuration Release
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: |
+          cd src/frontend/web
+          npm ci
+      - name: E2E fixtures vs backend postgres-json
+        run: |
+          cd src/frontend/web
+          npm run fixtures:check
+      - name: Test
+        run: |
+          cd src/frontend/web
+          npm test
+      - name: Build
+        run: |
+          cd src/frontend/web
+          npm run build
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+
+  e2e-playwright:
+    name: "E2E browser: non-auth smoke"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh"
+        run: echo "Local: ./scripts/e2e-playwright-docker.sh  # .env.testing, project e2e-smoke"
+      - name: Start stack (.env.testing, E2E seeds)
+        run: docker compose --env-file .env.testing up -d --build api web
+      - name: Wait for health (:3000)
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Playwright — project e2e-smoke
+        run: docker compose --env-file .env.testing --profile testing run --rm playwright
+      - name: Compose down
+        if: always()
+        run: docker compose --env-file .env.testing down -v
+
+  e2e-playwright-auth:
+    name: "E2E browser: API key auth"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --auth"
+        run: echo "Local: ./scripts/e2e-playwright-docker.sh --auth"
+      - name: Start stack (.env.testing.auth)
+        run: docker compose --env-file .env.testing.auth up -d --build api web
+      - name: Wait for health (:3000)
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Playwright — project e2e-auth-api-key
+        run: |
+          docker compose --env-file .env.testing.auth --profile testing run --rm \
+            -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-api-key \
+            playwright
+      - name: Compose down
+        if: always()
+        run: docker compose --env-file .env.testing.auth down -v
+
+  e2e-browser-auth-jwt:
+    name: "E2E browser: JWT bearer auth"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --jwt"
+        run: echo "Local: ./scripts/e2e-playwright-docker.sh --jwt"
+      - name: Start stack (.env.testing.jwt)
+        run: docker compose --env-file .env.testing.jwt up -d --build api web
+      - name: Wait for health (:3000)
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Playwright — project e2e-auth-jwt
+        run: |
+          docker compose --env-file .env.testing.jwt --profile testing run --rm \
+            -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-jwt \
+            playwright
+      - name: Compose down
+        if: always()
+        run: docker compose --env-file .env.testing.jwt down -v
+
+  e2e-playwright-proxy:
+    name: "E2E browser: trusted proxy headers"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --proxy"
+        run: echo "Local: ./scripts/e2e-playwright-docker.sh --proxy"
+      - name: Start stack (.env.testing.proxy)
+        run: docker compose --env-file .env.testing.proxy up -d --build api web
+      - name: Wait for health (:3000)
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Playwright — project e2e-auth-proxy
+        run: |
+          docker compose --env-file .env.testing.proxy --profile testing run --rm \
+            -e PLAYWRIGHT_CLI_ARGS=--project=e2e-auth-proxy \
+            playwright
+      - name: Compose down
+        if: always()
+        run: docker compose --env-file .env.testing.proxy down -v
+
+  e2e-playwright-visual:
+    name: "E2E browser: visual regression (canonical)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --visual"
+        run: echo "Local: ./scripts/e2e-playwright-docker.sh --visual  # .env.testing, project e2e-visual"
+      - name: Start stack (.env.testing, E2E seeds)
+        run: docker compose --env-file .env.testing up -d --build api web
+      - name: Wait for health (:3000)
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Playwright — project e2e-visual
+        run: |
+          docker compose --env-file .env.testing --profile testing run --rm \
+            -e PLAYWRIGHT_CLI_ARGS=--project=e2e-visual \
+            playwright
+      - name: Compose down
+        if: always()
+        run: docker compose --env-file .env.testing down -v
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install docs dependencies
+        run: pip install -r requirements-docs.txt
+      - name: Build docs
+        run: mkdocs build --strict

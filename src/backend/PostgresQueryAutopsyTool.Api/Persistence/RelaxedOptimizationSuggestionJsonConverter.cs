@@ -41,6 +41,7 @@ public sealed class RelaxedOptimizationSuggestionJsonConverter : JsonConverter<O
         var grouped = o.TryGetProperty("isGroupedCluster", out var g) && g.ValueKind == JsonValueKind.True;
         var fd = ReadOptionalStringArray(o, "relatedFindingDiffIds");
         var iid = ReadOptionalStringArray(o, "relatedIndexInsightDiffIds");
+        var rb = ReadOptionalStringArray(o, "relatedBottleneckInsightIds");
         var aka = ReadOptionalStringArray(o, "alsoKnownAs");
 
         return new OptimizationSuggestion(
@@ -65,6 +66,7 @@ public sealed class RelaxedOptimizationSuggestionJsonConverter : JsonConverter<O
             grouped,
             fd,
             iid,
+            rb,
             aka);
     }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using PostgresQueryAutopsyTool.Api.Persistence;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Comparison;
@@ -42,6 +43,7 @@ public sealed class PersistedArtifactNormalizerTests
             IsGroupedCluster: false,
             RelatedFindingDiffIds: null,
             RelatedIndexInsightDiffIds: null,
+            RelatedBottleneckInsightIds: null,
             AlsoKnownAs: null);
 
         var n = OptimizationSuggestionCompat.NormalizeFields(s);
@@ -70,6 +72,52 @@ public sealed class PersistedArtifactNormalizerTests
         Assert.NotNull(hit.AlsoKnownAs);
         Assert.Contains(legacy, hit.AlsoKnownAs!);
     }
+
+    [Fact]
+    public void NormalizeLoadedComparison_backfills_comparison_story_when_property_absent()
+    {
+        var a = AnalysisFixtureBuilder.Build("compare_before_seq_scan.json");
+        var b = AnalysisFixtureBuilder.Build("compare_after_index_scan.json");
+        var cmp = new ComparisonEngine().Compare(a, b);
+        var json = JsonSerializer.Serialize(cmp with { ComparisonStory = null }, ArtifactPersistenceJson.Options);
+        var roundTrip = JsonSerializer.Deserialize<PlanComparisonResultV2>(json, ArtifactPersistenceJson.Options);
+        Assert.NotNull(roundTrip);
+        Assert.Null(roundTrip!.ComparisonStory);
+        var norm = PersistedArtifactNormalizer.NormalizeLoadedComparison(roundTrip, null);
+        Assert.NotNull(norm.ComparisonStory);
+        Assert.False(string.IsNullOrWhiteSpace(norm.ComparisonStory!.Overview));
+    }
+
+    [Fact]
+    public void NormalizeLoadedAnalysis_backfills_plan_story_when_property_absent_from_json()
+    {
+        var analysis = AnalysisFixtureBuilder.Build("simple_seq_scan.json");
+        Assert.NotNull(analysis.PlanStory);
+        var json = JsonSerializer.Serialize(analysis with { PlanStory = null }, ArtifactPersistenceJson.Options);
+        var roundTrip = JsonSerializer.Deserialize<PlanAnalysisResult>(json, ArtifactPersistenceJson.Options);
+        Assert.NotNull(roundTrip);
+        Assert.Null(roundTrip!.PlanStory);
+        var norm = PersistedArtifactNormalizer.NormalizeLoadedAnalysis(roundTrip, null);
+        Assert.NotNull(norm.PlanStory);
+        Assert.False(string.IsNullOrWhiteSpace(norm.PlanStory!.PlanOverview));
+    }
+
+    [Fact]
+    public void Story_propagation_beat_json_converter_reads_legacy_string_array()
+    {
+        var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        opts.Converters.Add(new StoryPropagationBeatListJsonConverter());
+        var json = """{"propagationBeats":["legacy beat one"]}""";
+        var w = JsonSerializer.Deserialize<PropagationBeatWrap>(json, opts);
+        Assert.NotNull(w);
+        Assert.Single(w!.PropagationBeats);
+        Assert.Equal("legacy beat one", w.PropagationBeats[0].Text);
+        Assert.Null(w.PropagationBeats[0].FocusNodeId);
+    }
+
+    private sealed record PropagationBeatWrap(
+        [property: JsonConverter(typeof(StoryPropagationBeatListJsonConverter))]
+        IReadOnlyList<StoryPropagationBeat> PropagationBeats);
 
     [Fact]
     public void Legacy_json_without_explicit_schema_deserializes_and_normalizes_with_current_version()

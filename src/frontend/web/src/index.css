@@ -136,6 +136,11 @@
   }
 }
 
+/* Phase 56: deterministic screenshots — flat bg, no ambient wash */
+html[data-visual-regression='1'] #root {
+  background: var(--bg) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

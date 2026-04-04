@@ -104,6 +104,34 @@ public sealed class FindingsEngineTests
     }
 
     [Fact]
+    public void Query_shape_boundary_rule_fires_on_cte_scan_under_nested_loop_with_volume()
+    {
+        var analysis = AnalyzeFixture("query_shape_cte_under_nested_loop.json");
+
+        Assert.Contains(analysis.Findings, f => f.RuleId == "S.query-shape-boundary");
+    }
+
+    [Fact]
+    public void Summary_bottlenecks_are_ranked_and_non_empty_for_timed_plan()
+    {
+        var analysis = AnalyzeFixture("simple_seq_scan.json");
+
+        Assert.NotEmpty(analysis.Summary.Bottlenecks);
+        Assert.Equal(1, analysis.Summary.Bottlenecks[0].Rank);
+        Assert.True(analysis.Summary.Bottlenecks.Count <= 4);
+        Assert.True(Enum.IsDefined(typeof(BottleneckClass), analysis.Summary.Bottlenecks[0].BottleneckClass));
+        Assert.True(Enum.IsDefined(typeof(BottleneckCauseHint), analysis.Summary.Bottlenecks[0].CauseHint));
+    }
+
+    [Fact]
+    public void Narrative_mentions_prioritized_bottlenecks_when_present()
+    {
+        var analysis = AnalyzeFixture("simple_seq_scan.json");
+
+        Assert.Contains("Main bottlenecks", analysis.Narrative.WhereTimeWent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Ranking_puts_highest_severity_near_top_when_present()
     {
         var analysis = AnalyzeFixture("nested_loop_amplification.json");
@@ -145,6 +173,7 @@ public sealed class FindingsEngineTests
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);

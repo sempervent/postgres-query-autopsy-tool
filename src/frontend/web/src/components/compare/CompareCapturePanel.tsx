@@ -105,7 +105,7 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
         </section>
       </div>
 
-      <details className="pqat-details pqat-details--muted">
+      <details className="pqat-details pqat-details--muted pqat-details--meta">
         <summary>Optional: source SQL + EXPLAIN metadata (per side)</summary>
         <div className="pqat-detailsBody">
           <p className="pqat-hint">

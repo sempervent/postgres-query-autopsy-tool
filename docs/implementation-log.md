@@ -1082,3 +1082,107 @@ Verified (this phase, agent run, 2026-03-31):
 
 **Limitations:** No committed Playwright screenshot baselines. Light theme received token definitions but the product aesthetic is still **dark-first**. External font CDN requires network at first paint (preconnect mitigates).
 
+## Phase 56 — Visual regression readiness + deployment-friendly UI assets + parity polish (complete)
+
+Implemented:
+- **Playwright `e2e-visual`:** `e2e/visual/canonical.spec.ts` — **Analyze** happy path, **Compare** happy path, **422** corrupt reopen (seeded id). Stable viewport, **`data-visual-regression`**, reduced motion, dark scheme, **`document.fonts.ready`** before shots. **`playwright.config.mjs`** `toHaveScreenshot` defaults (`maxDiffPixelRatio` **0.04**, `animations: disabled`). Baselines in **`canonical.spec.ts-snapshots/`** (Linux).
+- **Scripts / Make / CI:** `e2e-playwright-docker.sh --visual`, **`make e2e-playwright-docker-visual`**, **`npm run test:e2e:visual`** / **`test:e2e:visual:update`**, workflow job **`e2e-playwright-visual`**.
+- **Fonts:** **`@fontsource/outfit`**, **`ibm-plex-sans`**, **`jetbrains-mono`** + **`fonts.css`**; **`index.html`** drops Google `<link>`s. Air-gapped/CSP-friendly default path.
+- **Error parity:** **`artifactErrorPresentation.ts`**, **`ArtifactErrorBanner.tsx`** on **Analyze** + **Compare**; Vitest **`artifactErrorPresentation.test.ts`**.
+- **Customizer:** **`pqat-customizer--chrome`**, summary copy **“Customize workspace layout”**, intro hints in customizer inners (Phase 56 polish carried from prior continuation).
+- **Docs:** **`contributing.md`**, **`architecture.md`**, **`index.md`**, **`deployment-auth.md`**, **`e2e/visual/README.md`**, this log.
+
+Verified (this phase, agent run, 2026-04-04):
+- **Visual E2E:** `docker compose --env-file .env.testing --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS="--project=e2e-visual --update-snapshots" playwright` then **`--project=e2e-visual`** without update — **3** tests OK; baselines committed under **`e2e/visual/canonical.spec.ts-snapshots/`** (**`*-e2e-visual-linux.png`**).
+- **Smoke E2E:** `./scripts/e2e-playwright-docker.sh` — **6** tests (**`e2e-smoke`**) OK.
+- **Frontend (Docker `node:20-alpine`):** `npm ci`, `npm test`, `npm run build` — **125** Vitest tests + build OK.
+- **Docs:** `mkdocs build --strict` — OK.
+- **Backend:** `docker … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release` — **113** passed.
+- **Docker images:** `docker compose build` — OK.
+
+**Limitations:** Visual baselines are **OS-specific**; regenerate on **Linux** (CI Playwright image). Not a large screenshot matrix. Full **light** theme toggle remains future work.
+
+## Phase 57 — Visual regression hardening + meta-surface polish + script/CI cleanup (complete)
+
+Implemented:
+- **CI / repo:** **`.github/workflows/ci.yml`** **`frontend`** job uses **`npm test`** (**`vitest run`**) — removed duplicate **`--run`**. **`e2e-playwright-visual`** job unchanged; documented as tracked workflow. Visual **`README`** lists all **four** frames and stability rules.
+- **Fourth screenshot:** **`analyze-error-access-denied`** — **`page.route`** fulfills **403** on **`GET /api/analyses/e2e-visual-access-denied`** (no auth-mode compose).
+- **Stability:** Analyze happy waits for **`.react-flow__node`** + first **`Finding:`** button; Compare happy waits for **Key metric deltas**. Route / chunk **shimmer** animations respect **reduced motion** in CSS.
+- **Scripts:** **`package.json`** **`test`:** **`vitest run`**; added **`test:watch`:** **`vitest`**.
+- **Meta surfaces:** **`pqat-metaPanel`** (top accent) on **customizer** + **sharing**; **`pqat-authHelpCard`** replaces generic info banner in **`ArtifactSharingPanel`**; **`pqat-details--meta`** on Analyze/Compare optional capture disclosures; **`RouteFallback`** + **`CustomizerBodyFallback`** refined.
+- **Error banner:** **`artifactErrorBodyKicker`** (**Policy** / **Notice** / **Error**); **`ArtifactErrorBanner`** structure + classes **`pqat-artifactErrorBanner*`**.
+- **Tests:** **`artifactErrorPresentation.test.ts`** kicker cases.
+- **Docs:** **`contributing.md`**, **`architecture.md`**, **`index.md`**, **`deployment-auth.md`**, **`e2e/visual/README.md`**, this log.
+
+Verified (this phase, agent run, 2026-04-04):
+- **Visual E2E:** **`docker compose --env-file .env.testing --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS="--project=e2e-visual --update-snapshots" playwright`** then **`--project=e2e-visual`** — **4** tests OK; **`analyze-error-access-denied-e2e-visual-linux.png`** added.
+- **Smoke E2E:** **`./scripts/e2e-playwright-docker.sh`** — **6** tests OK.
+- **Frontend (Docker `node:20-alpine`):** **`npm ci`**, **`npm test`** (**`vitest run`**), **`npm run build`** — **126** Vitest tests + build OK.
+- **Docs:** **`mkdocs build --strict`** — OK.
+- **Backend:** **`docker … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release`** — **113** passed (first **`--no-restore`** hit a transient package-path warning in this environment; full restore + test succeeded).
+- **Docker:** **`docker compose build`** — OK.
+
+**Limitations:** Access-denied frame is **mocked** in the browser (not a live ACL matrix). Visual suite still **Linux-only** for baselines.
+
+## Phase 58 — Explanation quality, bottlenecks, query-shape guidance (complete)
+
+Implemented:
+- **Backend:** `PlanBottleneckInsight` + internal `PlanBottleneckBuilder` (exclusive-time leaders, largest timed subtree, top shared-read node, high-severity findings, `S.query-shape-boundary` when not redundant); `PlanSummary.Bottlenecks`; `OperatorNarrativeHelper` for operator-specific bottleneck lines + execution-shape rollup; `QueryShapeBoundaryConcernRule` (`S.query-shape-boundary`) for **CTE Scan** / **Subquery Scan**; `MaterializeLoopsConcernRule` extended for **Memoize**; `NarrativeGenerator` ties shape + prioritized bottlenecks into `WhereTimeWent` / `WhatLikelyMatters`; `OptimizationSuggestionEngine` adds query-shape rewrite suggestion + **primary-bottleneck** prefix on overlapping suggestion **rationale**; markdown/HTML reports include **Prioritized bottlenecks**.
+- **Frontend:** `PlanSummary.bottlenecks` + `PlanBottleneckInsight` types; Plan guide **`mainBottlenecks`** section (default order), `bottleneckPresentation.ts`; mock + interaction test for **Main bottlenecks** heading.
+- **Fixtures / tests:** `query_shape_cte_under_nested_loop.json` + `.sql` companion; `FindingsEngineTests` / `OptimizationSuggestionEngineTests` coverage; `NarrativeGeneratorLabelTests` + workspace model test updates.
+- **Docs:** `analyze-workflow.md`, `compare-workflow.md`, `findings-catalog.md`, `architecture.md`, this log.
+
+Verified (this phase, agent run, 2026-03-31):
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release` — **117** passed (includes new fixture + rule tests).
+- **Frontend:** `docker run … node:20-alpine` in `src/frontend/web` — `npm ci`, `npm test` (**129** Vitest tests), `npm run build` — OK. **Analyze** interaction: relaxed timeout on first test (**35s** / **25s** findBy) to reduce parallel-suite flakes.
+- **Docs:** `docker run … python:3.12-slim` — `pip install -r requirements-docs.txt`, `mkdocs build --strict` — OK.
+- **Docker Compose:** `docker compose build` — OK.
+
+**Limitations:** Bottleneck ordering is **heuristic** (caps at four items); **root cause vs symptom** is hinted via nested-loop **symptom** notes, not a full causal model. **Query-shape** rule does not parse SQL. Older persisted analyses omit `bottlenecks` until re-analyzed.
+
+## Phase 59 — Human readability refinement + bottleneck storytelling cohesion (complete)
+
+Implemented:
+- **Backend:** `BottleneckClass` + `BottleneckCauseHint` on `PlanBottleneckInsight`; `BottleneckClassifier` integrated in `PlanBottleneckBuilder`; property **`BottleneckClass`** (avoids JSON `class` collision); camelCase string JSON via **`BottleneckClassCamelCaseJsonConverter`** / **`BottleneckCauseHintCamelCaseJsonConverter`** (no global string enums — preserves numeric `FindingSeverity` etc.). `NarrativeGenerator` orients with hotspot anchors + bottleneck *classes* and cause framing without duplicating card copy. `BottleneckComparisonBuilder` + **`PlanComparisonResultV2.BottleneckBrief`**; compare markdown report section. `OptimizationSuggestion.RelatedBottleneckInsightIds` enrichment unchanged from prior work; `IndexSignalAnalyzer` headline refinements retained. Tests: **`BottleneckEnumsJsonTests`**, **`OperatorNarrativeSelectedNodeTests`**, **`ComparisonEngineTests`** bottleneck brief, **`FindingsEngineTests`** enum + narrative string update.
+- **Frontend:** Selected node **What this operator is doing** (`operatorInterpretation`); guide rail **Readout** + bottleneck class/cause lines; Compare summary **Bottleneck posture (A vs B)**; suggestion **Because of bottleneck** tie-in; **`bottleneckPresentation`** class/cause helpers + Vitest; mocks updated for `bottleneckClass` / `causeHint`.
+- **Docs:** `analyze-workflow.md`, `compare-workflow.md`, `findings-catalog.md`, `architecture.md`, this log.
+
+Verified (this continuation, agent run, 2026-03-31):
+- **Backend:** `dotnet build` on host — **OK**. Host **`dotnet test`** aborts without **.NET 8** runtime (Homebrew **dotnet 10** only). **Docker:** `docker run --rm -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release` — **121** passed, **0** failed (first `--no-restore` printed a transient **NETSDK1064** then restore+test succeeded).
+- **Frontend:** `npm install` (restore optional **rolldown** binding on host Node **25**); **`npm test` — 131** Vitest tests **OK** (includes **`bottleneckPresentation.test.ts`** + suggestion/compare additions); **`npm run build`** — **OK**.
+- **Docs:** `docker run --rm -v "$PWD":/docs -w /docs python:3.12-slim-bookworm bash -lc 'pip install -q -r requirements-docs.txt && mkdocs build --strict'` — **OK**.
+- **Docker Compose:** `docker compose build` — **api** + **web** images **OK**.
+
+**Limitations:** Bottleneck typing remains **heuristic**; **`causeHint`** is guidance only. Compare **bottleneckBrief** is capped (≤5 lines). Host without .NET 8 cannot run unit tests locally without Docker/SDK install.
+
+## Phase 60 — EXPLAIN storytelling and narrative cohesion (complete)
+
+Implemented:
+- **Backend:** **`PlanStory`** on **`PlanAnalysisResult`** (`PlanStoryBuilder`: overview, work concentration, expense drivers, execution shape, inspect-first path, propagation beats from bottleneck **`PropagationNote`**, index/shape note). **`BottleneckPropagationHelper`** + **`PlanBottleneckInsight.PropagationNote`**. **`ComparisonStory`** on **`PlanComparisonResultV2`** (`ComparisonStoryBuilder`: overview, change beats, investigation path, structural reading). **`PersistedArtifactNormalizer`** backfills **`PlanStory`** / **`ComparisonStory`** when absent from stored JSON. **`OperatorNarrativeHelper`** extended for **Append**, **Gather**, **Bitmap Index Scan**. Markdown/HTML reports: plan story + flow on bottlenecks; compare **Change story** section. Tests: **`PlanStoryBuilderTests`**, **`PersistedArtifactNormalizerTests`** (plan + compare backfill), **`ComparisonEngineTests`** + compare UX mock for **`comparisonStory`**.
+- **Frontend:** **`PlanStory`** / **`ComparisonStory`** types; **`storyPresentation.ts`**; **Analyze summary** “Plan story” callout; guide **Plan orientation** + **Suggested sequence** under hotspots; bottleneck **propagation** lines; Compare summary **Change story** before bottleneck posture; workspace label **Plan orientation & narrative**.
+- **Docs:** `analyze-workflow.md`, `compare-workflow.md`, `findings-catalog.md`, `architecture.md`, this log.
+
+Verified (this continuation, agent run, 2026-03-31):
+- **Backend:** `docker run --rm -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release` — **OK** (124 passed, 0 failed).
+- **Frontend:** `cd src/frontend/web && npm test -- --run` — **OK** (28 files, 133 tests passed). `npm run build` — **OK**.
+- **Docs:** `mkdocs build --strict` — **OK** (site built to `site/`).
+- **Docker Compose:** `docker compose build` — **OK** (`postgres-query-autopsy-tool-api`, `postgres-query-autopsy-tool-web` images built).
+
+**Limitations:** Story text remains **heuristic** and **hedged**; propagation notes are not causal proof. Older artifacts gain **`planStory`** / **`comparisonStory`** on read via normalizer (recomputed from stored nodes/summary).
+
+## Phase 61 — Human-readable plan references and story anchoring (complete)
+
+Implemented:
+- **Backend:** **`PlanNodeHumanReference`** + **`PlanNodeReferenceBuilder`** (operator/relation/join build·probe / outer·inner, sort-on-relation, aggregates, gather/append cues, **`BoundaryUnder`**, hedged **`QueryCorrespondenceHint`** from source SQL regex). **`NodeLabelFormatter.ShortLabel`** → **`PrimaryLabelCore`**. **`SafePrimary`** hides **`root.*`** paths when nodes are missing. **`StoryPropagationBeat`** + **`ComparisonStoryBeat`**; JSON converters accept legacy **string[]** beats. **`PlanBottleneckInsight.HumanAnchorLabel`**. Compare **`FormatPairEvidence`** + finding narrative lines use human labels when full plans are passed. Reports: flow/index/bottleneck **Where** lines.
+- **Frontend:** **`planReferencePresentation.ts`**; **Plan story** flow list + **Focus** in summary + guide rail; **Compare** **Open pair** on anchored beats; bottleneck **Focus** uses **`humanAnchorLabel`**; **`nodeLabels`** sort line aligned with backend.
+- **Tests:** **`PlanNodeReferenceBuilderTests`**, converter test in **`PersistedArtifactNormalizerTests`**, **`ComparisonNarrativeSideHintsTests`** invoke fix, **`ComparePage.ux.test`** **Open pair**.
+- **Docs:** `analyze-workflow.md`, `compare-workflow.md`, `architecture.md`, `findings-catalog.md`, this log.
+
+Verified (agent run, 2026-04-04):
+- **Backend:** `docker run --rm -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln -c Release` — **OK** (129 passed, 0 failed).
+- **Frontend:** `cd src/frontend/web && npm test -- --run` — **OK** (29 files, 136 tests). `npm run build` — **OK**.
+- **Docs:** `mkdocs build --strict` — **OK**.
+- **Docker Compose:** `docker compose build` — **OK** (`postgres-query-autopsy-tool-api`, `postgres-query-autopsy-tool-web`).
+
+**Limitations:** Labels remain **inferred** from plan fields; query hints are **heuristic**, not SQL semantics. Sparse plans still fall back to **operator type + depth**. Canonical ids stay in APIs for focus; debug surfaces may still show ids where useful.
+

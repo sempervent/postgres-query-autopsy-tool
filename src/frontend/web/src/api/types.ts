@@ -57,6 +57,8 @@ export type AnalyzedPlanNode = {
   node: NormalizedPlanNode
   metrics: DerivedNodeMetrics
   contextEvidence?: OperatorContextEvidence | null
+  /** Phase 59: human interpretive paragraph for selected-node panel. */
+  operatorInterpretation?: string | null
 }
 
 /** Detected from parsed plan JSON (not declared EXPLAIN metadata). */
@@ -86,6 +88,44 @@ export type PlanInputNormalizationInfo = {
   detail?: string | null
 }
 
+/** Evidence-backed prioritized bottleneck (API camelCase). Phase 59: class + causeHint. */
+export type PlanBottleneckInsight = {
+  insightId: string
+  rank: number
+  kind: string
+  /** camelCase enum e.g. cpuHotspot, ioHotspot (Phase 59+; may be absent on very old artifacts). */
+  bottleneckClass?: string
+  /** camelCase: primaryFocus | downstreamSymptom | ambiguous */
+  causeHint?: string
+  headline: string
+  detail: string
+  nodeIds: string[]
+  relatedFindingIds: string[]
+  symptomNote?: string | null
+  /** Phase 60: hedged “because → likely” propagation line. */
+  propagationNote?: string | null
+  /** Phase 61: human anchor for “where” in the plan (not a raw path). */
+  humanAnchorLabel?: string | null
+}
+
+/** Phase 61: plan story beat with optional graph focus (camelCase JSON). Legacy artifacts may use plain strings. */
+export type StoryPropagationBeat = {
+  text: string
+  focusNodeId?: string | null
+  anchorLabel: string
+}
+
+/** Phase 60: structured plan story (camelCase JSON). */
+export type PlanStory = {
+  planOverview: string
+  workConcentration: string
+  likelyExpenseDrivers: string
+  executionShape: string
+  inspectFirstPath: string
+  propagationBeats: (string | StoryPropagationBeat)[]
+  indexShapeNote: string
+}
+
 export type PlanSummary = {
   totalNodeCount: number
   maxDepth: number
@@ -98,6 +138,8 @@ export type PlanSummary = {
   topSharedReadHotspotNodeIds: string[]
   severeFindingsCount: number
   warnings: string[]
+  /** Phase 58: empty array when absent (older artifacts). */
+  bottlenecks?: PlanBottleneckInsight[] | null
 }
 
 /** Plan-level rollup for access-path / index posture (camelCase from API). */
@@ -150,6 +192,8 @@ export type OptimizationSuggestion = {
   relatedFindingDiffIds?: string[] | null
   /** Compare payload: stable index insight diff ids (`ii_*`). */
   relatedIndexInsightDiffIds?: string[] | null
+  /** Phase 59: bottleneck insight ids (`bn_*`) linked from enrichment. */
+  relatedBottleneckInsightIds?: string[] | null
   /** Phase 49: alternate ids (e.g. legacy carried compare suggestion ids) for deep links. */
   alsoKnownAs?: string[] | null
 }
@@ -168,6 +212,8 @@ export type PlanAnalysisResult = {
   indexInsights?: PlanIndexInsight[] | null
   /** Phase 32: ranked optimization / next-step suggestions. */
   optimizationSuggestions?: OptimizationSuggestion[] | null
+  /** Phase 60: structured storytelling (backfilled on reopen when absent). */
+  planStory?: PlanStory | null
   /** Phase 35: how raw plan input was interpreted when sent as `planText`. */
   planInputNormalization?: PlanInputNormalizationInfo | null
   /** Phase 37: optional ownership / sharing metadata when auth is enabled. */
@@ -543,6 +589,22 @@ export type DiagnosticsPayload = {
   nodesA: NodeDiagnostics[]
 }
 
+/** Phase 60: Compare change story (camelCase JSON). */
+/** Phase 61: compare change beat with optional pair focus. Legacy: plain string. */
+export type ComparisonStoryBeat = {
+  text: string
+  focusNodeIdA?: string | null
+  focusNodeIdB?: string | null
+  pairAnchorLabel: string
+}
+
+export type ComparisonStory = {
+  overview: string
+  changeBeats: (string | ComparisonStoryBeat)[]
+  investigationPath: string
+  structuralReading: string
+}
+
 export type PlanComparisonResult = {
   comparisonId: string
   planA: PlanAnalysisResult
@@ -584,6 +646,10 @@ export type PlanComparisonResult = {
   narrative: string
   /** Phase 32: compare-scoped next steps (not identical to plan B analyze list). */
   compareOptimizationSuggestions?: OptimizationSuggestion[] | null
+  /** Phase 59: compact bottleneck posture lines (A vs B). */
+  bottleneckBrief?: { lines: string[] } | null
+  /** Phase 60: before/after change story (backfilled on reopen when absent). */
+  comparisonStory?: ComparisonStory | null
   diagnostics?: DiagnosticsPayload | null
   artifactAccess?: StoredArtifactAccess | null
   /** Phase 49: persisted JSON schema generation. */

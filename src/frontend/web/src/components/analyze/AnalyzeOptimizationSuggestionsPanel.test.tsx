@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import type { AnalyzedPlanNode, OptimizationSuggestion } from '../../api/types'
+import type { AnalyzedPlanNode, OptimizationSuggestion, PlanBottleneckInsight } from '../../api/types'
 import { AnalyzeOptimizationSuggestionsPanel } from './AnalyzeOptimizationSuggestionsPanel'
 
 vi.mock('../VirtualizedListColumn', () => ({
@@ -83,5 +83,40 @@ describe('AnalyzeOptimizationSuggestionsPanel grouped + virtual rows', () => {
     expect(headers.length).toBe(2)
     expect(headers[0]?.textContent).toBe('Statistics & planner accuracy')
     expect(headers[1]?.textContent).toBe('Index experiments')
+  })
+
+  it('shows bottleneck tie-in when relatedBottleneckInsightIds resolves against bottlenecks', () => {
+    const bottlenecks: PlanBottleneckInsight[] = [
+      {
+        insightId: 'bn_1',
+        rank: 1,
+        kind: 'time_exclusive',
+        bottleneckClass: 'sortOrSpillPressure',
+        causeHint: 'downstreamSymptom',
+        headline: 'Heavy sort under root',
+        detail: 'd',
+        nodeIds: ['n1'],
+        relatedFindingIds: [],
+      },
+    ]
+    const s = baseSuggestion({
+      suggestionId: 'sg1',
+      title: 'Review sort inputs',
+      relatedBottleneckInsightIds: ['bn_1'],
+    })
+    render(
+      <AnalyzeOptimizationSuggestionsPanel
+        sortedOptimizationSuggestions={[s]}
+        expandedOptimizationId={null}
+        setExpandedOptimizationId={() => {}}
+        jumpToNodeId={() => {}}
+        byId={new Map()}
+        nodeLabel={(n) => n.nodeId}
+        bottlenecks={bottlenecks}
+      />,
+    )
+    expect(screen.getByLabelText('Linked bottleneck')).toBeInTheDocument()
+    expect(screen.getByText(/Because of bottleneck/i)).toBeInTheDocument()
+    expect(screen.getByText(/Heavy sort under root/)).toBeInTheDocument()
   })
 })

@@ -165,6 +165,38 @@
   margin-top: 4px;
 }
 
+.pqat-fieldLabel--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pqat-select--meta {
+  margin-top: 6px;
+  max-width: 100%;
+  font-size: 0.8125rem;
+}
+
+.pqat-input--meta {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+
+.pqat-checkRow--meta {
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.pqat-codeInline {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 0.12em 0.4em;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-input) 70%, transparent);
+  color: var(--text-h);
+}
+
 .pqat-textarea--plan {
   min-height: 260px;
 }
@@ -713,6 +745,8 @@
 
 /* --- Route / chunk loading --- */
 .pqat-routeFallback {
+  position: relative;
+  overflow: hidden;
   min-height: 180px;
   display: flex;
   flex-direction: column;
@@ -721,10 +755,23 @@
   gap: 10px;
   padding: 24px 28px;
   border-radius: var(--pqat-radius-panel, 14px);
-  border: 1px dashed color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
-  background: color-mix(in srgb, var(--surface-workspace) 70%, var(--surface-tool));
+  border: 1px solid color-mix(in srgb, var(--accent-border) 18%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 55%, var(--surface-workspace));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-h) 5%, transparent);
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.pqat-routeFallback::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--deck-accent, var(--accent-border)), transparent 72%);
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .pqat-routeFallback__title {
@@ -765,9 +812,28 @@
 }
 
 .pqat-customizerFallback {
-  padding: 12px 0;
-  font-size: 0.75rem;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 75%, var(--surface-workspace));
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.pqat-customizerFallback__label {
+  display: block;
+  font-weight: 650;
+  color: var(--text-h);
+}
+
+.pqat-customizerFallback__hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.6875rem;
   color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 /* --- Customizer inner --- */
@@ -982,6 +1048,28 @@
   color: var(--text-h);
 }
 
+/* Phase 57 — persisted/request artifact errors (Analyze + Compare) */
+.pqat-artifactErrorBanner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pqat-artifactErrorBanner__kicker {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pqat-artifactErrorBanner__message {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.5;
+}
+
 .pqat-stateBanner--error {
   border-color: var(--signal-error-border);
   background: var(--signal-error-bg);
@@ -1106,6 +1194,60 @@
   pointer-events: none;
 }
 
+/* Phase 57 — shared chrome for customizer, sharing, and similar utility stacks */
+.pqat-metaPanel {
+  position: relative;
+}
+
+.pqat-metaPanel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--deck-accent, var(--accent-border)), transparent 70%);
+  opacity: 0.88;
+  pointer-events: none;
+  border-radius: var(--pqat-radius-control, 11px) var(--pqat-radius-control, 11px) 0 0;
+}
+
+.pqat-authHelpCard {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: var(--pqat-radius-control, 10px);
+  border: 1px solid color-mix(in srgb, var(--signal-info-border) 45%, var(--border-subtle));
+  background: color-mix(in srgb, var(--signal-info-bg) 55%, var(--surface-tool));
+}
+
+.pqat-authHelpCard__title {
+  margin: 0 0 8px;
+  font-family: var(--heading);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pqat-authHelpCard__text {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.pqat-authHelpCard__text:last-child {
+  margin-bottom: 0;
+}
+
+.pqat-authHelpCard__fine {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
 .pqat-sharingDetails {
   margin-top: 12px;
   border-radius: var(--pqat-radius-control, 11px);
@@ -1152,6 +1294,12 @@
   .pqat-stateBanner,
   .pqat-emptyHint,
   .pqat-summaryDeck {
+    animation: none;
+  }
+
+  .pqat-routeFallback__bar::after,
+  .pqat-graphSkeleton__chip,
+  .pqat-graphSkeleton__canvas::after {
     animation: none;
   }
 }

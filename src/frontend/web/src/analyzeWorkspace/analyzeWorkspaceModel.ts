@@ -11,6 +11,7 @@ export type AnalyzeWorkspaceRegionId = 'capture' | 'summary' | 'workspace' | 'gu
 export type AnalyzeGuideSectionId =
   | 'selection'
   | 'whatHappened'
+  | 'mainBottlenecks'
   | 'hotspots'
   | 'topFindings'
   | 'nextSteps'
@@ -43,7 +44,8 @@ export const analyzeWorkspaceRegionLabels: Record<AnalyzeWorkspaceRegionId, stri
 
 export const analyzeGuideSectionLabels: Record<AnalyzeGuideSectionId, string> = {
   selection: 'Selection snapshot',
-  whatHappened: 'What happened',
+  whatHappened: 'Plan orientation & narrative',
+  mainBottlenecks: 'Main bottlenecks',
   hotspots: 'Where to inspect next',
   topFindings: 'Top findings (preview)',
   nextSteps: 'Next steps (preview)',
@@ -78,6 +80,7 @@ const allRegionsTrue = (): Record<AnalyzeWorkspaceRegionId, boolean> => ({
 const defaultGuideOrder: AnalyzeGuideSectionId[] = [
   'selection',
   'whatHappened',
+  'mainBottlenecks',
   'hotspots',
   'topFindings',
   'nextSteps',
@@ -150,6 +153,7 @@ function isGuideSectionId(x: unknown): x is AnalyzeGuideSectionId {
   return (
     x === 'selection' ||
     x === 'whatHappened' ||
+    x === 'mainBottlenecks' ||
     x === 'hotspots' ||
     x === 'topFindings' ||
     x === 'nextSteps' ||

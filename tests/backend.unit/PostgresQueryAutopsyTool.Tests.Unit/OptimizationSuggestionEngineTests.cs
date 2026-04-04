@@ -113,6 +113,23 @@ public sealed class OptimizationSuggestionEngineTests
     }
 
     [Fact]
+    public void Query_shape_boundary_fixture_produces_rewrite_suggestion_and_bottleneck_linked_rationale()
+    {
+        var analysis = AnalyzeFixture("query_shape_cte_under_nested_loop.json");
+        Assert.Contains(analysis.Findings, f => f.RuleId == "S.query-shape-boundary");
+
+        var boundary = analysis.OptimizationSuggestions.FirstOrDefault(s =>
+            s.Title.Contains("CTE/subquery", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(boundary);
+        Assert.Equal(OptimizationSuggestionCategory.QueryRewrite, boundary.Category);
+        Assert.Equal(SuggestedActionType.ReviewJoinShape, boundary.SuggestedActionType);
+
+        var withBottleneckHint = analysis.OptimizationSuggestions.Where(s =>
+            s.Rationale.Contains("Primary bottleneck", StringComparison.OrdinalIgnoreCase)).ToArray();
+        Assert.NotEmpty(withBottleneckHint);
+    }
+
+    [Fact]
     public void Complex_timescaledb_query_is_not_naive_index_only_story()
     {
         var analysis = AnalyzeFixture("complex_timescaledb_query.json");
@@ -160,6 +177,7 @@ public sealed class OptimizationSuggestionEngineTests
             new HashJoinPressureRule(),
             new MaterializeLoopsConcernRule(),
             new HighFanOutJoinWarningRule(),
+            new QueryShapeBoundaryConcernRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
 
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);

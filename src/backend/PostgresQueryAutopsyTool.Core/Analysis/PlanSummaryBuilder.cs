@@ -1,4 +1,5 @@
 using PostgresQueryAutopsyTool.Core.Domain;
+using PostgresQueryAutopsyTool.Core.Findings;
 
 namespace PostgresQueryAutopsyTool.Core.Analysis;
 
@@ -8,7 +9,8 @@ public static class PlanSummaryBuilder
         string rootNodeId,
         IReadOnlyList<AnalyzedPlanNode> nodes,
         IReadOnlyList<Domain.AnalysisFinding> findings,
-        int hotspotCount = 5)
+        int hotspotCount = 5,
+        string? queryText = null)
     {
         var byId = nodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
         var root = byId[rootNodeId];
@@ -55,6 +57,9 @@ public static class PlanSummaryBuilder
 
         var severeFindings = findings.Count(f => f.Severity == Domain.FindingSeverity.High);
 
+        var evalCtx = new FindingEvaluationContext(rootNodeId, nodes);
+        var bottlenecks = PlanBottleneckBuilder.Build(evalCtx, findings, queryText);
+
         return new PlanSummary(
             TotalNodeCount: totalNodeCount,
             MaxDepth: maxDepth,
@@ -66,7 +71,8 @@ public static class PlanSummaryBuilder
             TopInclusiveTimeHotspotNodeIds: topInclusive,
             TopSharedReadHotspotNodeIds: topSharedRead,
             SevereFindingsCount: severeFindings,
-            Warnings: warnings
+            Warnings: warnings,
+            Bottlenecks: bottlenecks
         );
     }
 }

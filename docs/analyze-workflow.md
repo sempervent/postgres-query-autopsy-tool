@@ -16,10 +16,11 @@ See [Capturing EXPLAIN JSON](capturing-explain-json.md) for recommended commands
 After **Analyze** succeeds, the page is organized as an **investigation workstation** instead of one long vertical stack:
 
 1. **Input / actions** — paste, suggested EXPLAIN, **Analyze**, exports, optional **Sharing** when auth is enabled.
-2. **Summary + metadata** — compact summary line, **Plan source / EXPLAIN metadata**, and share/artifact copy when applicable.
+2. **Summary + metadata** — compact summary line, **Plan story** (Phase 60–61: structured overview, work concentration, drivers, inspect-first path, **flow beats** as objects with optional **Focus** buttons tied to canonical `nodeId`, optional index/shape line naming the operator anchor), **Plan source / EXPLAIN metadata**, and share/artifact copy when applicable.
 3. **Plan workspace** — the graph (or text tree) is the visual center. **Responsive tiers** (`useWorkspaceLayoutTier`): **narrow** (&lt;900px) stacks the guide **below** the graph; **medium** (900–1319px) keeps **graph + Plan guide** side-by-side with slightly different column weighting than **wide** (≥1320px), which gives the graph and investigation surface more horizontal room. The **left** column holds plan mode toggles, search boxes, fit/focus/reset, and the tree or graph; the **right** column (when visible) is the **Plan guide** rail with:
    - **Selection snapshot** when a node is selected: human-readable label, join/branch subtitle when applicable, up to three key metric lines, and a short cue when a severe finding anchors that node
-   - **What happened** — narrative text with line clamping so it stays scannable
+   - **Plan orientation** — Phase 60: **`planStory.planOverview`** when present, then **Narrative detail** (same `narrative.whatHappened` text, clamped), then **Flow hints (anchored)** when propagation beats exist (Phase 61: each beat can **Focus** the linked operator using a human **`anchorLabel`**, not a raw path)
+   - **Main bottlenecks** (Phase 58–61) — up to four **evidence-backed** lines from `PlanSummary.bottlenecks` (exclusive/subtree time leaders, top shared-read concentration, high-severity findings, or **`S.query-shape-boundary`** when not redundant), each tagged with a conservative **`bottleneckClass`** (CPU vs I/O vs sort/spill vs join amplification, etc.) and a **`causeHint`** (primary focus vs likely downstream symptom vs ambiguous). Optional **symptom** notes still apply (e.g. nested-loop inner side). **`humanAnchorLabel`** (Phase 61) drives the **Focus** button caption. **Focus** jumps the graph selection
    - **Where to inspect next** — the same **hotspot** rows as elsewhere (click/keyboard selects the node; **Copy** stays a separate control)
    - **Top findings** — a compact preview (not a replacement for the full list below)
    - **Next steps** — a short preview of **optimization suggestions** with **Focus …** (and **Why + cautions** where shown) so “what to try next” sits next to the plan
@@ -27,7 +28,7 @@ After **Analyze** succeeds, the page is organized as an **investigation workstat
 
    On **narrow** viewports the rail **stacks under** the graph so the flow remains a single column.
 
-4. **Findings, suggestions, and selected node** — below the plan workspace, a second band keeps the **full findings** list on one side and the **full optimization suggestions** plus **selected node** detail on the other. The **Selected node** panel shows the primary label, cues, and actions first; the heaviest blocks load as a **lazy sub-chunk** (Phase 45). Within that chunk, **`<details>`** still progressive-discloses **operator context**, **workers**, raw JSON, and metrics.
+4. **Findings, suggestions, and selected node** — below the plan workspace, a second band keeps the **full findings** list on one side and the **full optimization suggestions** plus **selected node** detail on the other. The **Selected node** panel shows the primary label, an operator-level **What this operator is doing** readout when `operatorInterpretation` is present (Phase 59, derived from `OperatorNarrativeHelper`), then cues and actions; the heaviest blocks load as a **lazy sub-chunk** (Phase 45). **Optimization suggestions** may show a **Because of bottleneck** line when `relatedBottleneckInsightIds` resolves to a ranked bottleneck. Within the lazy chunk, **`<details>`** still progressive-discloses **operator context**, **workers**, raw JSON, and metrics.
 
 The graph panel uses a **viewport-relative height** (clamped min/max) so small plans do not leave a huge empty band under the canvas; large plans still get enough room. Graph behavior (search highlight, collapse, fit, focus, URL **`?node=`** sync, copy reference/link) is unchanged in intent.
 
@@ -67,7 +68,7 @@ The Analyze UI is split into **typed panels** (capture, summary, plan workspace,
 
 - **Presets:** **Balanced** (default), **Wide graph** (hides plan guide rail), **Reviewer** (findings → selected node → suggestions in the lower band), **Focus** (hides suggestions region), **Detail** (suggestions before findings), **Compact** (hides summary, guide, and suggestions for a denser tree-first view).
 - **Visibility:** show or hide each major panel. If **plan capture** is hidden, a **Show input** strip appears so you can recover it.
-- **Plan guide section order:** **drag** the handle or use **Up/Down** to reorder blocks (selection snapshot, what happened, hotspots, top findings, next steps, source query).
+- **Plan guide section order:** **drag** the handle or use **Up/Down** to reorder blocks (selection snapshot, what happened, **main bottlenecks**, hotspots, top findings, next steps, source query).
 - **Lower band column order:** same **drag** + **Up/Down** pattern for **findings**, **optimization suggestions**, and **selected node**; wide screens show columns side-by-side, medium/narrow wrap or stack by tier.
 
 **Persistence:** layout is stored in **`localStorage`** under **`pqat.analyzeWorkspaceLayout.v1`** (versioned JSON). When the API reports **`authEnabled`** and the SPA is built with **`VITE_AUTH_API_KEY`** or **`VITE_AUTH_BEARER_TOKEN`**, the same layout is **loaded from and saved to** **`GET`/`PUT /api/me/preferences/analyze_workspace_v1`** after hydrate (debounced saves). If auth is off or the request fails, **local layout still applies**.

@@ -12,5 +12,7 @@ public sealed record PlanSummary(
     IReadOnlyList<string> TopInclusiveTimeHotspotNodeIds,
     IReadOnlyList<string> TopSharedReadHotspotNodeIds,
     int SevereFindingsCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    /// <summary>Phase 58: prioritized bottleneck lines (evidence-backed; not duplicate findings).</summary>
+    IReadOnlyList<PlanBottleneckInsight> Bottlenecks);
 

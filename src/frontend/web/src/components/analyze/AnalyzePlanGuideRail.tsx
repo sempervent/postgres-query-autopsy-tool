@@ -14,6 +14,13 @@ import {
   suggestionFamilyLabel,
   suggestionPriorityShort,
 } from '../../presentation/optimizationSuggestionsPresentation'
+import {
+  bottleneckCauseHintLine,
+  bottleneckClassShortLabel,
+  bottleneckKindShortLabel,
+  bottlenecksForSummary,
+} from '../../presentation/bottleneckPresentation'
+import { normalizeStoryPropagationBeat } from '../../presentation/planReferencePresentation'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -74,6 +81,12 @@ export function AnalyzePlanGuideRail(props: {
                 ))}
               </ul>
             ) : null}
+            {selectedNode.operatorInterpretation?.trim() ? (
+              <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.92 }} aria-label="Selection interpretation">
+                <span style={{ fontWeight: 700 }}>Readout · </span>
+                {selectedNode.operatorInterpretation}
+              </div>
+            ) : null}
             {findingsForSelectedNode.filter((f) => f.severity >= 3)[0] ? (
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
                 <span style={{ fontWeight: 700 }}>Top signal:</span> {findingsForSelectedNode.filter((f) => f.severity >= 3)[0]?.title}
@@ -93,26 +106,128 @@ export function AnalyzePlanGuideRail(props: {
     ),
     whatHappened: (
       <>
-        <h3 style={{ fontSize: 13, margin: '0 0 6px' }}>What happened</h3>
+        <h3 style={{ fontSize: 13, margin: '0 0 6px' }}>Plan orientation</h3>
+        {analysis.planStory?.planOverview ? (
+          <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.45, color: 'var(--text)' }}>
+            {analysis.planStory.planOverview}
+          </p>
+        ) : null}
+        <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+          Narrative detail
+        </div>
         <p
           style={{
             margin: 0,
-            fontSize: 13,
+            fontSize: 12,
             lineHeight: 1.45,
             display: '-webkit-box',
-            WebkitLineClamp: 7,
+            WebkitLineClamp: 6,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
             whiteSpace: 'pre-wrap',
+            opacity: 0.92,
           }}
         >
           {analysis.narrative.whatHappened}
         </p>
+        {analysis.planStory?.propagationBeats?.length ? (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Flow hints (anchored)
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.45, opacity: 0.92 }}>
+              {analysis.planStory.propagationBeats.map((raw, i) => {
+                const b = normalizeStoryPropagationBeat(raw)
+                return (
+                  <li key={`flow-${i}`} style={{ marginBottom: 8 }}>
+                    <div>{b.text}</div>
+                    {b.focusNodeId ? (
+                      <button
+                        type="button"
+                        onClick={() => jumpToNodeId(b.focusNodeId!)}
+                        style={{ marginTop: 4, fontSize: 11, padding: '3px 8px', borderRadius: 8, cursor: 'pointer' }}
+                      >
+                        Focus {b.anchorLabel?.trim() ? `· ${b.anchorLabel}` : 'operator'}
+                      </button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ) : null}
       </>
     ),
+    mainBottlenecks: (() => {
+      const bn = bottlenecksForSummary(analysis.summary.bottlenecks)
+      if (!bn.length) {
+        return (
+          <>
+            <h3 style={{ fontSize: 13, margin: '14px 0 6px' }}>Main bottlenecks</h3>
+            <div style={{ fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>
+              No prioritized bottleneck list for this snapshot (often missing ANALYZE timing). Hotspots and findings still apply.
+            </div>
+          </>
+        )
+      }
+      return (
+        <>
+          <h3 style={{ fontSize: 13, margin: '14px 0 8px' }}>Main bottlenecks</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {bn.map((b) => {
+              const anchor = b.nodeIds[0]
+              return (
+                <div
+                  key={b.insightId}
+                  style={{
+                    padding: 8,
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: 'color-mix(in srgb, var(--accent-bg) 14%, transparent)',
+                  }}
+                  aria-label={`Bottleneck ${b.rank}: ${b.headline}`}
+                >
+                  <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {b.rank}. {bottleneckKindShortLabel(b.kind)} · {bottleneckClassShortLabel(b.bottleneckClass)}
+                  </div>
+                  {bottleneckCauseHintLine(b.causeHint) ? (
+                    <div style={{ marginTop: 4, fontSize: 10, opacity: 0.82 }}>{bottleneckCauseHintLine(b.causeHint)}</div>
+                  ) : null}
+                  <div style={{ fontWeight: 750, fontSize: 13, marginTop: 4 }}>{b.headline}</div>
+                  <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, opacity: 0.92 }}>{b.detail}</div>
+                  {b.symptomNote ? (
+                    <div style={{ marginTop: 6, fontSize: 11, opacity: 0.88, fontStyle: 'italic' }}>{b.symptomNote}</div>
+                  ) : null}
+                  {b.propagationNote?.trim() ? (
+                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>{b.propagationNote}</div>
+                  ) : null}
+                  {anchor ? (
+                    <button
+                      type="button"
+                      onClick={() => jumpToNodeId(anchor)}
+                      style={{ marginTop: 8, fontSize: 11, padding: '4px 8px', borderRadius: 8, cursor: 'pointer' }}
+                    >
+                      {b.humanAnchorLabel?.trim()
+                        ? `Focus · ${b.humanAnchorLabel.length > 72 ? `${b.humanAnchorLabel.slice(0, 71)}…` : b.humanAnchorLabel}`
+                        : 'Focus operator'}
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )
+    })(),
     hotspots: (
       <>
         <h3 style={{ fontSize: 13, margin: '14px 0 8px' }}>Where to inspect next</h3>
+        {analysis.planStory?.inspectFirstPath?.trim() ? (
+          <div className="pqat-hint" style={{ fontSize: 12, lineHeight: 1.45, marginBottom: 10, color: 'var(--text)' }}>
+            <span style={{ fontWeight: 650 }}>Suggested sequence · </span>
+            {analysis.planStory.inspectFirstPath}
+          </div>
+        ) : null}
         {(() => {
           const hs = buildHotspots(analysis)
           if (!hs.length) {

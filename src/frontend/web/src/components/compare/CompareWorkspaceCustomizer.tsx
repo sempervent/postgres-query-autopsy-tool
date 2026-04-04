@@ -13,8 +13,8 @@ export function CompareWorkspaceCustomizer({ api }: { api: CompareWorkspaceLayou
   }, [])
 
   return (
-    <details className="pqat-customizer" onToggle={onToggle}>
-      <summary>Customize workspace</summary>
+    <details className="pqat-customizer pqat-customizer--chrome pqat-metaPanel" onToggle={onToggle}>
+      <summary>Customize workspace layout</summary>
       {bodyMounted ? (
         <Suspense fallback={<CustomizerBodyFallback />}>
           <CompareWorkspaceCustomizerInner api={api} />

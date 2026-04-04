@@ -85,7 +85,7 @@ services:
       PLAYWRIGHT_SKIP_WEBSERVER: "1"
       PLAYWRIGHT_BASE_URL: http://web
       CI: "1"
-      # Default suite: non-auth smoke. Override: `--project=e2e-auth-api-key` or `e2e-auth-jwt`
+      # Default suite: non-auth smoke. Override: `--project=e2e-auth-api-key`, `e2e-auth-jwt`, `e2e-visual`, etc.
       PLAYWRIGHT_CLI_ARGS: --project=e2e-smoke
       PQAT_E2E_API_KEY_USER_A: ${PQAT_E2E_API_KEY_USER_A:-}
       PQAT_E2E_API_KEY_USER_B: ${PQAT_E2E_API_KEY_USER_B:-}
