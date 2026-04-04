@@ -182,28 +182,38 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
 
       {loadingPersisted ? (
         <div
-          className="pqat-panel pqat-panel--tool"
-          style={{ marginTop: 14, padding: 12 }}
+          className="pqat-stateBanner pqat-stateBanner--loading"
           data-testid="analyze-persisted-loading"
         >
-          Opening shared analysis…
+          <span className="pqat-stateBanner__title">Restoring snapshot</span>
+          <div className="pqat-stateBanner__body">Opening shared analysis…</div>
         </div>
       ) : null}
 
       {error ? (
         <div
-          className="pqat-panel"
-          style={{ marginTop: 14, padding: 14, borderColor: 'color-mix(in srgb, #f59e0b 55%, var(--border))', background: 'color-mix(in srgb, #f59e0b 12%, var(--surface-1))' }}
+          className={`pqat-stateBanner ${/access denied/i.test(error) ? 'pqat-stateBanner--denial' : /422|409|corrupt|incompatible/i.test(error) ? 'pqat-stateBanner--warn' : 'pqat-stateBanner--error'}`}
           role="alert"
           data-testid="analyze-page-error"
         >
-          <b>Error:</b> {error}
+          <span className="pqat-stateBanner__title">
+            {/access denied/i.test(error)
+              ? 'Access blocked'
+              : /422|409|corrupt|incompatible/i.test(error)
+                ? 'Artifact issue'
+                : 'Could not complete request'}
+          </span>
+          <div className="pqat-stateBanner__body">
+            <strong>Error:</strong> {error}
+          </div>
         </div>
       ) : null}
 
       {!analysis ? (
-        <div className="pqat-hint pqat-panel pqat-panel--tool" style={{ marginTop: 14, padding: 14, marginBottom: 0 }}>
-          Paste a plan and click <b>Analyze</b>.
+        <div className="pqat-emptyHint pqat-hint" style={{ marginBottom: 0 }}>
+          <span className="pqat-emptyHint__lead">Ready to analyze</span>
+          Paste a plan JSON or psql <code>QUERY PLAN</code> output, then choose <b>Analyze</b>. The graph and findings
+          load after the server parses the plan.
         </div>
       ) : null}
     </section>

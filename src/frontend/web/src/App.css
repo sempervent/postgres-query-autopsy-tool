@@ -202,6 +202,41 @@
   background: color-mix(in srgb, var(--surface-1) 72%, var(--bg));
   backdrop-filter: blur(12px);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--text-h) 4%, transparent);
+  position: relative;
+}
+
+.topBar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent-border) 55%, transparent) 35%,
+    color-mix(in srgb, var(--deck-accent, var(--accent-border)) 40%, transparent) 55%,
+    transparent
+  );
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.brandTagline {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  line-height: 1.2;
 }
 
 .brandTitle {

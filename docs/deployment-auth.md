@@ -73,6 +73,7 @@ Not implemented in Phase 38. Operate on the SQLite file (volume snapshot, `sqlit
 - **`GET /api/config`** exposes **`authEnabled`**, **`authMode`**, **`authIdentityKind`** (`none` \| `proxy` \| `legacy_bearer` \| `jwt` \| `api_key`), **`authHelp`** (non-secret summary), **`rateLimitingEnabled`**, and storage path.
 - **`VITE_AUTH_BEARER_TOKEN`** — adds **`Authorization: Bearer …`** (JWT or legacy bearer).
 - **`VITE_AUTH_API_KEY`** — adds **`X-Api-Key`** (if set, preferred over bearer for browser calls).
+- **Phase 55:** When auth is on, the **Sharing & access** panel (Analyze/Compare summary) surfaces **`authHelp`** and browser env hints inside a compact **info** callout; controls use shared **`pqat-*`** inputs/buttons for consistency with the rest of the workstation.
 
 ### Reverse proxies, nginx, and auth headers (Phase 53)
 

@@ -1,5 +1,6 @@
 /**
  * Phase 43–44 — shared workstation visual language (Analyze + Compare).
+ * Phase 55 — depth, instrument chrome, calmer motion hooks.
  * Dense page/layout patterns live in workstation-patterns.css (imported after this file from App).
  * Uses tokens from index.css; scoped under .pqat-page where needed.
  */
@@ -54,6 +55,9 @@
   border: 1px solid var(--border-subtle);
   background: var(--surface-1);
   box-shadow: var(--elev-1);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.22s ease;
 }
 
 .pqat-panel--workspace {
@@ -93,6 +97,20 @@
   padding-bottom: 8px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.pqat-panel__header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: min(220px, 60%);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--deck-accent, var(--accent-border)), transparent);
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .pqat-panel__header:empty {
@@ -238,7 +256,40 @@
 }
 
 .pqat-listRow--suggestion:hover {
-  border-color: var(--border-subtle);
+  border-color: color-mix(in srgb, var(--accent-border) 28%, var(--border-subtle));
+}
+
+/* Phase 55 — guided suggestion layout */
+.pqat-guidedSuggestion {
+  position: relative;
+  padding-left: 4px;
+  border-left: 3px solid color-mix(in srgb, var(--accent-border) 65%, transparent);
+  margin-left: -2px;
+}
+
+.pqat-signalLine {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--pqat-radius-control, 11px);
+  background: color-mix(in srgb, var(--surface-tool) 70%, var(--surface-suggestion));
+  border: 1px solid color-mix(in srgb, var(--accent-border) 18%, var(--border-subtle));
+}
+
+.pqat-signalLine__label {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pqat-signalLine__text {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text);
 }
 
 .pqat-suggestionMeta--readable {
@@ -303,13 +354,19 @@
   color: #fca5a5;
 }
 
-/* --- Graph frame --- */
+/* --- Graph frame (instrument viewport) --- */
 .pqat-graphFrame {
+  position: relative;
+  min-height: 0;
   border-radius: var(--pqat-radius-panel, 14px);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 22%, var(--border));
   overflow: hidden;
   background: var(--surface-graph);
-  box-shadow: var(--elev-2), inset 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent);
+  box-shadow:
+    var(--elev-2),
+    inset 0 1px 0 color-mix(in srgb, var(--text-h) 7%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--bg) 80%, transparent),
+    0 0 48px -12px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .pqat-graphToolbar {
@@ -520,6 +577,13 @@
 
 .clickableRow:not(.clickableRow--selected):hover {
   border-color: color-mix(in srgb, var(--accent-border) 30%, var(--border-subtle)) !important;
+}
+
+.clickableRow--selected {
+  box-shadow:
+    inset 3px 0 0 0 var(--accent-border),
+    0 0 0 1px color-mix(in srgb, var(--accent-border) 20%, transparent),
+    0 6px 20px -8px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 /* --- React Flow dark canvas --- */

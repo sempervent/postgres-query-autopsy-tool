@@ -10,9 +10,9 @@
 
 After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
 
-## Visual hierarchy (Phase 43)
+## Visual hierarchy (Phase 43) + Phase 55 polish
 
-Compare uses the same **`pqat-*`** styling as Analyze: capture card, summary **metric tiles**, navigator and pair **workspace** panels, and a dashed **customizer** well. Intro copy sits in a structured overview card. Behavior, URL params, and layout persistence are unchanged.
+Compare uses the same **`pqat-*`** styling as Analyze: capture card, summary **metric tiles**, navigator and pair **workspace** panels, and a dashed **customizer** well. **Phase 55** adds the same **state banners** for reopen/load/errors, a **comparing** info banner during POST, **intro** top accent strip, and **summary shell** glow/border tuning. Intro copy sits in a structured overview card. Behavior, URL params, and layout persistence are unchanged.
 
 ## Patterns & delivery (Phase 44)
 

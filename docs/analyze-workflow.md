@@ -31,6 +31,17 @@ After **Analyze** succeeds, the page is organized as an **investigation workstat
 
 The graph panel uses a **viewport-relative height** (clamped min/max) so small plans do not leave a huge empty band under the canvas; large plans still get enough room. Graph behavior (search highlight, collapse, fit, focus, URL **`?node=`** sync, copy reference/link) is unchanged in intent.
 
+## Workstation presentation (Phase 55)
+
+- **Empty capture:** “Ready to analyze” lead-in plus short guidance before the first run.
+- **Errors / reopen:** Banners classify **access denied**, **artifact corrupt / schema mismatch** (422/409), and generic failures; persisted loads use a dashed **loading** banner.
+- **Summary deck:** The snapshot card uses a top **signal strip** (accent gradient), **`Outfit`** + **IBM Plex Sans** typography (see `index.html`), and the same metric grid rhythm as before.
+- **Findings:** Selected rows prefer a **left accent bar** (`ClickableRow` **`accent-bar`**) instead of only a flat fill.
+- **Suggestions:** Titles sit in a **guided** column with **Try next** / **Why it matters** in small **signal-line** callouts.
+- **Sharing (auth):** **Sharing & access** is a framed **`<details>`** with **`pqat-*`** form controls and an inline **info** strip summarizing **`authHelp`** + Vite env hints.
+
+Motion: light **fade-in** on heavy panels and banners; **`prefers-reduced-motion: reduce`** disables shimmer/fade loops globally (`index.css`).
+
 ## Visual hierarchy (Phase 43)
 
 Regions use a shared workstation style: **capture** and **summary** panels read as lighter “chrome”; **plan workspace** is the elevated investigation surface; **findings** and **selected node** use detail panels with clearer typography rungs; severity and confidence appear as **chips**; the **Plan guide** rail is visually distinct from the graph column. This does not change analysis behavior or layout persistence.

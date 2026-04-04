@@ -1,4 +1,6 @@
-# Visual regression (optional, Phase 51)
+# Visual regression (optional, Phase 51–55)
+
+**Phase 55** refreshed the workstation look (state banners, summary deck, typography). Baselines taken *before* that work are obsolete; new snapshots should prefer **post–Phase 55** Analyze/Compare “happy path” + one **access denied** frame if you add visual coverage.
 
 No screenshot baselines are committed yet. When adding visual checks:
 

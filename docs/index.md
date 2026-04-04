@@ -1,6 +1,6 @@
 # Postgres Query Autopsy Tool
 
-A forensic workstation for PostgreSQL execution plans.
+A forensic workstation for PostgreSQL execution plans. The **Phase 55** UI refresh tightens the dark “operator deck” look—clearer state banners (errors, access, loading), a stronger summary column, guided suggestion blocks, and calmer motion (respects **reduced motion**).
 
 Given `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` output, the tool:
 

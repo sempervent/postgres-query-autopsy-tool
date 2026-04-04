@@ -30,31 +30,37 @@ function SuggestionCardBody(props: {
   const why = s.whyItMatters ?? s.rationale
 
   return (
-    <div className="pqat-listRow pqat-listRow--suggestion" style={{ padding: 14 }}>
+    <div className="pqat-listRow pqat-listRow--suggestion pqat-workspaceReveal" style={{ padding: 14 }}>
       {s.isGroupedCluster ? (
         <div className="pqat-suggestionGroupedBadge" title="Merged from multiple overlapping findings">
           Combined suggestion
         </div>
       ) : null}
-      <div style={{ fontWeight: 750, fontSize: '0.9375rem', lineHeight: 1.35, color: 'var(--text-h)' }}>{s.title}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
-        <span className="pqat-chip pqat-chip--suggestionMeta" title="Suggestion family">
-          {suggestionFamilyLabel(s.suggestionFamily)}
-        </span>
-        <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionConfidenceShort(s.confidence)}</span>
-        <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionPriorityShort(s.priority)}</span>
-        <span className="pqat-chip" title="Technical category from engine">
-          {optimizationCategoryLabel(s.category)}
-        </span>
-      </div>
-      <div style={{ marginTop: 10, fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>{s.summary}</div>
-      <div style={{ marginTop: 10, fontSize: '0.8125rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-        <span style={{ fontWeight: 700, color: 'var(--text-h)' }}>Try next · </span>
-        {nextAction}
-      </div>
-      <div style={{ marginTop: 8, fontSize: '0.8125rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-        <span style={{ fontWeight: 700, color: 'var(--text-h)' }}>Why it matters · </span>
-        {why}
+      <div className="pqat-guidedSuggestion">
+        <div style={{ fontWeight: 750, fontSize: '0.9375rem', lineHeight: 1.35, color: 'var(--text-h)' }}>{s.title}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
+          <span className="pqat-chip pqat-chip--suggestionMeta" title="Suggestion family">
+            {suggestionFamilyLabel(s.suggestionFamily)}
+          </span>
+          <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionConfidenceShort(s.confidence)}</span>
+          <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionPriorityShort(s.priority)}</span>
+          <span className="pqat-chip" title="Technical category from engine">
+            {optimizationCategoryLabel(s.category)}
+          </span>
+        </div>
+        <div style={{ marginTop: 10, fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>{s.summary}</div>
+        <div className="pqat-signalLine">
+          <span className="pqat-signalLine__label">Try next</span>
+          <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
+            {nextAction}
+          </div>
+        </div>
+        <div className="pqat-signalLine">
+          <span className="pqat-signalLine__label">Why it matters</span>
+          <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
+            {why}
+          </div>
+        </div>
       </div>
       {s.validationSteps?.length ? (
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>

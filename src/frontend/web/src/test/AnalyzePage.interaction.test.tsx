@@ -535,3 +535,14 @@ test('customize workspace Down on guide order persists layout to localStorage', 
   const stored = JSON.parse(raw!) as { guideSectionOrder: string[] }
   expect(stored.guideSectionOrder[0]).toBe('whatHappened')
 })
+
+test('capture panel shows guided empty state before first analysis', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  expect(screen.getByText('Ready to analyze')).toBeInTheDocument()
+  expect(screen.getByText(/Paste a plan JSON or psql/i)).toBeInTheDocument()
+})

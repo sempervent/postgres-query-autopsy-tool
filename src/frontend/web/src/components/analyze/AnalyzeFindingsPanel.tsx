@@ -50,6 +50,7 @@ export function AnalyzeFindingsPanel(props: {
       <ClickableRow
         key={f.findingId}
         className="pqat-listRow"
+        selectedEmphasis="accent-bar"
         selected={!!anchorId && anchorId === selectedNodeId}
         aria-label={`Finding: ${f.title}`}
         onActivate={() => {

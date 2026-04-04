@@ -32,10 +32,10 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
   }
 
   return (
-    <div className="pqat-panel pqat-panel--capture" style={{ marginTop: 4, padding: '16px 18px' }} aria-label="Analysis summary">
+    <div className="pqat-summaryDeck pqat-workspaceReveal" aria-label="Analysis summary">
       <div className="pqat-eyebrow">Snapshot</div>
-      <div style={{ fontWeight: 750, fontSize: '1rem', color: 'var(--text-h)', marginBottom: 14 }}>Summary &amp; metadata</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <h3 className="pqat-commandTitle">Summary &amp; metadata</h3>
+      <div className="pqat-metricGrid pqat-metricGrid--deck" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="pqat-metricTile">
           <div className="pqat-metricTile__label">Analysis id</div>
           <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all', fontSize: 13, marginTop: 6, color: 'var(--text-h)' }}>

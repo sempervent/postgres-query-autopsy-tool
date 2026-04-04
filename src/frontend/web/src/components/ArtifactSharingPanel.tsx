@@ -66,24 +66,26 @@ export function ArtifactSharingPanel({
   }
 
   return (
-    <details
-      data-testid="artifact-sharing-details"
-      style={{ marginTop: 12 }}
-      aria-label="Artifact sharing"
-    >
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Sharing</summary>
-      <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <details data-testid="artifact-sharing-details" className="pqat-sharingDetails" aria-label="Artifact sharing">
+      <summary>Sharing &amp; access</summary>
+      <div className="pqat-sharingDetails__body">
         <div>
-          <span style={{ opacity: 0.85 }}>Owner</span>{' '}
-          <span style={{ fontFamily: 'var(--mono)' }}>{artifactAccess.ownerUserId?.trim() || '—'}</span>
+          <span className="pqat-signalLine__label">Owner</span>{' '}
+          <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-h)' }}>
+            {artifactAccess.ownerUserId?.trim() || '—'}
+          </span>
         </div>
         <div>
-          <span style={{ opacity: 0.85, display: 'block', marginBottom: 4 }}>Access scope</span>
+          <label className="pqat-fieldLabel pqat-fieldLabel--sm" htmlFor={`pqat-share-scope-${artifactId}`}>
+            Access scope
+          </label>
           <select
+            id={`pqat-share-scope-${artifactId}`}
             data-testid="artifact-sharing-access-scope"
+            className="pqat-select"
+            style={{ marginTop: 6, maxWidth: '100%' }}
             value={scope}
             onChange={(e) => setScope(e.target.value)}
-            style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'inherit' }}
           >
             <option value="private">private (owner only)</option>
             <option value="link">link (capability URL when link access is on)</option>
@@ -92,45 +94,41 @@ export function ArtifactSharingPanel({
           </select>
         </div>
         {scope === 'group' ? (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ opacity: 0.85 }}>Group ids (comma-separated)</span>
+          <label className="pqat-fieldLabel pqat-fieldLabel--sm" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            Group ids (comma-separated)
             <input
               data-testid="artifact-sharing-groups-input"
+              className="pqat-input"
               value={groupsText}
               onChange={(e) => setGroupsText(e.target.value)}
               placeholder="e.g. perf-team, dba"
-              style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'var(--mono)', fontSize: 12 }}
+              style={{ fontFamily: 'var(--mono)', fontSize: '0.8125rem' }}
             />
           </label>
         ) : null}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input
-            data-testid="artifact-sharing-allow-link"
-            type="checkbox"
-            checked={allowLink}
-            onChange={(e) => setAllowLink(e.target.checked)}
-          />
-          Allow link-style access (opaque URL works for others when policy allows)
+        <label className="pqat-checkRow" style={{ cursor: 'pointer', marginTop: 2 }}>
+          <input data-testid="artifact-sharing-allow-link" type="checkbox" checked={allowLink} onChange={(e) => setAllowLink(e.target.checked)} />
+          <span>Allow link-style access (opaque URL when policy allows)</span>
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             data-testid="artifact-sharing-save"
             type="button"
+            className="pqat-btn pqat-btn--primary pqat-btn--sm"
             disabled={saving}
             onClick={() => void save()}
-            style={{ padding: '6px 12px', borderRadius: 10, cursor: saving ? 'not-allowed' : 'pointer' }}
           >
             {saving ? 'Saving…' : 'Save sharing'}
           </button>
           {msg ? (
-            <span data-testid="artifact-sharing-status" style={{ fontSize: 12, opacity: 0.9 }}>
+            <span data-testid="artifact-sharing-status" className="pqat-hint" style={{ margin: 0, color: 'var(--text-h)' }}>
               {msg}
             </span>
           ) : null}
         </div>
-        <div style={{ fontSize: 11, opacity: 0.78 }}>
-          {authHelp ? <p style={{ margin: '0 0 6px' }}>{authHelp}</p> : null}
-          <p style={{ margin: 0 }}>
+        <div className="pqat-stateBanner pqat-stateBanner--info" style={{ marginTop: 4, padding: '10px 12px' }}>
+          {authHelp ? <p style={{ margin: '0 0 8px', color: 'var(--text)' }}>{authHelp}</p> : null}
+          <p style={{ margin: 0, fontSize: '0.6875rem', lineHeight: 1.45, color: 'var(--text-secondary)' }}>
             Server enforces access. For browser calls:{' '}
             {authIdentityKind === 'api_key' ? (
               <>

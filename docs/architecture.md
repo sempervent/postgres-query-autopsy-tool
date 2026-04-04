@@ -26,6 +26,8 @@ The backend is organized as a modular monolith:
   - **Auth (Phase 37–38):** **`AuthIdentityMiddleware`** resolves **`UserIdentity`** (stable **`UserId`**, **group ids**, **`AuthIdentitySource`**) via **`ProxyHeaders`**, legacy **`BearerSubject`**, **`JwtBearer`** (HS256 + **`sub`**), or **`ApiKey`** ( **`SqliteApiKeyPrincipalStore`** — hashed keys). **`IRequestIdentityAccessor`** is the supported read surface for endpoints; **`ArtifactAccessEvaluator`** enforces **`StoredArtifactAccess`**. Optional fixed-window **rate limiting** on analyze/compare POSTs.
   - Swagger/OpenAPI
 
+**Phase 55 (UI):** Dark-theme **design tokens** gain **signal** colors (info/warn/error/denial) and a subtle **ambient** root background; **`workstation-patterns.css`** adds **state banners**, **summary deck**, **sharing** chrome, and **guided** suggestion blocks. Top bar includes a short **workstation** tagline; fonts: **Outfit** (headings), **IBM Plex Sans**, **JetBrains Mono**. **`prefers-reduced-motion`** trims animations.
+
 **Browser E2E (Phase 50–54):** Playwright smoke exercises persisted **`?analysis=`** / **`?comparison=`**, **`?node=`**, **`?suggestion=`** alias resolution, **422/409** error UI, and staged Compare pair hydration. **Phase 52:** **`e2e-auth-api-key`** (Analyze sharing matrix). **Phase 53:** **`e2e-auth-jwt`** (Analyze + Compare reopen, Compare denial). **Phase 54:** **`e2e-auth-proxy`** (**ProxyHeaders**: Analyze reopen + denial via **`X-PQAT-User`** injection on **`/api/*`**). **Compose:** **`api` + `web`** by default; **`--profile testing`** **`playwright`**; **`PQAT_E2E_ENABLED`** gates **`/api/e2e/seed/*`**. See [Contributing](contributing.md#browser-e2e-playwright).
 
 The frontend communicates with the backend via typed API calls:

@@ -587,34 +587,37 @@ export default function ComparePage() {
       ) : null}
 
       {loadingPersistedComparison ? (
-        <div
-          className="pqat-panel pqat-panel--tool pqat-hint pqat-panelPad--sm pqat-panelHintDense"
-          data-testid="compare-persisted-loading"
-        >
-          Opening shared comparison…
+        <div className="pqat-stateBanner pqat-stateBanner--loading" data-testid="compare-persisted-loading">
+          <span className="pqat-stateBanner__title">Restoring snapshot</span>
+          <div className="pqat-stateBanner__body">Opening shared comparison…</div>
         </div>
       ) : null}
 
       {error ? (
-        <div className="pqat-panel pqat-panelWarn pqat-panelPad--sm" role="alert" data-testid="compare-page-error">
-          <b>Error:</b> {error}
-        </div>
-      ) : null}
-
-      {!comparison && !loading && !loadingPersistedComparison && !error ? (
-        <div className="pqat-panel pqat-panel--tool pqat-panelPad--md">
-          <div className="pqat-emptyTitle">{empty.title}</div>
-          <div className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
-            {empty.body}
+        <div
+          className={`pqat-stateBanner ${/access denied/i.test(error) ? 'pqat-stateBanner--denial' : 'pqat-stateBanner--error'}`}
+          role="alert"
+          data-testid="compare-page-error"
+        >
+          <span className="pqat-stateBanner__title">{/access denied/i.test(error) ? 'Access blocked' : 'Could not complete request'}</span>
+          <div className="pqat-stateBanner__body">
+            <strong>Error:</strong> {error}
           </div>
         </div>
       ) : null}
 
+      {!comparison && !loading && !loadingPersistedComparison && !error ? (
+        <div className="pqat-emptyHint pqat-hint" style={{ padding: '18px 20px' }}>
+          <span className="pqat-emptyHint__lead">{empty.title}</span>
+          <div style={{ margin: 0 }}>{empty.body}</div>
+        </div>
+      ) : null}
+
       {loading ? (
-        <div className="pqat-panel pqat-panel--workspace pqat-panelPad--md">
-          <div className="pqat-loadingPanel__title">Comparing…</div>
-          <div className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
-            Mapping nodes and computing deltas. This usually takes a moment for large plans.
+        <div className="pqat-stateBanner pqat-stateBanner--info pqat-workspaceReveal">
+          <span className="pqat-stateBanner__title">Comparing plans</span>
+          <div className="pqat-stateBanner__body">
+            Mapping nodes and computing deltas. Large plans may take a few seconds—sections below fill in as data arrives.
           </div>
         </div>
       ) : null}

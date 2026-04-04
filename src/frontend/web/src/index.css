@@ -30,14 +30,23 @@
   --surface-graph: #f4f3f8;
   --surface-graph-canvas: #eceaf2;
   --surface-metric: #ffffff;
+  --signal-info-border: color-mix(in srgb, #0284c7 35%, var(--border));
+  --signal-info-bg: color-mix(in srgb, #38bdf8 8%, var(--surface-1));
+  --signal-warn-border: color-mix(in srgb, #d97706 40%, var(--border));
+  --signal-warn-bg: color-mix(in srgb, #fbbf24 14%, var(--surface-1));
+  --signal-error-border: color-mix(in srgb, #dc2626 38%, var(--border));
+  --signal-error-bg: color-mix(in srgb, #fecaca 35%, var(--surface-1));
+  --signal-denial-border: color-mix(in srgb, #7c3aed 35%, var(--border));
+  --signal-denial-bg: color-mix(in srgb, #ddd6fe 40%, var(--surface-1));
+  --deck-accent: color-mix(in srgb, #0891b2 40%, var(--accent) 60%);
   --pqat-radius-panel: 14px;
   --pqat-radius-control: 11px;
   --pqat-gap-section: 18px;
   --pqat-title-size: 1.125rem;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: 'Segoe UI', system-ui, Roboto, sans-serif;
-  --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: Outfit, 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 
   font: 17px/150% var(--sans);
   letter-spacing: 0.18px;
@@ -87,6 +96,17 @@
     --surface-graph: #0f1016;
     --surface-graph-canvas: #0a0b0f;
     --surface-metric: #15161e;
+    /* Phase 55 — signal surfaces (dark) */
+    --signal-info-border: color-mix(in srgb, #38bdf8 42%, var(--border));
+    --signal-info-bg: color-mix(in srgb, #38bdf8 10%, var(--surface-1));
+    --signal-warn-border: color-mix(in srgb, #fbbf24 50%, var(--border));
+    --signal-warn-bg: color-mix(in srgb, #fbbf24 11%, var(--surface-1));
+    --signal-error-border: color-mix(in srgb, #f87171 52%, var(--border));
+    --signal-error-bg: color-mix(in srgb, #f87171 10%, var(--surface-1));
+    --signal-denial-border: color-mix(in srgb, #a78bfa 48%, var(--border));
+    --signal-denial-bg: color-mix(in srgb, #a78bfa 9%, var(--surface-1));
+    --deck-accent: color-mix(in srgb, #22d3ee 55%, var(--accent) 45%);
+    --ambient-grid: color-mix(in srgb, var(--border-subtle) 35%, transparent);
   }
 
   #social .button-icon {
@@ -105,6 +125,26 @@
   flex-direction: column;
   box-sizing: border-box;
   background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  #root {
+    background:
+      radial-gradient(ellipse 120% 55% at 50% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 52%),
+      radial-gradient(ellipse 80% 40% at 100% 0%, color-mix(in srgb, #22d3ee 5%, transparent), transparent 45%),
+      var(--bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {

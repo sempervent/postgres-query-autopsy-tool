@@ -14,6 +14,9 @@ export default function App() {
       <header className="topBar">
         <div className="brand">
           <div className="brandTitle">Postgres Query Autopsy Tool</div>
+          <div className="brandTagline" aria-hidden="true">
+            Plan forensics · operator workspace
+          </div>
         </div>
         <nav className="nav">
           <NavLink className={({ isActive }) => `navLink${isActive ? ' navLink--active' : ''}`} to="/" end>

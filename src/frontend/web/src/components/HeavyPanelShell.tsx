@@ -15,7 +15,11 @@ export function HeavyPanelShell(props: {
 }) {
   const { eyebrow, title, className, style, 'aria-label': aria, headerActions, children } = props
   return (
-    <div className={['pqat-panel pqat-panel--detail pqat-heavyPanel', className].filter(Boolean).join(' ')} style={style} aria-label={aria}>
+    <div
+      className={['pqat-panel pqat-panel--detail pqat-heavyPanel pqat-workspaceReveal', className].filter(Boolean).join(' ')}
+      style={style}
+      aria-label={aria}
+    >
       <div className="pqat-heavyPanel__header">
         <div>
           {eyebrow ? <p className="pqat-heavyPanel__eyebrow">{eyebrow}</p> : null}

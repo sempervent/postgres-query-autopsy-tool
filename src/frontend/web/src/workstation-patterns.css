@@ -503,9 +503,9 @@
 .pqat-summaryShell {
   padding: 12px;
   border-radius: var(--pqat-radius-panel, 14px);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 12%, var(--border-subtle));
   background: var(--surface-detail);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-1), 0 0 36px -16px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .pqat-summaryHeader {
@@ -881,15 +881,6 @@
   width: 68%;
 }
 
-.pqat-graphFrame {
-  position: relative;
-  border-radius: var(--pqat-radius-panel, 14px);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-workspace);
-  overflow: hidden;
-  min-height: 0;
-}
-
 .pqat-graphSkeleton {
   display: flex;
   flex-direction: column;
@@ -963,4 +954,204 @@
   border: 1px dashed color-mix(in srgb, var(--border-subtle) 80%, transparent);
   background: color-mix(in srgb, var(--surface-tool) 35%, transparent);
   animation: pqat-fadeInSoft 0.28s ease-out both;
+}
+
+/* --- Phase 55: state banners, command deck, sharing chrome --- */
+.pqat-stateBanner {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  animation: pqat-fadeInSoft 0.32s ease-out both;
+}
+
+.pqat-stateBanner__title {
+  display: block;
+  font-family: var(--heading);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.pqat-stateBanner__body {
+  color: var(--text-h);
+}
+
+.pqat-stateBanner--error {
+  border-color: var(--signal-error-border);
+  background: var(--signal-error-bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--signal-error-border) 25%, transparent);
+}
+
+.pqat-stateBanner--warn {
+  border-color: var(--signal-warn-border);
+  background: var(--signal-warn-bg);
+}
+
+.pqat-stateBanner--denial {
+  border-color: var(--signal-denial-border);
+  background: var(--signal-denial-bg);
+}
+
+.pqat-stateBanner--info {
+  border-color: var(--signal-info-border);
+  background: var(--signal-info-bg);
+}
+
+.pqat-stateBanner--loading {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 8%, var(--surface-tool));
+}
+
+.pqat-emptyHint {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 30%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 80%, var(--surface-capture));
+  animation: pqat-fadeInSoft 0.35s ease-out both;
+}
+
+.pqat-emptyHint__lead {
+  display: block;
+  font-family: var(--heading);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.pqat-summaryDeck {
+  position: relative;
+  margin-top: 4px;
+  padding: 18px 20px 20px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 15%, var(--border-subtle));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent-bg) 14%, var(--surface-capture)) 0%,
+    var(--surface-capture) 42%,
+    var(--surface-capture) 100%
+  );
+  box-shadow: var(--elev-1), 0 0 40px -18px color-mix(in srgb, var(--accent) 14%, transparent);
+  overflow: hidden;
+}
+
+.pqat-summaryDeck::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--deck-accent, var(--accent-border)), transparent 70%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.pqat-commandTitle {
+  font-family: var(--heading);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.03em;
+  color: var(--text-h);
+  margin: 0 0 14px;
+  line-height: 1.25;
+}
+
+.pqat-metricGrid--deck {
+  gap: 12px;
+}
+
+.pqat-heavyPanel__header {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-bg) 16%, var(--surface-tool)) 0%,
+    color-mix(in srgb, var(--surface-tool) 50%, var(--surface-workspace)) 100%
+  );
+  border-bottom-color: color-mix(in srgb, var(--accent-border) 12%, var(--border-subtle));
+}
+
+.pqat-sectionHeadline {
+  font-family: var(--heading);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text-h);
+}
+
+.pqat-introBanner {
+  position: relative;
+  overflow: hidden;
+}
+
+.pqat-introBanner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--deck-accent, var(--accent-border)), transparent 68%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.pqat-sharingDetails {
+  margin-top: 12px;
+  border-radius: var(--pqat-radius-control, 11px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 14%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-tool) 65%, var(--surface-1));
+  padding: 0;
+  overflow: hidden;
+}
+
+.pqat-sharingDetails > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  padding: 10px 14px;
+  list-style: none;
+  color: var(--text-h);
+  transition: background 0.15s ease;
+}
+
+.pqat-sharingDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pqat-sharingDetails > summary:hover {
+  background: color-mix(in srgb, var(--accent-bg) 8%, transparent);
+}
+
+.pqat-sharingDetails__body {
+  padding: 0 14px 14px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pqat-workspaceReveal {
+  animation: pqat-fadeInSoft 0.38s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pqat-workspaceReveal,
+  .pqat-stateBanner,
+  .pqat-emptyHint,
+  .pqat-summaryDeck {
+    animation: none;
+  }
 }

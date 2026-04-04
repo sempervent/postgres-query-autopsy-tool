@@ -280,9 +280,9 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
   if (!hasAny) return null
 
   return (
-    <div className="pqat-summaryShell">
+    <div className="pqat-summaryShell pqat-workspaceReveal">
       <div className="pqat-summaryHeader">
-        <h3>Summary</h3>
+        <h3 className="pqat-sectionHeadline">Summary</h3>
         {vis.summaryCards ? (
           <div className="pqat-shareRow">
             {coverage ? <div className="pqat-monoMuted">{coverage}</div> : null}
