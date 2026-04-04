@@ -39,8 +39,9 @@ flowchart TD
 - [Compare Workflow](compare-workflow.md)
 - [Findings Catalog](findings-catalog.md)
 - [Fixtures & Sample SQL](fixtures.md)
+- [Deployment & auth](deployment-auth.md)
 
 ## What you’ll see
 
-- **Analyze**: hotspot-driven “inspect next” list and a graphical plan tree for quick branch navigation.
+- **Analyze**: **graph-centered workspace** with **Plan guide** rail, lower-band findings/suggestions/node detail, optional **Customize workspace** (hide/show panels, reorder guide sections and columns, presets), **localStorage** layout persistence, and **account-scoped** layout sync when auth + **`VITE_AUTH_*`** credentials are configured.
 - **Compare**: improved/worsened pairs, a synchronized twin **branch context** strip (path + children in Plan A and B), context diffs, and side-aware join hints when evidence supports it.

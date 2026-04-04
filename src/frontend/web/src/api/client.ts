@@ -1,8 +1,16 @@
+import { jsonGetHeaders, jsonPostHeaders } from './authHeaders'
 import type {
+  AppConfig,
   ExplainCaptureMetadata,
   PlanAnalysisResult,
   PlanComparisonResult,
 } from './types'
+
+export type UpdateArtifactSharingPayload = {
+  accessScope: string
+  sharedGroupIds?: string[]
+  allowLinkAccess: boolean
+}
 
 export class ComparePlanParseError extends Error {
   side: string
@@ -39,6 +47,21 @@ export class PlanParseError extends Error {
   }
 }
 
+export class AccessDeniedError extends Error {
+  readonly code = 'access_denied' as const
+  readonly artifactId: string
+
+  constructor(kind: 'analysis' | 'comparison', id: string) {
+    super(
+      kind === 'analysis'
+        ? `Access denied for analysis "${id}". Sign in (or use a link-scoped artifact) per server policy.`
+        : `Access denied for comparison "${id}".`,
+    )
+    this.name = 'AccessDeniedError'
+    this.artifactId = id
+  }
+}
+
 export class AnalysisNotFoundError extends Error {
   readonly code: 'analysis_not_found' = 'analysis_not_found'
   readonly analysisId: string
@@ -52,15 +75,111 @@ export class AnalysisNotFoundError extends Error {
   }
 }
 
+/** Phase 40: server-stored JSON preference per authenticated user (`/api/me/preferences/{key}`). */
+export const ANALYZE_WORKSPACE_PREFERENCE_KEY = 'analyze_workspace_v1'
+
+export async function fetchUserPreference(key: string): Promise<unknown | null> {
+  const res = await fetch(`/api/me/preferences/${encodeURIComponent(key)}`, { headers: jsonGetHeaders() })
+  if (res.status === 401 || res.status === 404) return null
+  if (!res.ok) return null
+  try {
+    const j = (await res.json()) as { value?: unknown }
+    return j.value ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function saveUserPreference(key: string, value: unknown): Promise<boolean> {
+  const res = await fetch(`/api/me/preferences/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: jsonPostHeaders(),
+    body: JSON.stringify({ value }),
+  })
+  return res.ok
+}
+
+export async function fetchAppConfig(): Promise<AppConfig> {
+  const res = await fetch('/api/config', { headers: jsonGetHeaders() })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Config request failed: ${res.status} ${text}`)
+  }
+  return res.json() as Promise<AppConfig>
+}
+
+async function putSharing(
+  url: string,
+  payload: unknown,
+  kind: 'analysis' | 'comparison',
+  artifactId: string,
+): Promise<void> {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: jsonPostHeaders(),
+    body: JSON.stringify(payload),
+  })
+  const text = await res.text().catch(() => '')
+  if (res.status === 401) {
+    throw new Error(
+      'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
+    )
+  }
+  if (res.status === 403) {
+    throw new AccessDeniedError(kind, artifactId)
+  }
+  if (!res.ok) {
+    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+}
+
+/** Update sharing for a persisted analysis (auth mode only; server returns `{ ok: true }`). */
+export async function updateAnalysisSharing(
+  analysisId: string,
+  body: UpdateArtifactSharingPayload,
+): Promise<void> {
+  await putSharing(
+    `/api/analyses/${encodeURIComponent(analysisId)}/sharing`,
+    {
+      accessScope: body.accessScope,
+      sharedGroupIds: body.sharedGroupIds ?? [],
+      allowLinkAccess: body.allowLinkAccess,
+    },
+    'analysis',
+    analysisId,
+  )
+}
+
+export async function updateComparisonSharing(
+  comparisonId: string,
+  body: UpdateArtifactSharingPayload,
+): Promise<void> {
+  await putSharing(
+    `/api/comparisons/${encodeURIComponent(comparisonId)}/sharing`,
+    {
+      accessScope: body.accessScope,
+      sharedGroupIds: body.sharedGroupIds ?? [],
+      allowLinkAccess: body.allowLinkAccess,
+    },
+    'comparison',
+    comparisonId,
+  )
+}
+
 async function postJson<TResponse>(url: string, payload: unknown): Promise<TResponse> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: jsonPostHeaders(),
     body: JSON.stringify(payload),
   })
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    if (res.status === 401) {
+      throw new Error(
+        'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
+      )
+    }
     throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
   }
 
@@ -73,7 +192,10 @@ export async function analyzePlan(plan: unknown): Promise<PlanAnalysisResult> {
 
 /** Load a persisted analysis snapshot (opaque id from a prior analyze or share link). */
 export async function getAnalysis(analysisId: string): Promise<PlanAnalysisResult> {
-  const res = await fetch(`/api/analyses/${encodeURIComponent(analysisId)}`)
+  const res = await fetch(`/api/analyses/${encodeURIComponent(analysisId)}`, { headers: jsonGetHeaders() })
+  if (res.status === 403) {
+    throw new AccessDeniedError('analysis', analysisId)
+  }
   if (res.status === 404) {
     let body: { analysisId?: string } = {}
     try {
@@ -107,7 +229,7 @@ export async function analyzePlanWithQuery(
   }
   const res = await fetch('/api/analyze', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: jsonPostHeaders(),
     body: JSON.stringify(body),
   })
   const text = await res.text().catch(() => '')
@@ -141,7 +263,10 @@ export async function comparePlansWithDiagnostics(planA: unknown, planB: unknown
 }
 
 export async function getComparison(comparisonId: string): Promise<PlanComparisonResult> {
-  const res = await fetch(`/api/comparisons/${encodeURIComponent(comparisonId)}`)
+  const res = await fetch(`/api/comparisons/${encodeURIComponent(comparisonId)}`, { headers: jsonGetHeaders() })
+  if (res.status === 403) {
+    throw new AccessDeniedError('comparison', comparisonId)
+  }
   if (res.status === 404) {
     let body: { comparisonId?: string } = {}
     try {
@@ -187,11 +312,16 @@ export async function compareWithPlanTexts(args: {
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: jsonPostHeaders(),
     body: JSON.stringify(body),
   })
   const text = await res.text().catch(() => '')
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error(
+        'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
+      )
+    }
     if (res.status === 400) {
       try {
         const j = JSON.parse(text) as {

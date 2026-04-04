@@ -23,10 +23,11 @@ The backend is organized as a modular monolith:
   - HTTP endpoints
   - Request validation
   - **SQLite artifact persistence** (`IArtifactPersistenceStore` / `SqliteArtifactStore`): full JSON snapshots for **`PlanAnalysisResult`** and **`PlanComparisonResultV2`** (opaque ids, optional TTL / max-row retention)
+  - **Auth (Phase 37–38):** **`AuthIdentityMiddleware`** resolves **`UserIdentity`** (stable **`UserId`**, **group ids**, **`AuthIdentitySource`**) via **`ProxyHeaders`**, legacy **`BearerSubject`**, **`JwtBearer`** (HS256 + **`sub`**), or **`ApiKey`** ( **`SqliteApiKeyPrincipalStore`** — hashed keys). **`IRequestIdentityAccessor`** is the supported read surface for endpoints; **`ArtifactAccessEvaluator`** enforces **`StoredArtifactAccess`**. Optional fixed-window **rate limiting** on analyze/compare POSTs.
   - Swagger/OpenAPI
 
 The frontend communicates with the backend via typed API calls:
-- Analyze page: paste/upload plan JSON, show narrative + findings + plan visualization
+- Analyze page: paste/upload plan JSON; **Phase 39** lays out results as a **workspace**: graph/text tree + **Plan guide** rail (`AnalyzePage`, breakpoint ~1080px with test-safe `matchMedia`), then lower band for full findings + suggestions + selected node; `AnalyzePlanGraph` uses **viewport-clamped** height to reduce dead space under the canvas
 - Compare page: submit two plans, show diff-aware narrative, changed findings, and a synchronized **branch context** strip (see `compareBranchContext` + `CompareBranchStrip`)
 
 ## Frontend presentation layer (Phase 12)
@@ -65,7 +66,7 @@ Narrative/hotspot presentation + query text (Phase 15):
 - Frontend renders hotspots as structured, clickable “inspect next” items derived from `PlanSummary.top*HotspotNodeIds` + the presentation label system.
 - Optional query text can be supplied on analyze; it is returned in `PlanAnalysisResult` and surfaced in reports and the Analyze UI as a collapsible “Source query” section.
 
-Analyze and Compare share-links are backed by a **local SQLite file** (configurable path; Docker mounts a volume on `/app/data` by default). There is no separate “application database” for users beyond this artifact store; treat it as **deployment-local durability** (not multi-tenant auth). Docker Compose runs both services locally with a named volume so ids can survive container restarts when the volume is kept.
+Analyze and Compare share-links are backed by a **local SQLite file** (configurable path; Docker mounts a volume on `/app/data` by default). **Phase 37** adds optional **auth + per-artifact ACL** (`StoredArtifactAccess`: owner, scope, groups, link flag) while keeping **non-auth mode** as the default (capability URLs, no identity). See [Deployment & auth](deployment-auth.md). Docker Compose runs both services locally with a named volume so ids can survive container restarts when the volume is kept.
 
 ## Architecture diagrams
 
@@ -150,6 +151,12 @@ Phase 34: optional **`ExplainCaptureMetadata`** on analyze request/response; **`
 Phase 35: **`PlanInputNormalizer`** (Core) + **`PlanInputNormalizationInfo`** on **`PlanAnalysisResult`**; API prefers **`planText`** for analyze; shareable **`?analysis=`** + **`?node=`** URL model, **Copy share link**, inline normalization status.
 
 Phase 36: **SQLite** artifact store for analyses and comparisons; **`GET /api/analyses/{id}`** / **`GET /api/comparisons/{id}`** read durable JSON payloads; optional **`Storage:ArtifactTtlHours`** and **`Storage:MaxArtifactRows`**; Compare **`planAText`/`planBText`**, per-side query text + **`ExplainCaptureMetadata`**, UI **Plan capture / EXPLAIN context** (A vs B), **`?comparison=`** + **Copy share link** parity with Analyze.
+
+Phase 38: **JWT** and **API key** identity modes ( **`JwtBearer`**, **`ApiKey`** ) with stable **owner ids**; legacy **`BearerSubject`** unchanged; **`GET /api/config`** exposes **`authIdentityKind`** + **`authHelp`**; optional **`RateLimiting`** on POST endpoints.
+
+Phase 39: **Analyze workspace UX** — narrative, hotspots, top findings, and suggestion **previews** sit in a **Plan guide** rail adjacent to the graph on wide viewports; **compact selection snapshot** mirrors graph/hotspot/finding clicks; full findings and **Selected node** detail remain below with **`<details>`** for workers, raw JSON, derived metrics, and operator context to reduce vertical noise; graph height is **responsive** (`AnalyzePlanGraph` `graphHeight` prop).
+
+Phase 40: **Analyze decomposition + layout preferences** — **`AnalyzePage`** orchestrates extracted panels under `components/analyze/`; **`analyzeWorkspace/analyzeWorkspaceModel.ts`** defines **`AnalyzeWorkspaceLayoutState`** (visibility, guide section order, lower-band column order, presets); **`useAnalyzeWorkspaceLayout`** persists to **localStorage** and optionally **`/api/me/preferences/analyze_workspace_v1`** when auth + client credentials are present; API adds **`IUserPreferenceStore`** / **`SqliteUserPreferenceStore`** + **`user_preference`** table in the artifact SQLite file. The model is page-keyed and versioned so Compare can reuse the same persistence pattern later.
 
 ## Data flow
 

@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import type { NodePairDetail, PlanAnalysisResult, PlanComparisonResult } from '../api/types'
+import type { AppConfig, NodePairDetail, PlanAnalysisResult, PlanComparisonResult } from '../api/types'
 import {
+  AccessDeniedError,
   compareWithPlanTexts,
   ComparePlanParseError,
   ComparisonNotFoundError,
+  fetchAppConfig,
   getComparison,
 } from '../api/client'
 import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presentation/compareBranchContext'
@@ -32,7 +34,9 @@ import {
   buildCompareDeepLinkSearchParams,
   compareDeepLinkPath,
   CompareDeepLinkParam,
+  copyArtifactShareToast,
   scrollArtifactIntoView,
+  shareArtifactLinkLabel,
 } from '../presentation/artifactLinks'
 import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
 import { formatDeclaredExplainOptionsLine, plannerCostsLabel } from '../presentation/explainMetadataPresentation'
@@ -40,6 +44,7 @@ import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { CompareBranchStrip } from '../components/CompareBranchStrip'
 import { ClickableRow } from '../components/ClickableRow'
 import { ReferenceCopyButton } from '../components/ReferenceCopyButton'
+import { ArtifactSharingPanel } from '../components/ArtifactSharingPanel'
 
 function CaptureContextColumn({ title, plan }: { title: string; plan: PlanAnalysisResult }) {
   const optLine = formatDeclaredExplainOptionsLine(plan.explainMetadata ?? null)
@@ -97,6 +102,7 @@ export default function ComparePage() {
   const [recordedCommandA, setRecordedCommandA] = useState('')
   const [recordedCommandB, setRecordedCommandB] = useState('')
   const [loadingPersistedComparison, setLoadingPersistedComparison] = useState(false)
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null)
 
   const improved = comparison?.topImprovedNodes ?? []
   const worsened = comparison?.topWorsenedNodes ?? []
@@ -144,6 +150,28 @@ export default function ComparePage() {
     [queryTextB, compareExplainToggles.analyze, compareExplainToggles.verbose, compareExplainToggles.buffers, compareExplainToggles.costs],
   )
 
+  const shareCompareUi = useMemo(
+    () => ({
+      label: shareArtifactLinkLabel(appConfig?.authEnabled ?? false, comparison?.artifactAccess),
+      toast: copyArtifactShareToast(appConfig?.authEnabled ?? false, comparison?.artifactAccess),
+    }),
+    [appConfig?.authEnabled, comparison?.artifactAccess],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAppConfig()
+      .then((c) => {
+        if (!cancelled) setAppConfig(c)
+      })
+      .catch(() => {
+        /* non-fatal */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     if (!urlComparisonId) return
     if (comparison?.comparisonId === urlComparisonId) return
@@ -164,9 +192,11 @@ export default function ComparePage() {
         setError(
           e instanceof ComparisonNotFoundError
             ? e.message
-            : e instanceof Error
+            : e instanceof AccessDeniedError
               ? e.message
-              : String(e),
+              : e instanceof Error
+                ? e.message
+                : String(e),
         )
       } finally {
         if (!cancelled && loadPersistedCompareSeqRef.current === seq) setLoadingPersistedComparison(false)
@@ -770,10 +800,10 @@ export default function ComparePage() {
                   {coverage ? <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.8 }}>{coverage}</div> : null}
                   <button
                     type="button"
-                    onClick={() => void copyShareCompare.copy(window.location.href, 'Copied share link')}
+                    onClick={() => void copyShareCompare.copy(window.location.href, shareCompareUi.toast)}
                     style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12 }}
                   >
-                    Copy share link
+                    {shareCompareUi.label}
                   </button>
                   {copyShareCompare.status ? (
                     <span style={{ fontSize: 12, opacity: 0.85 }}>{copyShareCompare.status}</span>
@@ -782,7 +812,22 @@ export default function ComparePage() {
               </div>
               <div style={{ fontSize: 11, opacity: 0.78, marginBottom: 8, fontFamily: 'var(--mono)' }}>
                 ComparisonId {comparison.comparisonId} · stored in server SQLite (survives restart if the DB file is kept)
+                {appConfig?.authEnabled
+                  ? ' · in auth mode, opening may require identity; link access depends on sharing settings.'
+                  : ''}
               </div>
+              <ArtifactSharingPanel
+                authEnabled={appConfig?.authEnabled ?? false}
+                authIdentityKind={appConfig?.authIdentityKind}
+                authHelp={appConfig?.authHelp}
+                kind="comparison"
+                artifactId={comparison.comparisonId}
+                artifactAccess={comparison.artifactAccess}
+                onSaved={async () => {
+                  const data = await getComparison(comparison.comparisonId)
+                  setComparison(data)
+                }}
+              />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
                 {summaryCards.map((c) => (
                   <div

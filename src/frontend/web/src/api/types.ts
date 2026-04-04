@@ -162,6 +162,30 @@ export type PlanAnalysisResult = {
   optimizationSuggestions?: OptimizationSuggestion[] | null
   /** Phase 35: how raw plan input was interpreted when sent as `planText`. */
   planInputNormalization?: PlanInputNormalizationInfo | null
+  /** Phase 37: optional ownership / sharing metadata when auth is enabled. */
+  artifactAccess?: StoredArtifactAccess | null
+}
+
+/** Phase 37: mirrors backend StoredArtifactAccess (camelCase JSON). */
+export type StoredArtifactAccess = {
+  ownerUserId?: string | null
+  accessScope: 'link' | 'private' | 'group' | 'public' | string
+  sharedGroupIds: string[]
+  allowLinkAccess: boolean
+}
+
+export type AppConfig = {
+  authEnabled: boolean
+  authMode: string
+  /** Phase 38: none | proxy | legacy_bearer | jwt | api_key */
+  authIdentityKind: string
+  /** Short server-provided hint for the active auth mode (no secrets). */
+  authHelp: string
+  requireIdentityForWrites: boolean
+  defaultAccessScope: string
+  /** Phase 38: fixed-window limiter on analyze/compare POST when enabled. */
+  rateLimitingEnabled: boolean
+  storage: { databasePath: string }
 }
 
 export type PlanComparisonFindingDelta = {
@@ -549,5 +573,6 @@ export type PlanComparisonResult = {
   /** Phase 32: compare-scoped next steps (not identical to plan B analyze list). */
   compareOptimizationSuggestions?: OptimizationSuggestion[] | null
   diagnostics?: DiagnosticsPayload | null
+  artifactAccess?: StoredArtifactAccess | null
 }
 

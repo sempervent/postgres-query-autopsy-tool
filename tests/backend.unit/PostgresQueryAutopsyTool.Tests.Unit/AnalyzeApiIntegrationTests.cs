@@ -6,11 +6,11 @@ using Xunit;
 
 namespace PostgresQueryAutopsyTool.Tests.Unit;
 
-public sealed class AnalyzeApiIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AnalyzeApiIntegrationTests : IClassFixture<PqatWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PqatWebApplicationFactory _factory;
 
-    public AnalyzeApiIntegrationTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public AnalyzeApiIntegrationTests(PqatWebApplicationFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Post_analyze_planText_persists_and_get_returns_same_payload_with_query_text()

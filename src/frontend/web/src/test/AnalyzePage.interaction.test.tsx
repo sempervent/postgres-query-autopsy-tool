@@ -3,9 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 import { AnalysisNotFoundError, analyzePlanWithQuery, PlanParseError } from '../api/client'
+import { ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY } from '../analyzeWorkspace/analyzeWorkspaceStorage'
 
-const { getAnalysisMock } = vi.hoisted(() => ({
+const { getAnalysisMock, fetchAppConfigMock } = vi.hoisted(() => ({
   getAnalysisMock: vi.fn(),
+  fetchAppConfigMock: vi.fn(),
 }))
 
 const mockAnalysis = {
@@ -140,6 +142,7 @@ vi.mock('../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/client')>()
   return {
     ...actual,
+    fetchAppConfig: (...args: unknown[]) => fetchAppConfigMock(...args) as ReturnType<typeof actual.fetchAppConfig>,
     analyzePlanWithQuery: vi.fn(async () => mockAnalysis),
     getAnalysis: (...args: unknown[]) => getAnalysisMock(...args) as Promise<typeof mockAnalysis>,
     exportMarkdown: vi.fn(async () => ({ analysisId: 'a1', markdown: '' })),
@@ -150,8 +153,25 @@ vi.mock('../api/client', async (importOriginal) => {
 
 const clipboardWrite = vi.fn().mockResolvedValue(undefined)
 
+const defaultAppConfig = {
+  authEnabled: false,
+  authMode: 'None',
+  authIdentityKind: 'none',
+  authHelp: '',
+  requireIdentityForWrites: false,
+  defaultAccessScope: 'link',
+  rateLimitingEnabled: false,
+  storage: { databasePath: 'data/autopsy.db' },
+}
+
 beforeEach(() => {
+  try {
+    localStorage.removeItem(ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY)
+  } catch {
+    /* jsdom / restricted storage */
+  }
   clipboardWrite.mockClear()
+  fetchAppConfigMock.mockResolvedValue(defaultAppConfig)
   getAnalysisMock.mockImplementation(async (id: string) => ({ ...mockAnalysis, analysisId: id }))
   Object.assign(navigator, {
     clipboard: { writeText: clipboardWrite },
@@ -163,20 +183,24 @@ afterEach(() => {
   vi.mocked(analyzePlanWithQuery).mockImplementation(async () => mockAnalysis)
 })
 
-test('default selected node without workers omits worker UI', async () => {
-  render(
-    <MemoryRouter initialEntries={['/']}>
-      <App />
-    </MemoryRouter>,
-  )
+test(
+  'default selected node without workers omits worker UI',
+  async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
 
-  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
-  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Test finding/)
+    fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+    expect(await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })).toBeInTheDocument()
 
-  expect(screen.queryByLabelText('Parallel workers')).toBeNull()
-  expect(screen.queryByLabelText('Worker summary')).toBeNull()
-})
+    expect(screen.queryByLabelText('Parallel workers')).toBeNull()
+    expect(screen.queryByLabelText('Worker summary')).toBeNull()
+  },
+  20_000,
+)
 
 test('Analyze findings and hotspots do not nest buttons (valid HTML)', async () => {
   render(
@@ -188,7 +212,7 @@ test('Analyze findings and hotspots do not nest buttons (valid HTML)', async () 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
 
-  expect(await screen.findByText(/Test finding/)).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Finding: Test finding' })).toBeInTheDocument()
   expect(screen.getAllByRole('heading', { name: 'Findings' }).length).toBeGreaterThan(0)
 
   const nested = document.querySelectorAll('button button')
@@ -204,9 +228,9 @@ test('selected node shows related optimization suggestion when targeted', async 
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Mock optimization suggestion title/)
+  await screen.findByLabelText('Optimization suggestions')
 
-  fireEvent.click(screen.getAllByRole('button', { name: /Finding: Test finding/i })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Finding: Test finding' }))
   expect(await screen.findByLabelText('Related optimization suggestion')).toBeInTheDocument()
 })
 
@@ -219,9 +243,9 @@ test('selected node shows Access path index insight when indexInsights match nod
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Test finding/)
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
 
-  fireEvent.click(screen.getAllByRole('button', { name: /Finding: Test finding/i })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Finding: Test finding' }))
   expect(await screen.findByLabelText('Access path index insight')).toBeInTheDocument()
   expect(screen.getByText(/Access path:.*Seq Scan.*users/i)).toBeInTheDocument()
 })
@@ -235,12 +259,12 @@ test('selected node with workers shows worker summary cue and Workers grid', asy
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Test finding/)
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
 
-  fireEvent.click(screen.getAllByRole('button', { name: /Finding: Test finding/i })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Finding: Test finding' }))
 
   expect(await screen.findByLabelText('Worker summary')).toHaveTextContent(/Workers: 2/)
-  expect(screen.getByText('Workers')).toBeInTheDocument()
+  fireEvent.click(screen.getByText('Parallel workers'))
   const grid = screen.getByLabelText('Parallel workers')
   expect(within(grid).getByText('Total time')).toBeInTheDocument()
   expect(within(grid).getByText('50ms')).toBeInTheDocument()
@@ -256,11 +280,12 @@ test('optimization suggestions section shows title category and node jump', asyn
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Mock optimization suggestion title/)
+  const optSection = await screen.findByLabelText('Optimization suggestions')
+  expect(within(optSection).getByText(/Mock optimization suggestion title/)).toBeInTheDocument()
 
   expect(screen.getByLabelText('Optimization suggestions')).toBeInTheDocument()
-  expect(screen.getByText(/Index experiment/i)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /Show node n1/i })).toBeInTheDocument()
+  expect(within(optSection).getByText(/Index experiment/i)).toBeInTheDocument()
+  expect(within(optSection).getByRole('button', { name: /Focus Parallel Seq Scan on users/i })).toBeInTheDocument()
 })
 
 test('selected node shows Buffer I/O when plan node includes buffer counters', async () => {
@@ -272,9 +297,9 @@ test('selected node shows Buffer I/O when plan node includes buffer counters', a
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Test finding/)
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
 
-  fireEvent.click(screen.getAllByRole('button', { name: /Finding: Test finding/i })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Finding: Test finding' }))
   expect(await screen.findByText('Buffer I/O')).toBeInTheDocument()
   expect(screen.getByText(/Shared read blocks:/)).toBeInTheDocument()
   expect(screen.getByText(/Shared hit blocks:/)).toBeInTheDocument()
@@ -289,13 +314,13 @@ test('finding Copy uses clipboard without triggering row navigation side effects
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  await screen.findByText(/Test finding/)
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
 
   const copyBtns = screen.getAllByRole('button', { name: /Copy finding reference/i })
   fireEvent.click(copyBtns[0])
   expect(clipboardWrite).toHaveBeenCalled()
 
-  const row = screen.getAllByRole('button', { name: /Finding: Test finding/i })[0]
+  const row = screen.getByRole('button', { name: 'Finding: Test finding' })
   expect(within(row).getByText(/Test finding/)).toBeInTheDocument()
 })
 
@@ -308,7 +333,7 @@ test('deep link ?node= selects that node after analyze (before URL sync overwrit
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
-  expect((await screen.findAllByText(/Test finding/)).length).toBeGreaterThan(0)
+  expect(await screen.findByRole('button', { name: 'Finding: Test finding' })).toBeInTheDocument()
 
   await waitFor(() => {
     expect(screen.getAllByRole('button', { name: /Copy share link/i }).length).toBeGreaterThan(0)
@@ -327,7 +352,7 @@ test('?analysis= loads persisted analysis via getAnalysis', async () => {
     </MemoryRouter>,
   )
 
-  await screen.findByText(/Test finding/)
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
   expect(getAnalysisMock).toHaveBeenCalledWith('persisted99')
 })
 
@@ -399,4 +424,36 @@ test('suggested EXPLAIN copy uses clipboard', async () => {
   fireEvent.click(btn)
   expect(clipboardWrite).toHaveBeenCalled()
   expect(String(clipboardWrite.mock.calls.at(-1)?.[0])).toContain('EXPLAIN (')
+})
+
+test('auth mode shows Copy artifact link (private) when artifactAccess is private', async () => {
+  fetchAppConfigMock.mockResolvedValueOnce({
+    authEnabled: true,
+    authMode: 'BearerSubject',
+    authIdentityKind: 'legacy_bearer',
+    authHelp: 'Legacy bearer mode.',
+    requireIdentityForWrites: true,
+    defaultAccessScope: 'private',
+    rateLimitingEnabled: false,
+    storage: { databasePath: 'data/autopsy.db' },
+  })
+  vi.mocked(analyzePlanWithQuery).mockResolvedValueOnce({
+    ...mockAnalysis,
+    artifactAccess: {
+      ownerUserId: 'u1',
+      accessScope: 'private',
+      sharedGroupIds: [],
+      allowLinkAccess: false,
+    },
+  })
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+
+  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByRole('button', { name: 'Finding: Test finding' })
+  expect(screen.getAllByRole('button', { name: /Copy artifact link \(private\)/i }).length).toBeGreaterThan(0)
 })

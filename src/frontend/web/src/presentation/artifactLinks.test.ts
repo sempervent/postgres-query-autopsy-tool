@@ -5,6 +5,8 @@ import {
   buildAnalyzeDeepLinkSearchParams,
   buildCompareDeepLinkSearchParams,
   compareDeepLinkPath,
+  copyArtifactShareToast,
+  shareArtifactLinkLabel,
 } from './artifactLinks'
 
 describe('artifactLinks', () => {
@@ -35,5 +37,31 @@ describe('artifactLinks', () => {
   it('buildAnalyzeDeepLinkSearchParams omits empty parts', () => {
     expect(buildAnalyzeDeepLinkSearchParams({}).toString()).toBe('')
     expect(buildAnalyzeDeepLinkSearchParams({ analysisId: 'x' }).get('node')).toBeNull()
+  })
+
+  it('shareArtifactLinkLabel stays capability-style in non-auth mode', () => {
+    expect(shareArtifactLinkLabel(false, { accessScope: 'private', sharedGroupIds: [], allowLinkAccess: false })).toBe(
+      'Copy share link',
+    )
+  })
+
+  it('shareArtifactLinkLabel reflects auth scopes', () => {
+    expect(shareArtifactLinkLabel(true, undefined)).toBe('Copy artifact link')
+    expect(
+      shareArtifactLinkLabel(true, { accessScope: 'link', sharedGroupIds: [], allowLinkAccess: true }),
+    ).toBe('Copy share link')
+    expect(
+      shareArtifactLinkLabel(true, { accessScope: 'private', sharedGroupIds: [], allowLinkAccess: false }),
+    ).toBe('Copy artifact link (private)')
+  })
+
+  it('copyArtifactShareToast matches label semantics', () => {
+    expect(copyArtifactShareToast(false, null)).toBe('Copied share link')
+    expect(copyArtifactShareToast(true, { accessScope: 'link', sharedGroupIds: [], allowLinkAccess: true })).toBe(
+      'Copied share link',
+    )
+    expect(copyArtifactShareToast(true, { accessScope: 'private', sharedGroupIds: [], allowLinkAccess: false })).toBe(
+      'Copied artifact link',
+    )
   })
 })

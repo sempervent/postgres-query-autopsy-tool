@@ -11,6 +11,7 @@ export function AnalyzePlanGraph({
   onSelectNodeId,
   onToggleCollapse,
   reframeToken,
+  graphHeight = 'clamp(360px, 48vh, 620px)',
 }: {
   nodes: { id: string; type?: string; position: { x: number; y: number }; data: AnalyzeGraphNodeData }[]
   edges: { id: string; source: string; target: string; type?: string }[]
@@ -18,12 +19,14 @@ export function AnalyzePlanGraph({
   onSelectNodeId: (nodeId: string) => void
   onToggleCollapse: (nodeId: string) => void
   reframeToken: number
+  /** CSS height so the graph fills workspace vertical space without a fixed dead zone. */
+  graphHeight?: string
 }) {
   const nodeTypes: NodeTypes = useMemo(() => ({ analyzePlanNode: AnalyzePlanNode }), [])
   const decoratedNodes = useMemo(() => nodes.map((n) => ({ ...n, data: { ...n.data, onToggleCollapse } })), [nodes, onToggleCollapse])
 
   return (
-    <div style={{ height: 560, borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+    <div style={{ height: graphHeight, minHeight: 320, borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
       <ReactFlow
         nodes={decoratedNodes as any}
         edges={edges as any}

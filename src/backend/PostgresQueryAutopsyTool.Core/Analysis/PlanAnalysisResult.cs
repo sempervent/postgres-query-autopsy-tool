@@ -16,5 +16,7 @@ public sealed record PlanAnalysisResult(
     IReadOnlyList<PlanIndexInsight> IndexInsights,
     IReadOnlyList<OptimizationSuggestion> OptimizationSuggestions,
     /// <summary>Set when the API normalized pasted text (e.g. psql QUERY PLAN); null for legacy <c>plan</c> JSON body.</summary>
-    PlanInputNormalizationInfo? PlanInputNormalization = null);
+    PlanInputNormalizationInfo? PlanInputNormalization = null,
+    /// <summary>Optional ownership/sharing metadata (Phase 37); omitted from stored JSON payload, merged from SQLite on read.</summary>
+    StoredArtifactAccess? ArtifactAccess = null);
 

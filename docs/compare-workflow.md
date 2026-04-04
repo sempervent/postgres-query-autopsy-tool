@@ -6,7 +6,7 @@
 2. Optionally expand **Optional: source SQL + EXPLAIN metadata** to attach **`queryTextA` / `queryTextB`**, shared EXPLAIN toggles, per-side **recorded EXPLAIN** commands, and **suggested EXPLAIN** snippets (mirrors Analyze ergonomics). Metadata is **optional** and **client-declared**.
 3. Click **Compare** — the API runs analyze twice (with per-side context), then the comparison engine. The full **`PlanComparisonResultV2`** is stored in **SQLite**; the UI syncs **`?comparison=<comparisonId>`** with existing **`pair=`**, **`finding=`**, **`indexDiff=`**, **`suggestion=`** params.
 4. **Reopen:** `GET /api/comparisons/{id}` powers **`?comparison=`** loads (same durability rules as analyses).
-5. **Copy share link** in the summary header copies the current URL (includes **`comparison=`** when synced). **Copy link** on the selected pair also includes **`comparison=`** so deep links stay attached to the stored snapshot.
+5. **Copy share link** / **Copy artifact link** in the summary header copies the current URL (includes **`comparison=`** when synced), labeled from **`/api/config`** in auth deployments. **Copy link** on the selected pair also includes **`comparison=`** so deep links stay attached to the stored snapshot. Optional **Sharing** panel when auth is enabled (owner can change scope / groups / link access). **Phase 38:** same identity modes as Analyze (**JWT** / **API key** / legacy bearer / proxy); **`authHelp`** from **`/api/config`** summarizes the active mode.
 
 After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
 

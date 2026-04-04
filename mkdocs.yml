@@ -24,5 +24,6 @@ nav:
   - Comparison Model: comparison-model.md
   - Fixtures & Sample SQL: fixtures.md
   - API & Reports: api-and-reports.md
+  - Deployment & auth: deployment-auth.md
   - Contributing: contributing.md
   - Implementation Log: implementation-log.md

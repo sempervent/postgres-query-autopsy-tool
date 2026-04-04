@@ -25,6 +25,8 @@ source .venv-docs/bin/activate
 pip install -r requirements-docs.txt
 ```
 
+`requirements-docs.txt` pins **MkDocs** and the **mermaid2** plugin (diagrams on Architecture). Use this venv for `mkdocs serve` / `mkdocs build` so local builds match CI.
+
 Serve:
 
 ```bash

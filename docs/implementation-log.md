@@ -730,3 +730,71 @@ Verified (this phase):
 
 **Limitations:** durability is **the SQLite file on disk** (or container volume); deleting it or aggressive TTL/pruning drops share ids. **No authentication** — treat **`analysis=`** / **`comparison=`** as capability URLs. **`explainMetadata`** is still **client-declared** and not cryptographically tied to JSON. Multi-instance deployments need a **shared** DB path or external store (not in scope).
 
+## Phase 37 — Optional auth, groups, and scoped sharing (complete)
+
+Implemented:
+- **Core**: `StoredArtifactAccess`, `ArtifactAccessScope` (`link` / `private` / `group` / `public`); optional **`artifactAccess`** on `PlanAnalysisResult` / compare payloads (merged from DB on read, stripped from stored JSON body).
+- **API**: `AuthOptions` + `AuthIdentityMiddleware` (**`ProxyHeaders`**, **`BearerSubject`**); `ArtifactAccessEvaluator` for read + manage-sharing; SQLite migration + `SqliteArtifactStore` ACL columns; **`GET /api/config`**; **`GET /api/analyses/{id}`** / **`GET /api/comparisons/{id}`** enforce **`CanRead`** when auth enabled; **`PUT …/sharing`**; `ProgramAuthHelpers` JSON responses for TestServer compatibility; integration tests (`ArtifactAuthIntegrationTests`, isolated temp DB per factory).
+- **Frontend**: `fetchAppConfig`, `AccessDeniedError`, auth headers; **`shareArtifactLinkLabel`** / **`copyArtifactShareToast`**; **`ArtifactSharingPanel`**; Analyze + Compare load config, access-denied handling, copy wording; **`updateAnalysisSharing`** / **`updateComparisonSharing`**.
+- **Docs**: `deployment-auth.md`, `api-and-reports.md`, `architecture.md`, `analyze-workflow.md`, `compare-workflow.md`, `index.md`, `mkdocs.yml` nav.
+
+Verified (this phase):
+- Backend: `DOTNET_ROLL_FORWARD=LatestMajor dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **93** passed.
+- Frontend: `npx vitest run` — **79** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` not run in this environment (missing `mermaid2` plugin locally); nav and new page added for CI/docs hosts with plugins installed.
+
+**Limitations:** **`BearerSubject`** mode uses the **raw bearer token string** as the stored user id (no JWT parsing). Groups come from **`X-PQAT-Groups`** in both proxy and bearer modes—no org admin UI. SQLite ACLs are local to the API’s DB file. **Phase 38** adds **`JwtBearer`** and **`ApiKey`** so new deployments can avoid raw-token owners (see below).
+
+## Phase 38 — Real auth identity (JWT + API keys) + hardening (complete)
+
+Implemented:
+- **Identity**: **`AuthMode.JwtBearer`** — HS256 JWT validation (`Auth:Jwt`: issuer, audience, signing key, **`SubjectClaim`**, **`GroupsClaimNames`**); **`AuthMode.ApiKey`** — **`SqliteApiKeyPrincipalStore`** + **`api_key_principal`** table (SHA-256 key hashes, optional **`Auth:ApiKey:Seeds`**); **`UserIdentity`** carries **`AuthIdentitySource`** + optional **`DisplayName`**; **`JwtBearerIdentityValidator`** clears default JWT claim-type maps so **`sub`** round-trips.
+- **Abstraction**: **`IRequestIdentityAccessor`** / **`HttpRequestIdentityAccessor`**; **`AuthIdentityMiddleware`** returns **401** for invalid JWT / bad API key when credentials are presented.
+- **Startup**: **`AuthConfigurationValidator`** requires JWT signing material when **`JwtBearer`** is enabled.
+- **Rate limiting**: optional **`RateLimiting:Enabled`** + fixed window on **`POST /api/analyze`** / **`POST /api/compare`** (**429** `rate_limit_exceeded`).
+- **API**: **`GET /api/config`** adds **`authIdentityKind`**, **`authHelp`**, **`rateLimitingEnabled`**.
+- **Frontend**: **`AppConfig`** extended; **`authHeaders`** prefers **`VITE_AUTH_API_KEY`** then **`VITE_AUTH_BEARER_TOKEN`**; **`ArtifactSharingPanel`** shows **`authHelp`** + mode-aware env hints.
+- **Tests**: **`JwtAuthIntegrationTests`**, **`ApiKeyAuthIntegrationTests`**, **`AuthConfigurationValidatorTests`**; existing **`ArtifactAuthIntegrationTests`** (legacy bearer) unchanged.
+- **Docs**: `deployment-auth.md`, `api-and-reports.md`, `architecture.md`, `analyze-workflow.md`, `compare-workflow.md`, `contributing.md` (mermaid2 / venv), this log.
+
+Verified (this phase):
+- Backend: `dotnet test PostgresQueryAutopsyTool.sln --configuration Release` — **101** passed.
+- Frontend: `npx vitest run` — **79** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK (with `pip install -r requirements-docs.txt` in `.venv-docs`).
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** JWT support is **symmetric HS256** in-process (no JWKS/OIDC discovery in this phase). API keys are **hashed** but still high-entropy secrets in transit—use TLS. **Remote SQLite backup** is operational (file copy / volume snapshot), not a built-in export API. Legacy **`BearerSubject`** rows remain incompatible with **`sub`**-based JWT owners without migration.
+
+## Phase 39 — Analyze workspace layout + graph/narrative integration (complete)
+
+Implemented:
+- **Frontend / `AnalyzePage`**: Investigation-style **workspace** — after summary/metadata, a **plan workspace** grid: **graph column** (toggles, searches, `AnalyzePlanGraph` or text tree) + **`aside` Plan guide** on **`min-width: 1080px`** (`useAnalyzeWorkspaceWide` with JSDOM-safe `matchMedia`); narrow screens stack the rail under the graph. Rail: **selection snapshot** (label, subtitle, metric preview, top-finding cue), line-clamped **What happened**, **Where to inspect next** (hotspots), **Top findings** preview, **Next steps** (suggestion preview + **Focus**), optional **Source query** in `<details>`. **Lower band**: full **Findings** | **Optimization suggestions** + **Selected node**; removed duplicate bottom narrative block; **Workers**, raw JSON, derived metrics, **operator context** behind `<details>` for progressive disclosure.
+- **`AnalyzePlanGraph`**: Optional **`graphHeight`** (default `clamp(360px, 48vh, 620px)`), **`minHeight`** 320 — less dead space under small plans.
+- **Tests**: `AnalyzePage.interaction.test.tsx` — disambiguate duplicate rail/main copy via **`getByRole('button', { name: 'Finding: …' })`**, **`within`…Optimization suggestions**, **Focus** button name matches full node label; workers test opens **Parallel workers** `<details>` before asserting grid.
+- **Docs**: `analyze-workflow.md`, `index.md`, `architecture.md`, this log.
+
+Verified (this phase):
+- Backend: `dotnet build PostgresQueryAutopsyTool.sln -c Release` + `dotnet test PostgresQueryAutopsyTool.sln -c Release --no-build` — **101** passed.
+- Frontend: `npx vitest run` — **79** passed; `npm run build` OK.
+- Docs: `mkdocs build --strict` OK (`.venv-docs` + `requirements-docs.txt`).
+- Docker: `docker compose up --build -d`; `GET http://localhost:8080/api/health` returns `{"status":"ok"}`.
+
+**Limitations:** Breakpoint is a single width threshold (no tablet-specific tuning). The rail is intentionally dense on large plans—users with very long narratives still scroll within clamped sections. Compare page layout unchanged in this phase.
+
+## Phase 40 — Analyze page decomposition + customizable workspace layout (complete)
+
+Implemented:
+- **Frontend architecture**: Major regions extracted to `src/frontend/web/src/components/analyze/` — **`AnalyzeCapturePanel`**, **`AnalyzeSummaryCard`**, **`AnalyzePlanWorkspacePanel`** (+ **`AnalyzePlanTextTree`**), **`AnalyzePlanGuideRail`**, **`AnalyzeFindingsPanel`**, **`AnalyzeOptimizationSuggestionsPanel`**, **`AnalyzeSelectedNodePanel`**, **`AnalyzeWorkspaceCustomizer`**; shared chrome in **`analyzePanelChrome.ts`**; **`useAnalyzeWorkspaceWide`** → `hooks/`; **`compactMetricsPreview`** → `presentation/`.
+- **Layout model**: **`analyzeWorkspace/analyzeWorkspaceModel.ts`** — `AnalyzeWorkspaceRegionId`, `AnalyzeGuideSectionId`, `AnalyzeLowerBandColumnId`, `AnalyzeWorkspaceLayoutState` (v1), presets **balanced** / **focus** / **detail**, **`mergeAnalyzeWorkspaceLayout`** for storage evolution.
+- **Persistence**: **`analyzeWorkspaceStorage.ts`** (localStorage key **`pqat.analyzeWorkspaceLayout.v1`**); **`useAnalyzeWorkspaceLayout`** debounced server sync via **`fetchUserPreference` / `saveUserPreference`** (`ANALYZE_WORKSPACE_PREFERENCE_KEY`) when **`authEnabled`** and **`hasAuthFetchCredentials()`**; **`authHeaders.ts`** exposes **`hasAuthFetchCredentials`**.
+- **Backend**: **`IUserPreferenceStore`**, **`SqliteUserPreferenceStore`**, table **`user_preference`**; **`GET` / `PUT /api/me/preferences/{key}`** (404 when auth disabled; 401 without identity when auth on). **`UserPreferencePutDto`** in **`Program.cs`**.
+- **Tests**: **`analyzeWorkspaceModel.test.ts`**; **`UserPreferencesApiTests.cs`** (API key factory); **`AnalyzePage.interaction.test.tsx`** clears stored layout key in **`beforeEach`**; worker smoke test timeout relaxed for parallel vitest load.
+- **Docs**: `analyze-workflow.md`, `architecture.md`, `index.md`, `api-and-reports.md`, this log.
+
+Verified (this phase):
+- Frontend: `npx vitest run` — **82** tests in **19** files (includes `analyzeWorkspaceModel.test.ts`); `npm run build` / `tsc -b` OK.
+- Backend: project **builds** (`dotnet build` net8.0); **`dotnet test`** not executed in the agent environment (host had .NET 10 SDK without net8 runtime); run **`dotnet test PostgresQueryAutopsyTool.sln -c Release`** locally or in CI with .NET 8.
+- Docs: `mkdocs build --strict` expected OK where `.venv-docs` + plugins are installed.
+
+**Limitations:** No drag-and-drop (Up/Down reorder only). **Compare** does not use the layout hook yet—only Analyze. Server preferences require **auth enabled** + valid identity; misconfigured clients keep **local-only** behavior.
+

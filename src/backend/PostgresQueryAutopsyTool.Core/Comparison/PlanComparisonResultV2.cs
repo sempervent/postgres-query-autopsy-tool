@@ -18,5 +18,7 @@ public sealed record PlanComparisonResultV2(
     IndexComparisonSummary IndexComparison,
     string Narrative,
     IReadOnlyList<OptimizationSuggestion> CompareOptimizationSuggestions,
-    ComparisonDiagnostics? Diagnostics = null);
+    ComparisonDiagnostics? Diagnostics = null,
+    /// <summary>Optional ownership/sharing metadata (Phase 37); merged from SQLite on read.</summary>
+    StoredArtifactAccess? ArtifactAccess = null);
 
