@@ -1609,3 +1609,33 @@ Verified (agent run, 2026-04-04):
 
 **Limitations:** Region shots still change when **copy inside** those panels changes; update baselines deliberately. Virtualized lists could theoretically vary row virtualization boundaries — current fixtures stay below aggressive thresholds.
 
+## Phase 76 — Visual reproducibility + graph settle + workflow lint scope (2026-04-07)
+
+**Pins**
+
+- **`@playwright/test`:** **`1.52.0`** exact in **`package.json`** (aligned with **`mcr.microsoft.com/playwright:v1.52.0-jammy`**).
+- **actionlint:** **`rhysd/actionlint@v1.7.7`** in **`.github/workflows/workflow-lint.yml`**; Docker **`rhysd/actionlint:1.7.7`** in **`scripts/lint-workflows.sh`** (override via **`ACTIONLINT_DOCKER_IMAGE`**).
+
+**Workflow lint**
+
+- New **`.github/workflows/workflow-lint.yml`** with **`paths`** on **`.github/workflows/**`** and **`.actionlint.yaml`**; removed duplicate job from **`ci.yml`**.
+- **`.actionlint.yaml`** at repo root (**`self-hosted-runner.labels: []`**).
+
+**Visual stability**
+
+- **`waitForGraphLayoutSettled`** in **`e2e/visual/visualTestHelpers.ts`**: **`.react-flow__viewport`** size poll + double **`requestAnimationFrame`**; used in Analyze happy path before region shots.
+
+**Docs**
+
+- **`e2e/visual/README.md`** (viewport matrix, tooling pins, CI split), **`contributing.md`** (Vitest/rolldown recovery, workflow lint), **`architecture.md`**, this log.
+
+**Optional sixth region:** not added — current eight PNGs already cover primary story surfaces; Compare error pixel test deferred (no thinner stable shell than full-page error without new product chrome).
+
+**Verified (agent run, 2026-04-07)**
+
+- **actionlint:** `docker run … rhysd/actionlint:1.7.7` — **OK**.
+- **`e2e-visual`:** `docker compose … playwright` (**`--project=e2e-visual`**) — **4 passed** (no baseline refresh needed after graph settle).
+- **Backend:** `docker run … dotnet test …Tests.Unit.csproj -c Release` — **OK** (153 passed).
+- **Frontend:** `docker run … node:20-alpine` **`npm ci && npm test && npm run build`** — **OK** (162 tests).
+- **Docs:** `mkdocs build --strict` — **OK**.
+

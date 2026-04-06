@@ -9,7 +9,9 @@
 
 ## Repo health, workflows, and .NET runtime (Phase 74)
 
-**Workflow lint:** **`./scripts/lint-workflows.sh`** runs [**actionlint**](https://github.com/rhysd/actionlint) on **`.github/workflows`** (binary on **PATH**, or **Docker** image **`rhysd/actionlint:latest`**). CI runs the same check via job **`workflow-lint`** (**`rhysd/actionlint@v1`**). Use this before pushing if you edit workflows — it catches YAML issues and embedded **shellcheck** problems.
+**Workflow lint:** **`./scripts/lint-workflows.sh`** runs [**actionlint**](https://github.com/rhysd/actionlint) (binary on **PATH**, or **Docker** **`rhysd/actionlint:1.7.7`** — override with **`ACTIONLINT_DOCKER_IMAGE`** if needed). Config: **`.actionlint.yaml`**. CI runs **`.github/workflows/workflow-lint.yml`** (**`rhysd/actionlint@v1.7.7`**) when **`.github/workflows/**`** or **`.actionlint.yaml`** changes (saves runner time when workflows are untouched). **`make repo-health`** still runs lint locally on every invocation — use that before pushing workflow edits.
+
+**Host Vitest / optional native bindings (Phase 76):** If **`npm test`** fails with **rolldown** / **“Cannot find native binding”** / missing **`@rolldown/binding-*`**, the toolchain’s optional platform binary did not install cleanly. **Supported fix:** from **`src/frontend/web`**, remove **`node_modules`** and **`package-lock.json`**, run **`npm install`** again on a [supported Node](https://github.com/npm/cli/issues/4828) (**20.x** per **`engines`** / **`.nvmrc`**), or run tests in **`node:20-alpine`** the same way **`Dockerfile`** / CI do. Avoid **Node 25+** for local dev until the stack officially supports it.
 
 **Make shortcuts** (run from repo root; **`make help`** lists all):
 
@@ -107,7 +109,7 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 Details: **`e2e/auth/README.md`**. Visual baselines: **`e2e/visual/README.md`**.
 
-CI jobs **`e2e-playwright`**, **`e2e-playwright-auth`**, **`e2e-browser-auth-jwt`**, **`e2e-playwright-proxy`**, **`e2e-playwright-visual`**; each step echoes the matching **`e2e-playwright-docker.sh`** flag for local reproduction where applicable.
+CI: **`ci.yml`** — **`backend`**, **`frontend`**, **`docker-smoke`**, **`e2e-playwright`**, auth/proxy E2E, **`e2e-playwright-visual`**, **`docs`**. **`workflow-lint.yml`** — **actionlint** when **`.github/workflows/**`** or **`.actionlint.yaml`** changes. E2E steps echo the matching **`e2e-playwright-docker.sh`** flag where applicable.
 
 **Phase 73 (CI workflow):** **`.github/workflows/ci.yml`** must not use **unquoted** **`run:`** lines that contain **`#`** (YAML comment) or plain-text patterns like **`Local: ./…`** (the **`:`** + space can be parsed as a nested mapping). Quote the full shell string (see the workflow file header comment). The **`e2e-playwright`** job runs Docker Compose **`playwright`** with default **`PLAYWRIGHT_CLI_ARGS=--project=e2e-smoke`**, which already includes **`persisted-flows.spec.ts`** (clipboard + persisted flows). For a fast local repro of that slice only: stack up with **`.env.testing`**, then **`make test-e2e-copy`** or from **`src/frontend/web`**: **`PLAYWRIGHT_SKIP_WEBSERVER=1`**, **`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000`**, **`npm run test:e2e:copy`** (or full **`npm run test:e2e:smoke`**).
 

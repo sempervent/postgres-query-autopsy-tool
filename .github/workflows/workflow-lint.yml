@@ -1,0 +1,21 @@
+# Phase 76 — Run actionlint only when workflow definitions change (saves CI time; protection stays real).
+name: Workflow lint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".actionlint.yaml"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/**"
+      - ".actionlint.yaml"
+
+jobs:
+  workflow-lint:
+    name: Lint GitHub workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/actionlint@v1.7.7

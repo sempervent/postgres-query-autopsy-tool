@@ -14,7 +14,7 @@ import { expect, test } from '@playwright/test'
 import {
   expectStableRegionScreenshot,
   waitForFontsReady,
-  waitForReactFlowFirstNode,
+  waitForGraphLayoutSettled,
 } from './visualTestHelpers'
 
 function postgresJsonFixture(fileName: string): string {
@@ -54,7 +54,7 @@ test('visual snapshot: Analyze happy path (story surfaces)', async ({ page }) =>
   await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByLabel('Analyze workspace')).toBeVisible({ timeout: 45_000 })
   await page.locator('.react-flow').waitFor({ state: 'visible', timeout: 45_000 }).catch(() => {})
-  await waitForReactFlowFirstNode(page)
+  await waitForGraphLayoutSettled(page)
   await expect(page.getByRole('button', { name: /^Finding:/ }).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByLabel('Findings list')).toBeVisible({ timeout: 30_000 })
   await waitForFontsReady(page)

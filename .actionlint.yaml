@@ -1,0 +1,7 @@
+# Phase 76 — actionlint configuration (https://github.com/rhysd/actionlint/blob/main/docs/config.md).
+# Version pin: keep local `scripts/lint-workflows.sh` Docker image and `.github/workflows/workflow-lint.yml`
+# on the same actionlint release family (currently v1.7.7).
+
+self-hosted-runner:
+  # This repo uses GitHub-hosted runners only; empty list silences false positives if labels appear in docs.
+  labels: []

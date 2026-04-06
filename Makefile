@@ -7,7 +7,7 @@ help:
 	@echo "Targets:"
 	@echo ""
 	@echo "  Repo health / quick checks (Phase 74)"
-	@echo "    make lint-workflows   - actionlint on .github/workflows (PATH or Docker)"
+	@echo "    make lint-workflows   - actionlint 1.7.7 (PATH or Docker rhysd/actionlint:1.7.7)"
 	@echo "    make repo-health      - lint-workflows + frontend unit tests (fast)"
 	@echo "    make verify           - lint-workflows + test-backend + test-frontend (needs .NET 8 runtime)"
 	@echo "    make verify-docker    - lint-workflows + test-backend-docker + test-frontend (SDK 8 in Docker)"
