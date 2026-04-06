@@ -1,0 +1,2 @@
+-- Fixture companion: partial aggregate with bucket group key (pairs with rewrite_aggregate_hash_bucket_shipments).
+-- Example shape: SELECT time_bucket('1 hour', created_at) AS bucket, count(*) FROM shipments GROUP BY bucket;

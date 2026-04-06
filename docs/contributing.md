@@ -20,10 +20,15 @@
 make test
 ```
 
+#### Backend (xUnit + fixtures)
+
+- **`FixtureSqlCompanionTests`** enforces `postgres-json/*.sql` siblings and comparison-case SQL companions.
+- **Phase 72:** **`PostgresJsonAnalyzeFixtureSweepTests`** runs **full** **`PlanAnalysisService`** over every top-level **`fixtures/postgres-json/*.json`** so new single-plan fixtures are not silently skipped. Add deep assertions in focused tests when a fixture encodes a specific regression; keep the sweep **structural** (no prose golden files).
+
 #### Frontend (Vitest + TypeScript)
 
 - **`npm run build`** runs **`tsc -b`**, which typechecks **`src/**/*.tsx`** including **`src/test/`** (see `tsconfig.app.json`).
-- **Unit tests:** **`npm test`** runs **`vitest run`** (single non-interactive pass — same as the **`frontend`** CI job). For local iteration use **`npm run test:watch`** (**`vitest`** watch mode). Avoid chaining extra **`--run`** flags; they are redundant with **`vitest run`**.
+- **Unit tests:** **`npm test`** runs **`vitest run`** (single non-interactive pass — same as the **`frontend`** CI job). For local iteration use **`npm run test:watch`** (**`vitest`** watch mode). Avoid chaining extra **`--run`** flags; they are redundant with **`vitest run`**. **Phase 65–66:** **`src/theme/theme.test.ts`** covers resolver, persistence, **`data-effective-theme`**, **`prefers-color-scheme`** subscription, optional server hydrate/save (mocked **`fetchUserPreference`** / **`saveUserPreference`**); the hook tolerates missing **`window.matchMedia`**.
 - **Do not rely on `vi` / `expect` / `test` as globals.** Vitest globals are **not** enabled, and the app tsconfig does not pull in `vitest/globals`. **Import explicitly:** `import { expect, test, vi } from 'vitest'` (and the helpers you use). This matches CI/Docker and avoids “works in the editor, fails in the container” drift.
 
 ### Browser E2E (Playwright)
@@ -42,19 +47,20 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 | Project | Spec | Env file | What it proves |
 |--------|------|----------|----------------|
-| **`e2e-smoke`** | **`persisted-flows.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare alias |
+| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare alias; **Phase 66** DOM theme switching + reload persistence (no screenshots) |
 | **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing |
 | **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial |
 | **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial |
-| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** canonical screenshots (Analyze/Compare happy, corrupt **422**, access denied via **`page.route` 403**); see **`e2e/visual/README.md`** |
+| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** canonical screenshots (Analyze/Compare happy, corrupt **422**, access denied via **`page.route` 403**); **Phase 65:** suite locks **`pqat_theme_v1=dark`** + **`data-theme="dark"`** for pixel stability; see **`e2e/visual/README.md`** |
 
-**npm scripts** (host Playwright; API must already match the mode): **`test:e2e`** / **`test:e2e:smoke`**, **`test:e2e:auth`** (alias **`test:e2e:api-key`**), **`test:e2e:jwt`**, **`test:e2e:proxy`**, **`test:e2e:visual`** / **`test:e2e:visual:update`**.
+**npm scripts** (host Playwright; API must already match the mode): **`test:e2e`** / **`test:e2e:smoke`**, **`test:e2e:copy`** (**`e2e/persisted-flows.spec.ts`** only — Phase 72 clipboard + persisted Analyze/Compare smoke; same **`e2e-smoke`** project), **`test:e2e:auth`** (alias **`test:e2e:api-key`**), **`test:e2e:jwt`**, **`test:e2e:proxy`**, **`test:e2e:visual`** / **`test:e2e:visual:update`**.
 
 **Sequential all auth modes (Docker):** **`./scripts/e2e-playwright-docker.sh --all-auth`** or **`make e2e-playwright-docker-all-auth`** — runs API-key, JWT, and proxy suites with **`docker compose … down -v`** between stacks.
 
 **What runs (smoke)**
 
 - Persisted **Analyze** share/reopen + **`?node=`** deep link
+- **Phase 72:** **Analyze copy node reference** — clipboard read/write permission + **`data-testid="analyze-copy-node-reference"`** smoke
 - Persisted **Compare** reopen + findings diff
 - Lazy Compare **selected pair** shell → **Key metric deltas**
 - **422** corrupt + **409** future-schema artifact errors (explicit UI copy)
@@ -86,6 +92,8 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 Details: **`e2e/auth/README.md`**. Visual baselines: **`e2e/visual/README.md`**.
 
 CI jobs **`e2e-playwright`**, **`e2e-playwright-auth`**, **`e2e-browser-auth-jwt`**, **`e2e-playwright-proxy`**, **`e2e-playwright-visual`**; each step echoes the matching **`e2e-playwright-docker.sh`** flag for local reproduction where applicable.
+
+**Phase 73 (CI workflow):** **`.github/workflows/ci.yml`** must not use **unquoted** **`run:`** lines that contain **`#`** (YAML comment) or plain-text patterns like **`Local: ./…`** (the **`:`** + space can be parsed as a nested mapping). Quote the full shell string (see the workflow file header comment). The **`e2e-playwright`** job runs Docker Compose **`playwright`** with default **`PLAYWRIGHT_CLI_ARGS=--project=e2e-smoke`**, which already includes **`persisted-flows.spec.ts`** (clipboard + persisted flows). For a fast local repro of that slice only: stack up with **`.env.testing`**, then from **`src/frontend/web`**: **`PLAYWRIGHT_SKIP_WEBSERVER=1`**, **`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000`**, **`npm run test:e2e:copy`** (or full **`npm run test:e2e:smoke`**).
 
 ### Docs
 

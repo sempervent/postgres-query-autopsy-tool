@@ -19,6 +19,7 @@ import {
   compareCoverageLine,
   compareEmptyStateCopy,
 } from '../presentation/comparePresentation'
+import { resolveCompareContinuitySummaryCue } from '../presentation/compareContinuityPresentation'
 import {
   compareSuggestionsByPriority,
   normalizeOptimizationSuggestionsForDisplay,
@@ -192,6 +193,11 @@ export default function ComparePage() {
       ) ?? null
     )
   }, [effectivePair, pairDetails])
+
+  const continuitySummaryCue = useMemo(
+    () => (comparison ? resolveCompareContinuitySummaryCue(comparison, selectedDetail) : null),
+    [comparison, selectedDetail],
+  )
 
   const branchViewModel = useMemo(() => {
     if (!comparison || !effectivePair) return null
@@ -620,6 +626,7 @@ export default function ComparePage() {
                 <CompareSummaryColumn
                   layout={layout}
                   comparison={comparison}
+                  continuitySummaryCue={continuitySummaryCue}
                   appConfig={appConfig}
                   coverage={coverage}
                   summaryCards={summaryCards}

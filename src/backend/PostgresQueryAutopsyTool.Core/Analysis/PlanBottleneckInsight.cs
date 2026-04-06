@@ -22,4 +22,6 @@ public sealed record PlanBottleneckInsight(
     /// <summary>Phase 60: conservative “because → likely” propagation cue (evidence-hedged).</summary>
     string? PropagationNote = null,
     /// <summary>Phase 61: human anchor for UI/copy (never a raw <c>root.*</c> path as primary).</summary>
-    string? HumanAnchorLabel = null);
+    string? HumanAnchorLabel = null,
+    /// <summary>Phase 64: dense one-line briefing aligned with selected-node readout (after augment).</summary>
+    string? OperatorBriefingLine = null);

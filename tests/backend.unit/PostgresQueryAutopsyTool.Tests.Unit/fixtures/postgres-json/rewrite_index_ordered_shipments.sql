@@ -1,0 +1,2 @@
+-- Fixture companion: order-supported index path (plan B) — no top-level Sort; same filters + ORDER BY satisfied by index.
+-- Example shape: same query as rewrite_sort_seq_shipments.sql with a composite index on (warehouse_id, shipped_at DESC).

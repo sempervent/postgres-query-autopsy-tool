@@ -135,7 +135,10 @@ public sealed class ComparisonNarrativeSideHintsTests
                 FindingsB: Array.Empty<AnalysisFinding>(),
                 RelatedDiffItems: Array.Empty<FindingDiffItem>()),
             IndexDeltaCues: Array.Empty<string>(),
-            CorroborationCues: Array.Empty<string>());
+            CorroborationCues: Array.Empty<string>(),
+            RegionContinuityHint: null,
+            RegionContinuitySummaryCue: null,
+            ContinuityKindKey: null);
 
         var m = typeof(ComparisonEngine).GetMethod("FormatPairEvidence", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(m);

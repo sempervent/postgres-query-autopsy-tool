@@ -2,6 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      ;(function () {
+        try {
+          var k = 'pqat_theme_v1'
+          var v = localStorage.getItem(k) || 'system'
+          if (v !== 'system' && v !== 'dark' && v !== 'light') v = 'system'
+          var dark =
+            v === 'dark' || (v === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var t = dark ? 'dark' : 'light'
+          document.documentElement.setAttribute('data-theme', t)
+          document.documentElement.setAttribute('data-effective-theme', t)
+          document.documentElement.setAttribute('data-theme-preference', v)
+          document.documentElement.style.colorScheme = t
+        } catch (e) {}
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Fonts: bundled via @fontsource (see src/fonts.css); no Google Fonts at runtime (Phase 56). -->

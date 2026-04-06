@@ -1,0 +1,1 @@
+-- Compare plan B: hash join on same predicates; build side materializes line_items once.

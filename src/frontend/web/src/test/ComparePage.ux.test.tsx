@@ -187,6 +187,9 @@ function mockComparisonPayload(): any {
             contextDiff: null,
             indexDeltaCues: ['Access path family: Seq Scan → Index Scan', 'Improved index posture: test cue'],
             corroborationCues: ['Corroborated: seq-scan-concern (Resolved) ↔ index delta (resolved)'],
+            regionContinuityHint:
+              'Same relation (users): plan A used a sequential scan; plan B uses an index-backed path—confirm shared reads and timing moved the way you expect.',
+            regionContinuitySummaryCue: 'Same region · narrower access',
           },
           {
             pairArtifactId: 'pair_mock_join',
@@ -274,12 +277,13 @@ function mockComparisonPayload(): any {
           overview: 'Plan B is ~20ms slower than A at root inclusive time (~20% of A).',
           changeBeats: [
             {
-              text: 'Largest measured shift is in mapped pair “Seq Scan on users → Seq Scan on users”—open it for deltas.',
+              text: 'Largest regression maps to “Seq Scan on users → Seq Scan on users”—open the pair to compare timing, buffers, and row estimates before drawing conclusions.',
               focusNodeIdA: 'a1',
               focusNodeIdB: 'b1',
               pairAnchorLabel: 'Seq Scan on users → Seq Scan on users',
+              beatBriefing: 'Seq Scan on users · high exclusive-time share (~20% of root inclusive)',
             },
-            'Both plans carry ranked bottlenecks—compare posture lines with pair deltas.',
+            'Both plans rank bottlenecks—read posture below, then pair deltas, to see whether the dominant pain moved, shrank, or only changed costume.',
           ],
           investigationPath: 'Start with the top worsened mapped pair to see what regressed in place.',
           structuralReading: 'Heuristic read: similar node counts with big runtime swing often mean selectivity or access-path changes.',
@@ -378,6 +382,11 @@ test('selected pair: eager copy actions and confidence line; heavy block include
 
   await screen.findByText('Summary', {}, { timeout: 15_000 })
   expect(screen.getByRole('heading', { name: 'Selected node pair' })).toBeInTheDocument()
+  expect(screen.getAllByText(/Access path · same relation/i).length).toBeGreaterThanOrEqual(1)
+  const continuityLines = screen.getAllByText(
+    /Same relation \(users\): plan A used a sequential scan/i,
+  )
+  expect(continuityLines.length).toBeGreaterThanOrEqual(1)
   expect(screen.getByRole('button', { name: 'Copy reference' })).toBeInTheDocument()
   expect(screen.getByText(/confidence: High · score/)).toBeInTheDocument()
   await waitFor(
@@ -401,11 +410,14 @@ test('summary meta shows bottleneck posture when bottleneckBrief lines are prese
   fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
 
   await screen.findByText('Summary', {}, { timeout: 15_000 })
-  expect(screen.getByLabelText('Change story')).toBeInTheDocument()
+  expect(screen.getByLabelText('Change briefing')).toBeInTheDocument()
+  expect(screen.getByText(/Continuity ·/)).toBeInTheDocument()
+  expect(screen.getByTestId('compare-continuity-summary-cue')).toHaveTextContent('Same region · narrower access')
   expect(screen.getByText(/Plan B is ~20ms slower/i)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Open pair/i })).toBeInTheDocument()
   expect(screen.getByLabelText('Bottleneck posture A vs B')).toBeInTheDocument()
   expect(screen.getByText(/Primary bottleneck class is unchanged/i)).toBeInTheDocument()
+  expect(screen.getByLabelText('Plan B operator briefing')).toBeInTheDocument()
 })
 
 test('compare navigator worsened row hover invokes pair heavy prefetch helper', async () => {

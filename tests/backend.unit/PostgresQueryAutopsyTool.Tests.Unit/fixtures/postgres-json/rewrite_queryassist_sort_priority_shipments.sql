@@ -1,0 +1,2 @@
+-- Fixture companion: sort on priority with filter on warehouse_id; JSON index cond omits priority (query-assisted ORDER BY continuity).
+-- Example shape: SELECT * FROM shipments WHERE warehouse_id = 3 ORDER BY priority DESC LIMIT 500;

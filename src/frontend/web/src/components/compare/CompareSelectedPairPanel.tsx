@@ -1,8 +1,12 @@
 import { lazy, Suspense } from 'react'
 import type { AnalyzedPlanNode, NodePairDetail, OptimizationSuggestion, PlanComparisonResult } from '../../api/types'
 import { buildCompareDeepLinkSearchParams, compareDeepLinkPath } from '../../presentation/artifactLinks'
-import { pairShortLabel } from '../../presentation/nodeLabels'
+import { joinLabelAndSubtitle, pairShortLabel } from '../../presentation/nodeLabels'
 import { pairReferenceText } from '../../presentation/nodeReferences'
+import { appUrlForPath } from '../../presentation/shareAppUrl'
+import { TechnicalPairIdsCollapsible } from '../TechnicalIdCollapsible'
+import { pairBriefingLines } from '../../presentation/briefingReadoutPresentation'
+import { pairContinuitySectionTitle } from '../../presentation/compareContinuityPresentation'
 
 const CompareSelectedPairHeavySections = lazy(() =>
   import('./CompareSelectedPairHeavySections').then((m) => ({ default: m.CompareSelectedPairHeavySections })),
@@ -60,9 +64,56 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
 
   return (
     <>
-      <h3 style={{ marginTop: 0 }}>Selected node pair</h3>
+      <h3 style={{ marginTop: 0, color: 'var(--text-h)' }}>Selected node pair</h3>
       {selectedDetail ? (
-        <div style={{ fontWeight: 800 }}>{pairShortLabel(selectedDetail, byIdA, byIdB)}</div>
+        <div className="pqat-readoutShell" style={{ marginTop: 4 }} aria-label="Pair readout">
+          <div className="pqat-readoutKicker">Matched operators</div>
+          <div className="pqat-readoutTitle">{pairShortLabel(selectedDetail, byIdA, byIdB)}</div>
+          {selectedDetail.regionContinuityHint ? (
+            <div className="pqat-readoutShell pqat-regionContinuity" style={{ marginTop: 8, padding: '8px 10px' }}>
+              <div className="pqat-readoutKicker">{pairContinuitySectionTitle(selectedDetail.regionContinuityHint)}</div>
+              <div className="pqat-hint" style={{ marginTop: 4, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+                {selectedDetail.regionContinuityHint}
+              </div>
+            </div>
+          ) : null}
+          {(() => {
+            const na = byIdA.get(selectedDetail.identity.nodeIdA)
+            const nb = byIdB.get(selectedDetail.identity.nodeIdB)
+            const { lineA, lineB } = pairBriefingLines(na, nb)
+            if (!lineA && !lineB) return null
+            return (
+              <div className="pqat-pairBriefingGrid" aria-label="Per-plan briefing lines">
+                {lineA ? (
+                  <div className="pqat-operatorBriefing">
+                    <div className="pqat-operatorBriefing__kicker">Plan A briefing</div>
+                    {lineA}
+                  </div>
+                ) : null}
+                {lineB ? (
+                  <div className="pqat-operatorBriefing">
+                    <div className="pqat-operatorBriefing__kicker">Plan B briefing</div>
+                    {lineB}
+                  </div>
+                ) : null}
+              </div>
+            )
+          })()}
+          {(() => {
+            const na = byIdA.get(selectedDetail.identity.nodeIdA)
+            const nb = byIdB.get(selectedDetail.identity.nodeIdB)
+            const parts: string[] = []
+            const ja = na ? joinLabelAndSubtitle(na, byIdA) : null
+            const jb = nb ? joinLabelAndSubtitle(nb, byIdB) : null
+            if (ja?.subtitle) parts.push(`A: ${ja.subtitle}`)
+            if (jb?.subtitle) parts.push(`B: ${jb.subtitle}`)
+            if (!parts.length) return null
+            return (
+              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85, lineHeight: 1.4 }}>{parts.join(' · ')}</div>
+            )
+          })()}
+          <TechnicalPairIdsCollapsible nodeIdA={selectedDetail.identity.nodeIdA} nodeIdB={selectedDetail.identity.nodeIdB} />
+        </div>
       ) : (
         <div style={{ opacity: 0.85 }}>Select an improved/worsened row or a diff finding to inspect.</div>
       )}
@@ -90,7 +141,7 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
                   suggestionId: highlightSuggestionId,
                 })
                 const path = compareDeepLinkPath(pathname, params)
-                await copyDeepLink.copy(`${window.location.origin}${path}`, 'Copied deep link')
+                await copyDeepLink.copy(appUrlForPath(path), 'Copied deep link')
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
             >

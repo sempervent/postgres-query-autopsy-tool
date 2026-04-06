@@ -334,24 +334,24 @@
 }
 
 .pqat-chip--sev0 {
-  border-color: color-mix(in srgb, #64748b 40%, var(--border-subtle));
-  color: var(--text-secondary);
+  border-color: var(--pqat-sev0-border);
+  color: var(--pqat-sev0-fg);
 }
 .pqat-chip--sev1 {
-  border-color: color-mix(in srgb, #38bdf8 45%, var(--border-subtle));
-  color: #7dd3fc;
+  border-color: var(--pqat-sev1-border);
+  color: var(--pqat-sev1-fg);
 }
 .pqat-chip--sev2 {
-  border-color: color-mix(in srgb, #fbbf24 50%, var(--border-subtle));
-  color: #fcd34d;
+  border-color: var(--pqat-sev2-border);
+  color: var(--pqat-sev2-fg);
 }
 .pqat-chip--sev3 {
-  border-color: color-mix(in srgb, #fb923c 50%, var(--border-subtle));
-  color: #fdba74;
+  border-color: var(--pqat-sev3-border);
+  color: var(--pqat-sev3-fg);
 }
 .pqat-chip--sev4 {
-  border-color: color-mix(in srgb, #f87171 55%, var(--border-subtle));
-  color: #fca5a5;
+  border-color: var(--pqat-sev4-border);
+  color: var(--pqat-sev4-fg);
 }
 
 /* --- Graph frame (instrument viewport) --- */

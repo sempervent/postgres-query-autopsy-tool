@@ -51,7 +51,12 @@ export function ClickableRow({
       className={['clickableRow', selected ? 'clickableRow--selected' : '', className].filter(Boolean).join(' ')}
       onMouseEnter={() => onPointerIntent?.()}
       onFocus={() => onPointerIntent?.()}
-      onClick={() => onActivate()}
+      onClick={(e) => {
+        // Do not treat clicks on nested interactive controls as row selection (defense in depth).
+        const t = e.target as HTMLElement | null
+        if (t?.closest('button, a[href], input, textarea, select, [data-pqat-row-no-activate]')) return
+        onActivate()
+      }}
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

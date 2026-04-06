@@ -1,0 +1,1 @@
+-- Fixture shape: Gather Merge over Partial Aggregate on parallel scan (illustrative; not executed in tests).

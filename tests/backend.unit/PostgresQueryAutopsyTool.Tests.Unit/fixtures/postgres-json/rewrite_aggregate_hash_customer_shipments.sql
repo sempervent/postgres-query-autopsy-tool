@@ -1,0 +1,2 @@
+-- Fixture companion: single-node hashed aggregate on customer_id over shipments (compare vs gather-merge partial path).
+-- Example shape: SELECT customer_id, count(*) FROM shipments GROUP BY customer_id;

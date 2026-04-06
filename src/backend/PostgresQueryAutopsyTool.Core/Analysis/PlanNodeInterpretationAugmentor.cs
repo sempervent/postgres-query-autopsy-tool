@@ -28,7 +28,8 @@ public static class PlanNodeInterpretationAugmentor
                     bottleneckNodes.Contains(n.NodeId),
                     topExclusive.Contains(n.NodeId),
                     queryText);
-                return n with { OperatorInterpretation = text };
+                var briefing = OperatorNarrativeHelper.BuildOperatorBriefingLine(n, ctx, queryText);
+                return n with { OperatorInterpretation = text, OperatorBriefingLine = briefing };
             })
             .ToArray();
     }

@@ -136,6 +136,7 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
               <button
                 type="button"
                 className="pqat-btn pqat-btn--sm"
+                data-testid="analyze-copy-suggested-explain"
                 onClick={() => suggestedExplainSql && void copySuggestedExplain.copy(suggestedExplainSql, 'Copied')}
                 style={{ marginTop: 8 }}
               >

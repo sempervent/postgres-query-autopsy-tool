@@ -21,6 +21,9 @@ import {
   bottlenecksForSummary,
 } from '../../presentation/bottleneckPresentation'
 import { normalizeStoryPropagationBeat } from '../../presentation/planReferencePresentation'
+import { planStorySectionLabels } from '../../presentation/storyPresentation'
+import { TechnicalIdCollapsible } from '../TechnicalIdCollapsible'
+import { operatorBriefingLine } from '../../presentation/briefingReadoutPresentation'
 
 function severityLabel(sev: number) {
   return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
@@ -53,22 +56,24 @@ export function AnalyzePlanGuideRail(props: {
     nodeLabel,
   } = props
 
+  const storyLbl = planStorySectionLabels()
+
   const sections: Record<AnalyzeGuideSectionId, ReactNode> = {
     selection: (
-      <div
-        style={{
-          padding: 10,
-          borderRadius: 10,
-          border: '1px solid var(--border)',
-          marginBottom: 14,
-          background: 'color-mix(in srgb, var(--bg) 96%, transparent)',
-        }}
-        aria-label="Selected node snapshot"
-      >
+      <div className="pqat-readoutShell" style={{ marginBottom: 14 }} aria-label="Selected node snapshot">
         {selectedNode ? (
           <>
-            <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Selection</div>
-            <div style={{ fontWeight: 800, fontSize: 15, marginTop: 4 }}>{nodeLabel(selectedNode)}</div>
+            <div className="pqat-readoutKicker">Focused operator</div>
+            <div className="pqat-readoutTitle">{nodeLabel(selectedNode)}</div>
+            {(() => {
+              const br = operatorBriefingLine(selectedNode)
+              return br ? (
+                <div className="pqat-operatorBriefing" aria-label="Operator briefing">
+                  <div className="pqat-operatorBriefing__kicker">Briefing</div>
+                  {br}
+                </div>
+              ) : null
+            })()}
             {(() => {
               const js = joinLabelAndSubtitle(selectedNode, byId)
               if (!js?.subtitle) return null
@@ -96,6 +101,7 @@ export function AnalyzePlanGuideRail(props: {
                 <span style={{ fontWeight: 700 }}>Finding:</span> {findingsForSelectedNode[0].title}
               </div>
             ) : null}
+            <TechnicalIdCollapsible nodeId={selectedNode.nodeId} />
           </>
         ) : (
           <div style={{ fontSize: 13, opacity: 0.88, lineHeight: 1.45 }}>
@@ -106,54 +112,54 @@ export function AnalyzePlanGuideRail(props: {
     ),
     whatHappened: (
       <>
-        <h3 style={{ fontSize: 13, margin: '0 0 6px' }}>Plan orientation</h3>
+        <h3 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--text-h)' }}>Plan narrative</h3>
         {analysis.planStory?.planOverview ? (
-          <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.45, color: 'var(--text)' }}>
-            {analysis.planStory.planOverview}
-          </p>
+          <div className="pqat-storyLane pqat-storyLane--orientation">
+            <div className="pqat-storyLane__eyebrow">{storyLbl.orientation}</div>
+            <div className="pqat-storyLane__body">{analysis.planStory.planOverview}</div>
+          </div>
         ) : null}
-        <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-          Narrative detail
+        <div className="pqat-storyLane pqat-storyLane--pressure">
+          <div className="pqat-storyLane__eyebrow">What happened (clamped)</div>
+          <div
+            className="pqat-storyLane__body"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 6,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {analysis.narrative.whatHappened}
+          </div>
         </div>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 12,
-            lineHeight: 1.45,
-            display: '-webkit-box',
-            WebkitLineClamp: 6,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            whiteSpace: 'pre-wrap',
-            opacity: 0.92,
-          }}
-        >
-          {analysis.narrative.whatHappened}
-        </p>
         {analysis.planStory?.propagationBeats?.length ? (
           <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-              Flow hints (anchored)
+            <div className="pqat-storyLane pqat-storyLane--flow">
+              <div className="pqat-storyLane__eyebrow">{storyLbl.flow}</div>
+              <ul style={{ margin: 0, padding: 0 }}>
+                {analysis.planStory.propagationBeats.map((raw, i) => {
+                  const b = normalizeStoryPropagationBeat(raw)
+                  return (
+                    <li key={`flow-${i}`} className="pqat-storyBeatRow" style={{ paddingLeft: 10, marginBottom: 8 }}>
+                      <div className="pqat-storyBeatRow__text">{b.text}</div>
+                      {b.focusNodeId ? (
+                        <button
+                          type="button"
+                          className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                          onClick={() => jumpToNodeId(b.focusNodeId!)}
+                          style={{ marginTop: 6 }}
+                        >
+                          Focus {b.anchorLabel?.trim() ? `· ${b.anchorLabel}` : 'operator'}
+                        </button>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
-            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.45, opacity: 0.92 }}>
-              {analysis.planStory.propagationBeats.map((raw, i) => {
-                const b = normalizeStoryPropagationBeat(raw)
-                return (
-                  <li key={`flow-${i}`} style={{ marginBottom: 8 }}>
-                    <div>{b.text}</div>
-                    {b.focusNodeId ? (
-                      <button
-                        type="button"
-                        onClick={() => jumpToNodeId(b.focusNodeId!)}
-                        style={{ marginTop: 4, fontSize: 11, padding: '3px 8px', borderRadius: 8, cursor: 'pointer' }}
-                      >
-                        Focus {b.anchorLabel?.trim() ? `· ${b.anchorLabel}` : 'operator'}
-                      </button>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
           </div>
         ) : null}
       </>
@@ -172,40 +178,36 @@ export function AnalyzePlanGuideRail(props: {
       }
       return (
         <>
-          <h3 style={{ fontSize: 13, margin: '14px 0 8px' }}>Main bottlenecks</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <h3 style={{ fontSize: 13, margin: '14px 0 8px', color: 'var(--text-h)' }}>Main bottlenecks</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {bn.map((b) => {
               const anchor = b.nodeIds[0]
               return (
-                <div
-                  key={b.insightId}
-                  style={{
-                    padding: 8,
-                    borderRadius: 10,
-                    border: '1px solid var(--border)',
-                    background: 'color-mix(in srgb, var(--accent-bg) 14%, transparent)',
-                  }}
-                  aria-label={`Bottleneck ${b.rank}: ${b.headline}`}
-                >
-                  <div style={{ fontSize: 10, opacity: 0.75, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    {b.rank}. {bottleneckKindShortLabel(b.kind)} · {bottleneckClassShortLabel(b.bottleneckClass)}
+                <div key={b.insightId} className="pqat-bottleneckCard" aria-label={`Bottleneck ${b.rank}: ${b.headline}`}>
+                  <div className="pqat-bottleneckCard__chips">
+                    <span className="pqat-bottleneckChip">#{b.rank}</span>
+                    <span className="pqat-bottleneckChip pqat-bottleneckChip--class">{bottleneckClassShortLabel(b.bottleneckClass)}</span>
+                    <span className="pqat-bottleneckChip">{bottleneckKindShortLabel(b.kind)}</span>
+                    {bottleneckCauseHintLine(b.causeHint) ? (
+                      <span className="pqat-bottleneckChip pqat-bottleneckChip--cause">{bottleneckCauseHintLine(b.causeHint)}</span>
+                    ) : null}
                   </div>
-                  {bottleneckCauseHintLine(b.causeHint) ? (
-                    <div style={{ marginTop: 4, fontSize: 10, opacity: 0.82 }}>{bottleneckCauseHintLine(b.causeHint)}</div>
+                  <div className="pqat-bottleneckCard__headline">{b.headline}</div>
+                  <div className="pqat-bottleneckCard__detail">{b.detail}</div>
+                  {b.operatorBriefingLine?.trim() ? (
+                    <div className="pqat-bottleneckCard__briefing" aria-label="Operator briefing">
+                      <span className="pqat-bottleneckCard__briefingKicker">Briefing</span>
+                      {b.operatorBriefingLine}
+                    </div>
                   ) : null}
-                  <div style={{ fontWeight: 750, fontSize: 13, marginTop: 4 }}>{b.headline}</div>
-                  <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.4, opacity: 0.92 }}>{b.detail}</div>
-                  {b.symptomNote ? (
-                    <div style={{ marginTop: 6, fontSize: 11, opacity: 0.88, fontStyle: 'italic' }}>{b.symptomNote}</div>
-                  ) : null}
-                  {b.propagationNote?.trim() ? (
-                    <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.4, opacity: 0.9 }}>{b.propagationNote}</div>
-                  ) : null}
+                  {b.symptomNote ? <div className="pqat-bottleneckCard__symptom">{b.symptomNote}</div> : null}
+                  {b.propagationNote?.trim() ? <div className="pqat-bottleneckCard__propagation">{b.propagationNote}</div> : null}
                   {anchor ? (
                     <button
                       type="button"
+                      className="pqat-btn pqat-btn--sm pqat-btn--ghost"
                       onClick={() => jumpToNodeId(anchor)}
-                      style={{ marginTop: 8, fontSize: 11, padding: '4px 8px', borderRadius: 8, cursor: 'pointer' }}
+                      style={{ marginTop: 8 }}
                     >
                       {b.humanAnchorLabel?.trim()
                         ? `Focus · ${b.humanAnchorLabel.length > 72 ? `${b.humanAnchorLabel.slice(0, 71)}…` : b.humanAnchorLabel}`
@@ -221,11 +223,11 @@ export function AnalyzePlanGuideRail(props: {
     })(),
     hotspots: (
       <>
-        <h3 style={{ fontSize: 13, margin: '14px 0 8px' }}>Where to inspect next</h3>
+        <h3 style={{ fontSize: 13, margin: '14px 0 8px', color: 'var(--text-h)' }}>Where to inspect next</h3>
         {analysis.planStory?.inspectFirstPath?.trim() ? (
-          <div className="pqat-hint" style={{ fontSize: 12, lineHeight: 1.45, marginBottom: 10, color: 'var(--text)' }}>
-            <span style={{ fontWeight: 650 }}>Suggested sequence · </span>
-            {analysis.planStory.inspectFirstPath}
+          <div className="pqat-storyLane pqat-storyLane--action" style={{ marginBottom: 10 }}>
+            <div className="pqat-storyLane__eyebrow">{storyLbl.startHere}</div>
+            <div className="pqat-storyLane__body">{analysis.planStory.inspectFirstPath}</div>
           </div>
         ) : null}
         {(() => {
@@ -238,7 +240,7 @@ export function AnalyzePlanGuideRail(props: {
               (s.topSharedReadHotspotNodeIds?.length ?? 0)
             const anyIds = hotspotIdCount > 0
             const msg = anyIds
-              ? 'Summary listed hotspot ids but none resolved in the current node list.'
+              ? 'Summary referenced hotspots that did not resolve in the current node list—try reloading the analysis.'
               : !s.hasActualTiming && !s.hasBuffers
                 ? 'No hotspots available. Use EXPLAIN (ANALYZE, BUFFERS) so timing and shared-read lists can be built.'
                 : s.hasBuffers && !s.hasActualTiming

@@ -42,7 +42,11 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
   },
   projects: [
-    { name: 'e2e-smoke', testMatch: '**/persisted-flows.spec.ts' },
+    {
+      // Phase 72–73: persisted-flows includes Analyze clipboard regression; theme-appearance is DOM theme smoke.
+      name: 'e2e-smoke',
+      testMatch: ['**/persisted-flows.spec.ts', '**/theme-appearance.spec.ts'],
+    },
     { name: 'e2e-auth-api-key', testMatch: '**/auth-artifact-access.spec.ts' },
     { name: 'e2e-auth-jwt', testMatch: '**/jwt-auth-smoke.spec.ts' },
     { name: 'e2e-auth-proxy', testMatch: '**/proxy-auth-smoke.spec.ts' },

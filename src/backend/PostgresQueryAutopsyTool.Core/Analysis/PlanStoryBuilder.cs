@@ -76,24 +76,33 @@ public static class PlanStoryBuilder
         if (summary.Bottlenecks.Count > 0)
         {
             var b = summary.Bottlenecks[0];
+            var nid = b.NodeIds.FirstOrDefault();
+            var brief = "";
+            if (nid is not null)
+            {
+                var bn = nodes.FirstOrDefault(x => x.NodeId == nid);
+                if (!string.IsNullOrWhiteSpace(bn?.OperatorBriefingLine))
+                    brief = " " + TrimSentence(bn.OperatorBriefingLine!.Trim(), 180);
+            }
+
             inspectParts.Add(
-                $"1) Start with ranked bottleneck #{b.Rank} ({ClassPhrase(b.BottleneckClass)}): {b.Headline}.");
+                $"1) Anchor on bottleneck #{b.Rank} ({ClassPhrase(b.BottleneckClass)}): {b.Headline}.{brief}");
             inspectParts.Add(
                 b.CauseHint == BottleneckCauseHint.DownstreamSymptom
-                    ? "2) Then walk upstream parents of that node for join shape and row volume."
-                    : "2) Drill children under that subtree if subtree time—not local exclusive time—dominates.");
+                    ? "2) Walk upstream: join order, semi/anti shape, and row multiplication often explain inner-side or sort symptoms."
+                    : "2) If subtree time dominates, drill children before assuming this node is the sole culprit.");
         }
         else
         {
-            inspectParts.Add("1) Use exclusive-time and shared-read hotspots below when timing exists.");
+            inspectParts.Add("1) When timing exists, start from exclusive-time and shared-read hotspots in the guide.");
         }
 
-        inspectParts.Add("3) Cross-check top findings for corroborating evidence.");
+        inspectParts.Add("3) Cross-check findings for corroboration—automated rules should echo what timings show.");
         if (suggestions.Count > 0)
         {
             var s0 = suggestions[0];
             var next = string.IsNullOrWhiteSpace(s0.RecommendedNextAction) ? s0.Summary : s0.RecommendedNextAction!;
-            inspectParts.Add($"4) Next experiment: {s0.Title} — {next}");
+            inspectParts.Add($"4) Run next: {s0.Title} — {next}");
         }
 
         var inspectFirst = string.Join(" ", inspectParts);

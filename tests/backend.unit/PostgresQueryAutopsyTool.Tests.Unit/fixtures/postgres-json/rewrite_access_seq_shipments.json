@@ -1,0 +1,25 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "shipments",
+      "Schema": "public",
+      "Alias": "shipments",
+      "Startup Cost": 0.0,
+      "Total Cost": 25000.0,
+      "Plan Rows": 200000,
+      "Plan Width": 48,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 95.0,
+      "Actual Rows": 12000,
+      "Actual Loops": 1,
+      "Filter": "(warehouse_id = 3)",
+      "Buffers": {
+        "Shared Hit Blocks": 200,
+        "Shared Read Blocks": 8500,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]

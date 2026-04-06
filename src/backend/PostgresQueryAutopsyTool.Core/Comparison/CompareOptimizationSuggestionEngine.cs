@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
+using PostgresQueryAutopsyTool.Core.Findings;
 
 namespace PostgresQueryAutopsyTool.Core.Comparison;
 
@@ -26,8 +27,21 @@ public static class CompareOptimizationSuggestionEngine
     private static string CmpHumanLabel(string? nodeId, PlanAnalysisResult plan)
     {
         if (string.IsNullOrEmpty(nodeId)) return "";
-        var byId = plan.Nodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
-        return byId.TryGetValue(nodeId, out var n) ? NodeLabelFormatter.ShortLabel(n, byId) : nodeId;
+        var ctx = new FindingEvaluationContext(plan.RootNodeId, plan.Nodes);
+        return PlanNodeReferenceBuilder.SafePrimary(nodeId, ctx);
+    }
+
+    private static string CmpPairHumanAnchors(FindingDiffItem item, PlanComparisonResultV2 cmp)
+    {
+        var a = CmpHumanLabel(item.NodeIdA, cmp.PlanA);
+        var b = CmpHumanLabel(item.NodeIdB, cmp.PlanB);
+        if (string.IsNullOrEmpty(item.NodeIdA) && string.IsNullOrEmpty(item.NodeIdB))
+            return "anchors unavailable in diff metadata";
+        if (string.IsNullOrEmpty(item.NodeIdA))
+            return $"plan B at “{b}”";
+        if (string.IsNullOrEmpty(item.NodeIdB))
+            return $"plan A at “{a}”";
+        return $"plan A “{a}” vs plan B “{b}”";
     }
 
     public static IReadOnlyList<OptimizationSuggestion> Build(PlanComparisonResultV2 cmp)
@@ -42,6 +56,7 @@ public static class CompareOptimizationSuggestionEngine
         AddSortFindingShift(list, items, cmp);
         AddIndexCorroborated(list, items, idx, cmp);
         AddRemainingHighPriorityFromPlanB(list, cmp.PlanB);
+        AddRegionContinuityRewriteCue(list, cmp);
 
         return list
             .GroupBy(s => s.SuggestionId)
@@ -50,6 +65,86 @@ public static class CompareOptimizationSuggestionEngine
             .ThenByDescending(s => ConfidenceVal(s.Confidence))
             .Take(10)
             .ToArray();
+    }
+
+    private static void AddRegionContinuityRewriteCue(List<OptimizationSuggestion> list, PlanComparisonResultV2 cmp)
+    {
+        var p = cmp.PairDetails
+            .Where(x => !string.IsNullOrWhiteSpace(x.RegionContinuityHint))
+            .OrderByDescending(x => (int)x.Identity.MatchConfidence)
+            .FirstOrDefault(x => x.Identity.MatchConfidence >= MatchConfidence.Medium);
+        if (p is null) return;
+
+        if (list.Any(s => s.Title.Contains("Rewrite changed operator shape", StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var idA = p.Identity.NodeIdA;
+        var idB = p.Identity.NodeIdB;
+        var targetIds = new[] { idA, idB }.Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).ToArray();
+        var labelB = CmpHumanLabel(idB, cmp.PlanB);
+        if (string.IsNullOrWhiteSpace(labelB))
+            labelB = p.Identity.NodeTypeB;
+
+        var followUp = RegionContinuityFollowUpSentence(p.RegionContinuityHint);
+        list.Add(CmpMake(
+            OptimizationSuggestionCategory.ObserveBeforeChange,
+            SuggestedActionType.ValidateWithExplainAnalyze,
+            "Rewrite changed operator shape — track where the work moved",
+            $"{p.RegionContinuityHint} {followUp}",
+            $"Mapped pair {p.Identity.NodeTypeA} → {p.Identity.NodeTypeB} with continuity readout at plan B “{labelB}”.",
+            "Pair-detail region continuity + structural operator change.",
+            SuggestionConfidenceLevel.Medium,
+            SuggestionPriorityLevel.Medium,
+            targetIds,
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            new[]
+            {
+                "Continuity hints are heuristic; validate when predicates, statistics, or parallelism differ materially between captures."
+            },
+            new[] { ValExplain },
+            recommendedNextAction:
+            "Trace the same logical tables through both plans and confirm where buffer/temp pressure landed after the rewrite.",
+            whyItMatters:
+            "Operator rewrites can move work without removing total cost; tracking the region keeps comparisons actionable.",
+            targetDisplayLabel: labelB));
+    }
+
+    /// <summary>Phase 68: tail guidance tuned to scan vs ordering continuity (keeps suggestion evidence-bound, not generic).</summary>
+    private static string RegionContinuityFollowUpSentence(string? hint)
+    {
+        if (string.IsNullOrWhiteSpace(hint))
+            return "If timings improved, still inspect sorts and aggregates that follow this join: one pain class often shifts after a structural change.";
+
+        var h = hint.ToLowerInvariant();
+        if (h.Contains("strong ordering evidence"))
+            return "Structured sort-key alignment is stronger signal than name overlap alone—still confirm row volume, buffer counters, and whether parents above became the limiter.";
+        if (h.Contains("token-level ordering link"))
+            return "Token overlap is a weak ordering signal—verify ORDER BY text, sort/temp I/O, and whether the planner truly folded ordering into the access path.";
+        if (h.Contains("order by text") && h.Contains("cautious ordering tie-breaker"))
+            return "Query text supports ORDER BY alignment—still confirm the planner actually removed expensive sort/temp work, not only renamed nodes.";
+        if (h.Contains("order by text") && h.Contains("json evidence was thin"))
+            return "Query text supports ORDER BY where planner JSON was thin—still verify sort/temp I/O and buffer counters, not only operator labels.";
+        if (h.Contains("bitmap heap path") || (h.Contains("bitmap heap") && h.Contains("same relation")))
+            return "Bitmap paths trade full sequential reads for bitmap build + heap recheck—follow recheck/actual rows and whether joins or sorts absorbed any win.";
+        if (h.Contains("index-only path") || h.Contains("index only"))
+            return "Index-only cuts heap fetches but not always total time—visibility-map checks, wide indexes, and downstream volume can still dominate.";
+        if (h.Contains("access narrowed") && h.Contains("residual"))
+            return "The access path improved, but this region can stay relevant—trace parents for joins, sorts, and row amplification before treating the rewrite as finished.";
+        if (h.Contains("explicit sort") || h.Contains("ordering region") || h.Contains("ordering cost"))
+            return "If the top-level sort step shrank or disappeared, validate with larger rowsets—ordering cost can move into index range/heap steps or reappear under joins and aggregates.";
+        if (h.Contains("same ordering region"))
+            return "Index-backed ordering can still be read-heavy; confirm buffer counters on B and whether downstream row volume or grouping is now the dominant cost.";
+        if (h.Contains("sequential scan") && h.Contains("index-backed"))
+            return "Narrower access often shifts pressure to joins, residual filters, or later sorts—trace the same relation through parents and siblings before declaring the rewrite fully done.";
+        if (h.Contains("grouped-output") || h.Contains("output-shaping region") || h.Contains("partial vs finalize"))
+            return "Grouped-output continuity is about staging and finalization—compare gather/merge vs single-node cost, input volume from scans/joins, and whether parallel partial work truly shrank end-to-end time.";
+        if (h.Contains("partial win"))
+            return "Continuity marks the same rough region—if timing is still tight, pressure is often upstream (feeds) or downstream (parents), not only this operator.";
+        if (h.Contains("nested-loop") || h.Contains("hash build"))
+            return "If timings improved, still inspect sorts and aggregates that follow this join: one pain class often shifts after a join-strategy change.";
+
+        return "If timings improved, scan siblings and parents for residual sort, aggregate, or join volume—the same logical region can show a different bottleneck class after a rewrite.";
     }
 
     private static void AddResolvedAccessPathValidation(
@@ -77,7 +172,7 @@ public static class CompareOptimizationSuggestionEngine
             indexAligned
                 ? "A missing-index-style or inner-side cue cleared between plans, and index insight diffs move in a favorable direction. Confirm the after-plan stays healthy on representative data."
                 : "A prior access-path finding no longer appears. Validate that runtime and buffer counters improved for the intended workload—not only on this one comparison.",
-            $"Resolved rule `{resolved.RuleId}` on plan A anchor `{resolved.NodeIdA ?? "n/a"}` → B `{resolved.NodeIdB ?? "n/a"}`.",
+            $"Resolved finding “{resolved.Title}” at {CmpPairHumanAnchors(resolved, cmp)}.",
             "Findings diff + index posture shift.",
             SuggestionConfidenceLevel.Medium,
             SuggestionPriorityLevel.High,
@@ -147,7 +242,7 @@ public static class CompareOptimizationSuggestionEngine
                 ? "Findings and index insight diffs both point at access-path stress on plan B—treat the next experiment as index + predicate shape, validated with EXPLAIN."
                 : "Plan B shows a new or stronger access-path finding. Investigate predicates and supporting indexes before broad schema changes.",
             worrisome.Summary,
-            $"Change type={worrisome.ChangeType}, rule `{worrisome.RuleId}`.",
+            $"{HumanizeChange(worrisome.ChangeType)} on “{worrisome.Title}”.",
             SuggestionConfidenceLevel.Medium,
             MapPriorityFromFinding(worrisome.SeverityB ?? worrisome.SeverityA),
             new[] { worrisome.NodeIdB ?? worrisome.NodeIdA ?? "" }.Where(s => !string.IsNullOrEmpty(s)).ToArray(),
@@ -390,6 +485,17 @@ public static class CompareOptimizationSuggestionEngine
         var raw = $"{scope}|{c}|{a}|{title}|{n}";
         return $"sg_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..16].ToLowerInvariant()}";
     }
+
+    private static string HumanizeChange(FindingChangeType t) =>
+        t switch
+        {
+            FindingChangeType.New => "New signal",
+            FindingChangeType.Worsened => "Worsened signal",
+            FindingChangeType.Resolved => "Resolved signal",
+            FindingChangeType.Improved => "Improved signal",
+            FindingChangeType.Unchanged => "Unchanged signal",
+            _ => "Finding change"
+        };
 
     private static SuggestionPriorityLevel MapPriorityFromFinding(FindingSeverity? s) => s switch
     {

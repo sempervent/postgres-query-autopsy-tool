@@ -1,0 +1,33 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Aggregate",
+      "Strategy": "Hashed",
+      "Startup Cost": 200.0,
+      "Total Cost": 45000.0,
+      "Plan Rows": 200,
+      "Plan Width": 24,
+      "Actual Startup Time": 5.0,
+      "Actual Total Time": 220.0,
+      "Actual Rows": 200,
+      "Actual Loops": 1,
+      "Group Key": ["bucket"],
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "shipments",
+          "Schema": "public",
+          "Alias": "shipments",
+          "Startup Cost": 0.0,
+          "Total Cost": 38000.0,
+          "Plan Rows": 800000,
+          "Plan Width": 24,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 180.0,
+          "Actual Rows": 800000,
+          "Actual Loops": 1
+        }
+      ]
+    }
+  }
+]

@@ -53,7 +53,7 @@ public sealed class ComparisonEngine
 
         var narrative = BuildNarrative(a, b, summary, improved, worsened, pairDetails, findingsLinked, indexLinked);
         var bottleneckBrief = BottleneckComparisonBuilder.Build(a, b);
-        var comparisonStory = ComparisonStoryBuilder.Build(a, b, summary, worsened, improved, findingsLinked);
+        var comparisonStory = ComparisonStoryBuilder.Build(a, b, summary, worsened, improved, findingsLinked, bottleneckBrief);
 
         var core = new PlanComparisonResultV2(
             ComparisonId: comparisonId,
@@ -201,6 +201,19 @@ public sealed class ComparisonEngine
         var indexCues = IndexComparisonAnalyzer.IndexDeltaCuesForPair(a.NodeId, b.NodeId, identity, indexComparison);
         var corroboration = FindingIndexDiffLinker.CorroborationCuesForPair(a.NodeId, b.NodeId, findingsDiff, indexComparison);
 
+        var ctxA = new FindingEvaluationContext(planA.RootNodeId, planA.Nodes);
+        var ctxB = new FindingEvaluationContext(planB.RootNodeId, planB.Nodes);
+        var continuity = PlanNodeReferenceBuilder.TryPairRegionContinuity(
+            a,
+            b,
+            ctxA,
+            ctxB,
+            match.Confidence,
+            planA.QueryText,
+            planB.QueryText);
+        var regionHint = continuity?.Hint;
+        var continuityCue = CompareContinuitySummaryCue.FromContinuity(continuity);
+
         return new NodePairDetail(
             PairArtifactId: CompareArtifactIds.PairId(comparisonId, a.NodeId, b.NodeId),
             Identity: identity,
@@ -211,7 +224,10 @@ public sealed class ComparisonEngine
             Metrics: metrics,
             Findings: new PairFindingsView(findingsA, findingsB, relatedDiff),
             IndexDeltaCues: indexCues,
-            CorroborationCues: corroboration);
+            CorroborationCues: corroboration,
+            RegionContinuityHint: regionHint,
+            RegionContinuitySummaryCue: continuityCue,
+            ContinuityKindKey: continuity?.KindKey);
     }
 
     private static MetricDeltaDetail Metric(string key, double? a, double? b, bool? betterWhenLower)
@@ -503,7 +519,7 @@ public sealed class ComparisonEngine
             var near = majorNew.NodeIdB is not null
                 ? PlanNodeReferenceBuilder.SafePrimary(majorNew.NodeIdB, ctxB)
                 : PlanNodeReferenceBuilder.SafePrimary(majorNew.NodeIdA, ctxA);
-            changeLines.Add($"New/worsened finding: `{majorNew.RuleId}` ({majorNew.ChangeType}) near {near}.");
+            changeLines.Add($"{HumanFindingChangeLabel(majorNew.ChangeType)}: {majorNew.Title.Trim()} (anchored near {near}).");
         }
 
         if (majorResolved is not null)
@@ -511,7 +527,7 @@ public sealed class ComparisonEngine
             var near = majorResolved.NodeIdA is not null
                 ? PlanNodeReferenceBuilder.SafePrimary(majorResolved.NodeIdA, ctxA)
                 : PlanNodeReferenceBuilder.SafePrimary(majorResolved.NodeIdB, ctxB);
-            changeLines.Add($"Resolved finding: `{majorResolved.RuleId}` near {near}.");
+            changeLines.Add($"Cleared on B versus A: {majorResolved.Title.Trim()} (baseline sat near {near}).");
         }
 
         if (changeLines.Count > 0)
@@ -531,20 +547,31 @@ public sealed class ComparisonEngine
                  i.RuleId.Contains("bitmap-recheck", StringComparison.OrdinalIgnoreCase) ||
                  i.RuleId.Contains("nl-inner-index", StringComparison.OrdinalIgnoreCase)));
             if (indexInsightResolved && indexCorrelatedFinding)
-                sections.Add("Some resolved findings overlap with cleared or shifted index investigation cues—use as corroboration; mapping remains heuristic.");
+                sections.Add(
+                    "When resolved findings and improved index deltas line up on the same mapped pair, treat that as corroboration—not proof every access path got cheaper—because pair mapping stays heuristic.");
         }
 
         // 4) Investigation guidance
         var guidance = new List<string>();
         if (worsened.Count > 0)
-            guidance.Add("Start by inspecting the primary regression pair and its subtree deltas (time, shared reads, and estimate quality).");
+            guidance.Add(
+                "Begin with the primary regression pair: compare inclusive time, shared reads, and row-estimate deltas before chasing secondary pairs.");
         if (worsened.Count == 0 && improved.Count > 0)
-            guidance.Add("This looks like a net improvement; confirm the primary improvement pair aligns with the same relation and predicates.");
-        guidance.Add("Note: node correspondence is heuristic; treat low-confidence matches as leads, not identity.");
+            guidance.Add(
+                "Surface signals look net-positive—confirm the strongest improved pair still targets the same relations and predicates you care about.");
+        guidance.Add("Mapped operators are matched heuristically; low-confidence pairs are leads, not guaranteed identity.");
         sections.Add(string.Join(" ", guidance));
 
         return string.Join(Environment.NewLine + Environment.NewLine, sections);
     }
+
+    private static string HumanFindingChangeLabel(FindingChangeType t) =>
+        t switch
+        {
+            FindingChangeType.New => "New automated concern on B",
+            FindingChangeType.Worsened => "Stronger automated concern on B",
+            _ => "Finding change on B"
+        };
 
     private static NodePairDetail? FindPair(IReadOnlyList<NodePairDetail> pairs, string nodeIdA, string nodeIdB)
         => pairs.FirstOrDefault(p => p.Identity.NodeIdA == nodeIdA && p.Identity.NodeIdB == nodeIdB);
@@ -579,18 +606,33 @@ public sealed class ComparisonEngine
         }
 
         string? rel = pair?.Identity.RelationNameA ?? pair?.Identity.RelationNameB ?? d.RelationName;
-        string relPart = rel is not null ? $" on `{rel}`" : string.Empty;
+        var relPart = rel is not null ? $" on relation {rel}" : "";
 
         var rewriteHint = pair is not null
             ? BuildRewriteHint(pair.Identity.NodeTypeA, pair.Identity.NodeTypeB, pair.Identity.MatchConfidence)
             : null;
 
-        var timeDelta = d.InclusiveTimeMs.Delta is not null ? $"time Δ {d.InclusiveTimeMs.Delta.Value:F2}ms" : "time Δ n/a";
-        var readDelta = d.SharedReadBlocks.Delta is not null ? $"reads Δ {d.SharedReadBlocks.Delta.Value:F0} blocks" : "reads Δ n/a";
+        var timeDelta = d.InclusiveTimeMs.Delta is { } td
+            ? td > 0
+                ? $"inclusive time worsened by {td:F2} ms on B"
+                : td < 0
+                    ? $"inclusive time improved by {-td:F2} ms on B"
+                    : "inclusive time unchanged at this pair"
+            : "inclusive time delta unavailable";
 
-        var conf = pair is not null ? $"{pair.Identity.MatchConfidence} (score {pair.Identity.MatchScore:F2})" : $"{d.MatchConfidence} (score {d.MatchScore:F2})";
+        var readDelta = d.SharedReadBlocks.Delta is { } rd
+            ? rd > 0
+                ? $"shared reads up {rd:F0} blocks on B"
+                : rd < 0
+                    ? $"shared reads down {-rd:F0} blocks on B"
+                    : "shared reads unchanged at this pair"
+            : "shared read delta unavailable";
 
-        var line = $"{nodeA} → {nodeB}{relPart}; {timeDelta}, {readDelta}; match confidence {conf}.";
+        var conf = pair is not null
+            ? $"mapping {pair.Identity.MatchConfidence.ToString().ToLowerInvariant()} confidence (score {pair.Identity.MatchScore:F2})"
+            : $"mapping {d.MatchConfidence.ToString().ToLowerInvariant()} confidence (score {d.MatchScore:F2})";
+
+        var line = $"Before/after: {nodeA} → {nodeB}{relPart}. {timeDelta}; {readDelta}. {conf}.";
         if (!string.IsNullOrWhiteSpace(rewriteHint))
             line += $" {rewriteHint}";
 

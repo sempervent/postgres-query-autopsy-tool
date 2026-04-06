@@ -15,21 +15,49 @@ public static class OperatorNarrativeHelper
         if (type.Contains("Sort", StringComparison.OrdinalIgnoreCase))
         {
             var key = string.IsNullOrWhiteSpace(n.Node.SortKey) ? "keys" : $"[{TrimKey(n.Node.SortKey!, 40)}]";
+            var method = n.Node.SortMethod ?? "";
+            var spill = method.Contains("external", StringComparison.OrdinalIgnoreCase) ||
+                        (n.Node.SortSpaceType ?? "").Contains("Disk", StringComparison.OrdinalIgnoreCase)
+                ? " External/disk sort here is strong evidence the rowset was too large for work_mem—treat the sort as a first-class problem, not background noise."
+                : " When the incoming rowset is large, sort cost is often dominated by what feeds it—trace upstream row growth before tuning sort knobs alone.";
             return
-                $"This {type} orders rows on {key} before later operators consume them. Large sorts often mean too many rows or wide rows are reaching the sort; check what feeds it and whether ordering can be satisfied earlier.";
+                $"This {type} orders rows on {key} before later operators consume them.{spill}";
         }
 
         if (type.Contains("Hash Join", StringComparison.OrdinalIgnoreCase) || type.Equals("Hash Join", StringComparison.OrdinalIgnoreCase))
             return "Hash join builds a hash table on one child and probes with the other—high cost often tracks build size, probe volume, or memory spills.";
 
         if (type.Contains("Nested Loop", StringComparison.OrdinalIgnoreCase))
+        {
+            var kids = n.ChildNodeIds;
+            if (kids is { Count: >= 2 } && byId.TryGetValue(kids[1], out var inner))
+            {
+                var il = inner.Node.ActualLoops ?? 1;
+                var innerType = inner.Node.NodeType ?? "";
+                var innerSeq = innerType.Contains("Seq Scan", StringComparison.OrdinalIgnoreCase);
+                if (il >= 500 && innerSeq)
+                    return
+                        $"Nested loop re-runs its inner side per outer row; the inner child is a sequential scan executed {il:N0}× in this snapshot—repeated full relation passes on the inner side often dominate before tuning the loop header alone.";
+                if (il >= 50)
+                    return
+                        $"Nested loop re-runs its inner side per outer row; the inner child shows {il:N0}× execution, so probe-style CPU/I/O on the inner path often matters as much as outer cardinality.";
+            }
+
             return "Nested loop re-runs its inner side per outer row; dominant cost is often repeated inner work or high outer cardinality.";
+        }
 
         if (type.Contains("Merge Join", StringComparison.OrdinalIgnoreCase))
             return "Merge join requires ordered inputs; expense often tracks how much sorting or index-ordering was needed to produce those inputs.";
 
         if (type.Contains("Aggregate", StringComparison.OrdinalIgnoreCase) || type.Contains("Group", StringComparison.OrdinalIgnoreCase))
-            return "Aggregation collapses rows; high cost here often means a large grouped rowset or heavy per-group work before this node.";
+        {
+            var pm = n.Node.PartialMode ?? "";
+            if (pm.Contains("Partial", StringComparison.OrdinalIgnoreCase))
+                return "Partial aggregate runs inside parallel branches—cost often tracks per-worker row volume feeding the later gather/finalize step.";
+            if (pm.Contains("Final", StringComparison.OrdinalIgnoreCase))
+                return "Final aggregate combines partial results—expense can be merge/sort or hash consolidation pressure even when workers did most grouping work.";
+            return "Aggregation collapses rows; high cost here usually means a large grouped rowset or heavy per-group work arriving from below.";
+        }
 
         if (!string.IsNullOrWhiteSpace(rel) && (type.Contains("Scan", StringComparison.OrdinalIgnoreCase) || type.Contains("Bitmap", StringComparison.OrdinalIgnoreCase)))
         {
@@ -55,7 +83,13 @@ public static class OperatorNarrativeHelper
             return "Append chooses among child subtrees (common for chunk-parallel or UNION ALL-style plans); total work sums across active children—heavy cost may be many chunk scans rather than one missing index.";
 
         if (type.Contains("Gather", StringComparison.OrdinalIgnoreCase))
-            return "Gather merges parallel worker output; skew across workers or expensive partial branches can show up here or immediately underneath.";
+        {
+            if (type.Contains("Merge", StringComparison.OrdinalIgnoreCase))
+                return
+                    "Gather Merge combines presorted partial streams from workers—ordering requirements from ORDER BY or merge joins can concentrate cost here when partial aggregates or scans grow wide.";
+            return
+                "Gather pulls parallel partial results to the leader; skew, partial-branch cost, or a hot partial aggregate underneath often matters as much as this node’s own time.";
+        }
 
         if (type.Contains("Bitmap Index Scan", StringComparison.OrdinalIgnoreCase) &&
             !type.Contains("Heap", StringComparison.OrdinalIgnoreCase))
@@ -80,7 +114,25 @@ public static class OperatorNarrativeHelper
         if (!string.Equals(kids[1], n.NodeId, StringComparison.Ordinal))
             return null;
 
+        var loops = n.Node.ActualLoops ?? 1;
+        if (loops >= 100)
+            return
+                $"Inner side of this nested loop ran {loops:N0}×—total inner work scales with outer rows × per-loop inner cost; weak index support on a sequential inner scan amplifies that pattern.";
         return "Sits on the inner side of a nested loop—cost may be a symptom of outer row count, join condition, or inner-side filtering/index support.";
+    }
+
+    /// <summary>NL inner-side note, or hash-join build-side note when inferable from plan shape.</summary>
+    public static string? SymptomNoteIfJoinHeavySide(AnalyzedPlanNode n, IReadOnlyDictionary<string, AnalyzedPlanNode> byId, string rootNodeId)
+    {
+        var nl = SymptomNoteIfNestedLoopInner(n, byId);
+        if (nl is not null)
+            return nl;
+
+        var role = PlanNodeReferenceBuilder.Build(n, byId, rootNodeId).RoleInPlan;
+        if (role is not null && role.Contains("build side", StringComparison.OrdinalIgnoreCase))
+            return "On the hash-join build side—heavy work often reflects build cardinality, memory use, or spills before probe volume dominates.";
+
+        return null;
     }
 
     /// <summary>Phase 59: compact interpretive copy for the selected-node panel (no raw field dump).</summary>
@@ -117,6 +169,35 @@ public static class OperatorNarrativeHelper
             parts.Add(childHint);
 
         return string.Join(" ", parts);
+    }
+
+    /// <summary>Phase 63: one dense line for tactical readouts—primary anchor, join role when known, measurable pressure.</summary>
+    public static string BuildOperatorBriefingLine(AnalyzedPlanNode n, FindingEvaluationContext ctx, string? queryText = null)
+    {
+        var r = PlanNodeReferenceBuilder.Build(n, ctx.ById, ctx.RootNodeId, queryText);
+        var parts = new List<string> { r.PrimaryLabel };
+        if (!string.IsNullOrWhiteSpace(r.RoleInPlan))
+            parts.Add(r.RoleInPlan);
+
+        var pressure = BriefPressureClause(n, ctx);
+        if (pressure is not null)
+            parts.Add(pressure);
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string? BriefPressureClause(AnalyzedPlanNode n, FindingEvaluationContext ctx)
+    {
+        var ex = ctx.ExclusiveTimeShareOfPlan(n) ?? 0;
+        var rd = ctx.SharedReadShareOfPlan(n) ?? 0;
+        var st = ctx.SubtreeTimeShareOfPlan(n) ?? 0;
+        if (ex >= 0.14)
+            return $"high exclusive-time share (~{ex:P0} of root inclusive)";
+        if (rd >= 0.14)
+            return $"high shared-read share (~{rd:P0} of plan reads)";
+        if (st >= 0.38 && !n.Metrics.IsRoot)
+            return $"subtree time ~{st:P0} of plan—worth drilling children if exclusive time here is modest";
+        return null;
     }
 
     private static string? ChildSubtreeConcentrationHint(AnalyzedPlanNode n, FindingEvaluationContext ctx)

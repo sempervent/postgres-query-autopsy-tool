@@ -12,11 +12,14 @@ import type { CompareSummarySectionId, CompareWorkspaceLayoutState } from '../..
 import { ArtifactSharingPanel } from '../ArtifactSharingPanel'
 import { CompareCaptureContextColumn } from './CompareCaptureContextColumn'
 import { prefetchCompareSelectedPairHeavySections } from './prefetchCompareSelectedPairHeavySections'
-import { normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
+import { humanNodeAnchorFromPlan, normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
+import { comparisonStorySectionLabels } from '../../presentation/storyPresentation'
 
 export type CompareSummaryColumnProps = {
   layout: CompareWorkspaceLayoutState
   comparison: PlanComparisonResult
+  /** Phase 69: compact continuity chip (selected pair or primary story beat). */
+  continuitySummaryCue?: string | null
   appConfig: AppConfig | null
   coverage: string | null
   summaryCards: { key: string; label: string; value: string; deltaLabel?: string | null; tone?: 'good' | 'bad' | 'neutral' }[]
@@ -45,6 +48,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
   const {
     layout,
     comparison,
+    continuitySummaryCue,
     appConfig,
     coverage,
     summaryCards,
@@ -253,7 +257,9 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
                         setHighlightSuggestionId(s.suggestionId)
                       }}
                     >
-                      Focus plan B · {s.targetDisplayLabel ?? (s.targetNodeIds ?? [])[0]}
+                      Focus plan B ·{' '}
+                      {s.targetDisplayLabel?.trim() ||
+                        humanNodeAnchorFromPlan((s.targetNodeIds ?? [])[0], comparison.planB)}
                     </button>
                   ) : null}
                 </li>
@@ -265,42 +271,72 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         return (
           <div className="pqat-metaRow">
             {comparison.comparisonStory?.overview?.trim() ? (
-              <div className="pqat-callout pqat-callout--accent" style={{ marginBottom: 12 }} aria-label="Change story">
-                <div className="pqat-callout__title">Change story</div>
-                <p style={{ margin: '0 0 8px', fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>
-                  {comparison.comparisonStory.overview}
-                </p>
-                {comparison.comparisonStory.changeBeats?.length ? (
-                  <ul className="pqat-bulletList pqat-bulletList--tight" style={{ marginBottom: 8 }}>
-                    {comparison.comparisonStory.changeBeats.map((raw, i) => {
-                      const b = normalizeComparisonStoryBeat(raw)
-                      return (
-                        <li key={`cb-${i}-${b.text.slice(0, 20)}`}>
-                          <div>{b.text}</div>
-                          {b.focusNodeIdA && b.focusNodeIdB ? (
-                            <button
-                              type="button"
-                              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
-                              style={{ marginTop: 6 }}
-                              onMouseEnter={prefetchCompareSelectedPairHeavySections}
-                              onFocus={prefetchCompareSelectedPairHeavySections}
-                              onClick={() => setSelectedPair({ a: b.focusNodeIdA!, b: b.focusNodeIdB! })}
-                            >
-                              Open pair
-                              {b.pairAnchorLabel?.trim() ? ` · ${b.pairAnchorLabel}` : ''}
-                            </button>
-                          ) : null}
-                        </li>
-                      )
-                    })}
-                  </ul>
+              <div className="pqat-callout pqat-callout--accent" style={{ marginBottom: 12 }} aria-label="Change briefing">
+                <div className="pqat-callout__title">{comparisonStorySectionLabels().deck}</div>
+                {continuitySummaryCue?.trim() ? (
+                  <div
+                    className="pqat-continuitySummaryCue"
+                    style={{ marginTop: 8 }}
+                    aria-label="Continuity cue for the selected mapped pair or primary story beat"
+                  >
+                    <span className="pqat-inlineMeta" id="compare-continuity-summary-label">
+                      Continuity ·{' '}
+                    </span>
+                    <span
+                      className="pqat-chip pqat-chip--suggestionMeta"
+                      data-testid="compare-continuity-summary-cue"
+                      aria-labelledby="compare-continuity-summary-label"
+                    >
+                      {continuitySummaryCue.trim()}
+                    </span>
+                  </div>
                 ) : null}
-                <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 6 }}>
-                  <span className="pqat-inlineMeta">Walkthrough · </span>
-                  {comparison.comparisonStory.investigationPath}
+                <div className="pqat-storyLane pqat-storyLane--orientation pqat-changeStoryLead" style={{ marginTop: 8 }}>
+                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().runtime}</div>
+                  <div className="pqat-storyLane__body pqat-changeStoryLead__body">{comparison.comparisonStory.overview}</div>
                 </div>
-                <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 0, opacity: 0.88 }}>
-                  {comparison.comparisonStory.structuralReading}
+                {comparison.comparisonStory.changeBeats?.length ? (
+                  <div className="pqat-storyLane pqat-storyLane--pressure" style={{ marginTop: 10 }}>
+                    <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().structure}</div>
+                    <div style={{ marginTop: 4 }}>
+                      {comparison.comparisonStory.changeBeats.map((raw, i) => {
+                        const b = normalizeComparisonStoryBeat(raw)
+                        return (
+                          <div key={`cb-${i}-${b.text.slice(0, 20)}`} className="pqat-changeStoryBeat">
+                            <div className="pqat-changeStoryBeat__text">{b.text}</div>
+                            {b.beatBriefing?.trim() ? (
+                              <div className="pqat-changeStoryBeat__briefing" aria-label="Plan B operator briefing">
+                                {b.beatBriefing}
+                              </div>
+                            ) : null}
+                            {b.focusNodeIdA && b.focusNodeIdB ? (
+                              <button
+                                type="button"
+                                className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                                style={{ marginTop: 6 }}
+                                onMouseEnter={prefetchCompareSelectedPairHeavySections}
+                                onFocus={prefetchCompareSelectedPairHeavySections}
+                                onClick={() => setSelectedPair({ a: b.focusNodeIdA!, b: b.focusNodeIdB! })}
+                              >
+                                Open pair
+                                {b.pairAnchorLabel?.trim() ? ` · ${b.pairAnchorLabel}` : ''}
+                              </button>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="pqat-storyLane pqat-storyLane--action" style={{ marginTop: 10 }}>
+                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().walkthrough}</div>
+                  <div className="pqat-storyLane__body">{comparison.comparisonStory.investigationPath}</div>
+                </div>
+                <div className="pqat-storyLane pqat-storyLane--flow" style={{ marginTop: 8 }}>
+                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().readout}</div>
+                  <div className="pqat-storyLane__body" style={{ opacity: 0.9 }}>
+                    {comparison.comparisonStory.structuralReading}
+                  </div>
                 </div>
               </div>
             ) : null}

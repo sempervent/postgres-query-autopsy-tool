@@ -1,0 +1,1 @@
+-- Hash Join with build-side Hash nested under Materialize (probe/build inference fixture).

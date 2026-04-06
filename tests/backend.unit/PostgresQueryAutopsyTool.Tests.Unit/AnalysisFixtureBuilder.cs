@@ -21,17 +21,31 @@ internal static class AnalysisFixtureBuilder
             new PotentialIndexingOpportunityRule(),
         }).EvaluateAndRank(root.NodeId, metrics);
         var summary = PlanSummaryBuilder.Build(root.NodeId, metrics, findings);
-        var narrative = NarrativeGenerator.From(summary, metrics, findings);
-        var ctx = new FindingEvaluationContext(root.NodeId, metrics);
-        var overview = IndexSignalAnalyzer.BuildOverview(metrics, ctx);
-        var insights = IndexSignalAnalyzer.BuildInsights(metrics, ctx, overview);
+        var augmented = PlanNodeInterpretationAugmentor.Augment(metrics, root.NodeId, summary, queryText: null);
+        var byId = augmented.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        var summaryWithBriefings = summary with
+        {
+            Bottlenecks = PlanBottleneckBriefingOverlay.AttachOperatorBriefings(summary.Bottlenecks, byId)
+        };
+        var narrative = NarrativeGenerator.From(summaryWithBriefings, augmented, findings);
+        var ctx = new FindingEvaluationContext(root.NodeId, augmented);
+        var overview = IndexSignalAnalyzer.BuildOverview(augmented, ctx);
+        var insights = IndexSignalAnalyzer.BuildInsights(augmented, ctx, overview);
         var core = new PlanAnalysisResult(
-            "t", root.NodeId, null, null, metrics, findings, narrative, summary, overview, insights,
+            "t", root.NodeId, null, null, augmented, findings, narrative, summaryWithBriefings, overview, insights,
             Array.Empty<OptimizationSuggestion>(),
             PlanStory: null);
         var withSug = core with { OptimizationSuggestions = OptimizationSuggestionEngine.Build(core) };
         var story = PlanStoryBuilder.Build(
-            root.NodeId, summary, metrics, findings, narrative, overview, insights, withSug.OptimizationSuggestions);
+            root.NodeId,
+            summaryWithBriefings,
+            augmented,
+            findings,
+            narrative,
+            overview,
+            insights,
+            withSug.OptimizationSuggestions,
+            queryText: null);
         return withSug with { PlanStory = story };
     }
 }

@@ -1,0 +1,2 @@
+-- Fixture companion: bitmap heap + bitmap index scan on shipments (plan B in seq↔bitmap or bitmap↔index compares).
+-- Example shape: SELECT * FROM shipments WHERE warehouse_id = 3; (planner may choose bitmap path)

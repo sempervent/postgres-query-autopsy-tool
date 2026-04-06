@@ -1,0 +1,61 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 1.0,
+      "Total Cost": 40000.0,
+      "Plan Rows": 5000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.08,
+      "Actual Total Time": 95.0,
+      "Actual Rows": 80,
+      "Actual Loops": 1,
+      "Join Filter": "(orders.id = line_items.order_id)",
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Startup Cost": 0.0,
+          "Total Cost": 120.0,
+          "Plan Rows": 400,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 1.2,
+          "Actual Rows": 80,
+          "Actual Loops": 1,
+          "Filter": "(status = 'open'::text)",
+          "Buffers": {
+            "Shared Hit Blocks": 60,
+            "Shared Read Blocks": 15,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "line_items",
+          "Schema": "public",
+          "Alias": "line_items",
+          "Startup Cost": 0.0,
+          "Total Cost": 20.0,
+          "Plan Rows": 30,
+          "Plan Width": 16,
+          "Actual Startup Time": 0.001,
+          "Actual Total Time": 0.85,
+          "Actual Rows": 25,
+          "Actual Loops": 2400,
+          "Filter": "(qty > 0)",
+          "Buffers": {
+            "Shared Hit Blocks": 150,
+            "Shared Read Blocks": 6000,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]

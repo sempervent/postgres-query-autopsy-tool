@@ -69,8 +69,8 @@ public static class FindingIndexDiffLinker
                     !string.Equals(idx.NodeIdB, nodeIdB, StringComparison.Ordinal))
                     continue;
 
-                var ruleShort = ShortRuleLabel(f.RuleId);
-                cues.Add($"Corroborated: {ruleShort} ({f.ChangeType}) ↔ index delta ({FormatKind(idx.Kind)})");
+                cues.Add(
+                    $"Index posture shifted ({FormatKind(idx.Kind)}); the finding “{f.Title}” {HumanizeFindingChange(f.ChangeType)} in the same neighborhood.");
                 if (cues.Count >= 3) return cues;
             }
         }
@@ -104,27 +104,27 @@ public static class FindingIndexDiffLinker
     private static string? TryBuildCorroborationSentence(FindingDiffItem f, IndexInsightDiffItem idx)
     {
         var rel = idx.InsightB?.RelationName ?? idx.InsightA?.RelationName ?? RelationFromFinding(f);
-        var relPart = string.IsNullOrWhiteSpace(rel) ? "the highlighted relation" : $"`{rel}`";
+        var relPart = string.IsNullOrWhiteSpace(rel) ? "the highlighted relation" : rel;
 
         if ((f.RuleId.Contains("seq-scan", StringComparison.OrdinalIgnoreCase) ||
              f.RuleId.Contains("potential-indexing", StringComparison.OrdinalIgnoreCase)) &&
             f.ChangeType == FindingChangeType.Resolved &&
             idx.Kind is IndexInsightDiffKind.Resolved or IndexInsightDiffKind.Improved)
         {
-            return $"A missing-index-style concern on {relPart} appears resolved, aligning with an index/access-path shift in the structured index delta (heuristic mapping).";
+            return $"The prior missing-index-style stress on {relPart} clears on B alongside a favorable index/access-path shift—validate timing and reads, not only the green diff.";
         }
 
         if (f.RuleId.Contains("index-access-still-heavy", StringComparison.OrdinalIgnoreCase) &&
             (f.ChangeType is FindingChangeType.New or FindingChangeType.Worsened or FindingChangeType.Unchanged) &&
             idx.Kind is not IndexInsightDiffKind.Resolved)
         {
-            return $"An index-backed path on {relPart} remains read-heavy in findings; the index delta corroborates that the workload may still be large—not only “unindexed.”";
+            return $"Index-backed access on {relPart} still looks read-heavy; the index delta agrees volume or recheck/heap work—not a simple “add another index” story—may dominate.";
         }
 
         if (f.RuleId.Contains("sort-cost", StringComparison.OrdinalIgnoreCase) &&
             InsightHasSignal(idx, IndexSignalAnalyzer.SignalSortOrderSupportOpportunity))
         {
-            return $"Sort-cost finding changes align with a sort-order / index-alignment index delta on {relPart} (investigation cue, not a prescription).";
+            return $"Sort-pressure finding shifts line up with sort-order or index-alignment movement on {relPart}—worth validating before rewriting indexes.";
         }
 
         return null;
@@ -257,11 +257,17 @@ public static class FindingIndexDiffLinker
                string.Equals(f.NodeIdB, nodeIdB, StringComparison.Ordinal);
     }
 
-    private static string ShortRuleLabel(string ruleId)
-    {
-        var i = ruleId.IndexOf('.');
-        return i >= 0 && i < ruleId.Length - 1 ? ruleId[(i + 1)..] : ruleId;
-    }
+    private static string HumanizeFindingChange(FindingChangeType t) =>
+        t switch
+        {
+            FindingChangeType.New => "new on B",
+            FindingChangeType.Worsened => "worsened on B",
+            FindingChangeType.Resolved => "resolved",
+            FindingChangeType.Improved => "improved on B",
+            FindingChangeType.Unchanged => "unchanged",
+            FindingChangeType.Unmapped => "unmapped",
+            _ => t.ToString().ToLowerInvariant()
+        };
 
     private static string FormatKind(IndexInsightDiffKind k) => k switch
     {

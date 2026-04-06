@@ -1,8 +1,29 @@
 import type { ComparisonStory, PlanStory } from '../api/types'
 
-/** Short label for summary deck / guide (Phase 60). */
+/** Primary deck title — narrative-first analyze surface (Phase 62). */
 export function planStoryDeckTitle(): string {
-  return 'Plan story'
+  return 'Plan briefing'
+}
+
+export function planStorySectionLabels() {
+  return {
+    orientation: 'Orientation',
+    work: 'Work concentration',
+    drivers: 'Pressure & cost drivers',
+    startHere: 'Inspect first',
+    flow: 'Propagation & flow',
+    indexShape: 'Index / shape angle',
+  } as const
+}
+
+export function comparisonStorySectionLabels() {
+  return {
+    deck: 'Change briefing',
+    runtime: 'Runtime & I/O posture',
+    structure: 'Structural deltas',
+    walkthrough: 'Walk the diff',
+    readout: 'Planner read',
+  } as const
 }
 
 export function planStoryHasContent(s: PlanStory | null | undefined): boolean {

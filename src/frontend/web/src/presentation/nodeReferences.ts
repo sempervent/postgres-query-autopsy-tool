@@ -45,10 +45,11 @@ export function nearestMeaningfulAncestorSubtitle(nodeId: string, byId: Map<stri
 
 export function nodeReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>): string {
   const n = byId.get(nodeId)
-  if (!n) return 'Unknown operator'
+  if (!n) return `Unknown operator · node ${nodeId}`
   const label = nodeShortLabel(n, byId)
   const sub = nearestMeaningfulAncestorSubtitle(nodeId, byId)
-  return sub ? `${label} — ${sub}` : label
+  const head = sub ? `${label} — ${sub}` : label
+  return `${head} · node ${nodeId}`
 }
 
 export function hotspotReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>, kind?: string | null): string {
@@ -73,6 +74,7 @@ export function pairReferenceText(pair: NodePairDetail, byIdA: Map<string, Analy
   const aSub = joinSubtitleForNode(pair.identity.nodeIdA, byIdA)
   const bSub = joinSubtitleForNode(pair.identity.nodeIdB, byIdB)
   const sub = bSub ?? aSub
-  return sub ? `${label} — ${sub}` : label
+  const head = sub ? `${label} — ${sub}` : label
+  return `${head} · A:${pair.identity.nodeIdA} B:${pair.identity.nodeIdB}`
 }
 

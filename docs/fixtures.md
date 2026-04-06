@@ -37,6 +37,15 @@ Convention:
 3. If it’s illustrative, say so at the top of the SQL file.
 4. Ensure fixture hygiene checks pass (CI will fail if required companions are missing).
 
+## Analyze corpus sweep (Phase 72)
+
+**`PostgresJsonAnalyzeFixtureSweepTests`** (xUnit) walks **every** `*.json` file **directly** under `fixtures/postgres-json/` (not subfolders) and runs the same **`PlanAnalysisService`** pipeline as production Analyze: parse → metrics → findings → summary → narrative → index overview/insights → **`OptimizationSuggestionEngine`** → **`PlanStoryBuilder`**.
+
+- **In scope:** top-level `postgres-json/*.json` only (including compare-oriented single plans such as `compare_before_seq_scan.json`, which are still valid one-plan analyzes).
+- **Out of scope:** `fixtures/comparison/<case>/planA|B.json` — paired compare corpus; covered by compare tests and companion SQL rules.
+- **Opt-out:** add a basename to **`ExcludedFixtureFiles`** in the test class if a file is intentionally non-JSON or not an explain plan (should be rare).
+- Failures report **`[file] Stage: message`** so CI logs stay actionable.
+
 ## Realistic buffer-shape fixtures
 
 - `pg_flat_buffers_seq_scan.json` — flat `Shared Read Blocks` / `Temp Read Blocks` style keys (no nested `Buffers` object), matching common PostgreSQL `EXPLAIN (BUFFERS)` JSON.
@@ -51,6 +60,10 @@ Convention:
   - **Append** over repeated **Bitmap Heap Scan** / **Bitmap Index Scan** pairs (hypertable chunks)
 
 Backend tests use this file to guard buffer detection (`hasBuffers`, read hotspots, findings), parser normalization, worker preservation vs parent totals, and narrative buffer-aware branches. The SQL companion is illustrative (requires TimescaleDB and matching schema); the JSON is the source of truth for CI.
+
+## Cumulative / grouped grid fixture (Phase 72)
+
+- **`cumulative_group_by.json`** (+ **`cumulative_group_by.sql`**) — windowed **`SUM(...) OVER (PARTITION BY … ORDER BY …)`** over a daily grid with CTEs; plan includes **Sort**, **Finalize/Partial Aggregate**, **Gather**, temp sort spill signals, and realistic buffer keys. The committed JSON is **sanitized EXPLAIN JSON only** (no `psql` headers or `--More--` noise) so parsers and the corpus sweep can load it reliably. Targeted tests assert grouped-output shape (sort + aggregate + **`PlanStory`**) and temp/subtree richness.
 
 ## Index-analysis fixtures (Phase 29)
 

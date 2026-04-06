@@ -59,6 +59,8 @@ export type AnalyzedPlanNode = {
   contextEvidence?: OperatorContextEvidence | null
   /** Phase 59: human interpretive paragraph for selected-node panel. */
   operatorInterpretation?: string | null
+  /** Phase 63: one-line dense briefing from backend (label · role · pressure). */
+  operatorBriefingLine?: string | null
 }
 
 /** Detected from parsed plan JSON (not declared EXPLAIN metadata). */
@@ -106,6 +108,8 @@ export type PlanBottleneckInsight = {
   propagationNote?: string | null
   /** Phase 61: human anchor for “where” in the plan (not a raw path). */
   humanAnchorLabel?: string | null
+  /** Phase 64: backend one-line briefing (same voice as selected-node readout). */
+  operatorBriefingLine?: string | null
 }
 
 /** Phase 61: plan story beat with optional graph focus (camelCase JSON). Legacy artifacts may use plain strings. */
@@ -446,6 +450,12 @@ export type NodePairDetail = {
   indexDeltaCues?: string[] | null
   /** Finding ↔ index-delta corroboration for this pair (Phase 31). */
   corroborationCues?: string[] | null
+  /** Phase 67: same plan region, different operator strategy (medium+ mapping confidence). */
+  regionContinuityHint?: string | null
+  /** Phase 69: compact summary-lane cue derived from regionContinuityHint. */
+  regionContinuitySummaryCue?: string | null
+  /** Phase 70: stable continuity kind (e.g. access.narrower) when structured continuity was inferred. */
+  continuityKindKey?: string | null
 }
 
 export type EvidenceChangeDirection =
@@ -596,6 +606,8 @@ export type ComparisonStoryBeat = {
   focusNodeIdA?: string | null
   focusNodeIdB?: string | null
   pairAnchorLabel: string
+  /** Phase 64: dense plan B operator line for anchored regression beats. */
+  beatBriefing?: string | null
 }
 
 export type ComparisonStory = {

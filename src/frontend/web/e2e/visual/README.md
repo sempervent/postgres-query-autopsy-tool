@@ -18,10 +18,11 @@ Playwright writes **`*-e2e-visual-linux.png`** under **`canonical.spec.ts-snapsh
 - **Playwright project:** `e2e-visual` (`playwright.config.mjs`).
 - **Spec:** `canonical.spec.ts` (add sibling specs under `e2e/visual/` only when worth the baseline cost).
 
-## Determinism & stability (Phase 57)
+## Determinism & stability (Phase 57 + Phase 65)
 
 - **`data-visual-regression="1"`** on `<html>` — flat **`#root`** background (`index.css`).
-- **`prefers-reduced-motion: reduce`**, dark **`colorScheme`**.
+- **`prefers-reduced-motion: reduce`**, dark **`colorScheme`** ( **`page.emulateMedia`** ).
+- **Phase 65–66 — theme lock:** `canonical.spec.ts` **`addInitScript`** sets **`localStorage['pqat_theme_v1']='dark'`**, **`data-theme="dark"`**, **`data-effective-theme="dark"`**, **`data-theme-preference="dark"`**, and **`documentElement.style.colorScheme='dark'`** so baselines stay independent of the runner’s OS light/dark mode. New visual specs should either reuse this pattern or document an explicit theme choice. Non-pixel theme checks live in **`e2e/theme-appearance.spec.ts`** (**`e2e-smoke`**).
 - **`document.fonts.ready`** before each screenshot (bundled **@fontsource**).
 - **Analyze happy:** waits for **`.react-flow__node`** + first **`Finding:`** control before capture.
 - **Compare happy:** waits for **Key metric deltas** after **Comparing…** clears.

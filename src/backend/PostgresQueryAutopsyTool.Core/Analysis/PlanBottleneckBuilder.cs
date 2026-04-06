@@ -54,7 +54,7 @@ internal static class PlanBottleneckBuilder
             var ex = n.Metrics.ExclusiveActualTimeMsApprox!.Value;
             var label = NodeLabelFormatter.ShortLabel(n, byId);
             var sh = share is > 0 ? $" (~{share:P0} of root inclusive time)" : "";
-            var symptom = OperatorNarrativeHelper.SymptomNoteIfNestedLoopInner(n, byId);
+            var symptom = OperatorNarrativeHelper.SymptomNoteIfJoinHeavySide(n, byId, ctx.RootNodeId);
             var bc = BottleneckClassifier.ClassForExclusiveOrSubtreeNode(n, ctx);
             var cause = BottleneckClassifier.CauseHintFor("time_exclusive", n, byId, rank);
             TryAdd(
@@ -91,7 +91,7 @@ internal static class PlanBottleneckBuilder
                 $"Inclusive time under this branch ≈ {st:F2}ms{sh}. Inspect children to see whether cost is local or from descendants.",
                 new[] { subtreeLeader.NodeId },
                 Array.Empty<string>(),
-                OperatorNarrativeHelper.SymptomNoteIfNestedLoopInner(subtreeLeader, byId),
+                OperatorNarrativeHelper.SymptomNoteIfJoinHeavySide(subtreeLeader, byId, ctx.RootNodeId),
                 subtreeLeader);
         }
 
@@ -119,7 +119,7 @@ internal static class PlanBottleneckBuilder
                     $"Shared read blocks ≈ {blocks}{sh}. Pair with timing on this branch—high reads can be a symptom of join shape or weak selectivity, not only “missing index.”",
                     new[] { readLeader.NodeId },
                     Array.Empty<string>(),
-                    OperatorNarrativeHelper.SymptomNoteIfNestedLoopInner(readLeader, byId),
+                    OperatorNarrativeHelper.SymptomNoteIfJoinHeavySide(readLeader, byId, ctx.RootNodeId),
                     readLeader);
             }
         }
@@ -141,7 +141,7 @@ internal static class PlanBottleneckBuilder
                 $"{f.Summary} {f.Explanation}".Trim(),
                 new[] { nid },
                 new[] { f.FindingId },
-                OperatorNarrativeHelper.SymptomNoteIfNestedLoopInner(node, byId),
+                OperatorNarrativeHelper.SymptomNoteIfJoinHeavySide(node, byId, ctx.RootNodeId),
                 node);
         }
 

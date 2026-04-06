@@ -1,0 +1,2 @@
+-- Fixture companion: explicit sort over sequential read (plan A in sort → order-supported rewrite compare).
+-- Example shape: SELECT * FROM shipments WHERE warehouse_id = 3 ORDER BY shipped_at DESC;

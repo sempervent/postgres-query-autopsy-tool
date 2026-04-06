@@ -38,7 +38,10 @@ public sealed class ComparisonStoryBeatListJsonConverter : JsonConverter<IReadOn
             var pair = root.TryGetProperty("pairAnchorLabel", out var pe) && pe.ValueKind == JsonValueKind.String
                 ? pe.GetString() ?? ""
                 : "";
-            list.Add(new ComparisonStoryBeat(text, fa, fb, pair));
+            string? bb = root.TryGetProperty("beatBriefing", out var bbe) && bbe.ValueKind == JsonValueKind.String
+                ? bbe.GetString()
+                : null;
+            list.Add(new ComparisonStoryBeat(text, fa, fb, pair, bb));
         }
 
         throw new JsonException("Unclosed array for change beats.");
@@ -56,6 +59,8 @@ public sealed class ComparisonStoryBeatListJsonConverter : JsonConverter<IReadOn
             if (b.FocusNodeIdB is not null)
                 writer.WriteString("focusNodeIdB", b.FocusNodeIdB);
             writer.WriteString("pairAnchorLabel", b.PairAnchorLabel);
+            if (!string.IsNullOrWhiteSpace(b.BeatBriefing))
+                writer.WriteString("beatBriefing", b.BeatBriefing!);
             writer.WriteEndObject();
         }
 

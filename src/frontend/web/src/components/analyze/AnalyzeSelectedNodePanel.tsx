@@ -4,6 +4,7 @@ import { joinLabelAndSubtitle } from '../../presentation/nodeLabels'
 import { getWorkersFromPlanNode, workerSummaryCue } from '../../presentation/workerPresentation'
 import { formatAccessPathSummaryLine, indexInsightsForNodeId } from '../../presentation/indexInsightPresentation'
 import { nodeReferenceText } from '../../presentation/nodeReferences'
+import { appUrlForPath } from '../../presentation/shareAppUrl'
 import {
   analyzeDeepLinkPath,
   buildAnalyzeDeepLinkSearchParams,
@@ -12,6 +13,8 @@ import {
 } from '../../presentation/artifactLinks'
 import type { AppConfig } from '../../api/types'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
+import { TechnicalIdCollapsible } from '../TechnicalIdCollapsible'
+import { operatorBriefingLine } from '../../presentation/briefingReadoutPresentation'
 
 const AnalyzeSelectedNodeHeavySections = lazy(() =>
   import('./AnalyzeSelectedNodeHeavySections').then((m) => ({ default: m.AnalyzeSelectedNodeHeavySections })),
@@ -54,13 +57,24 @@ export function AnalyzeSelectedNodePanel(props: {
       <div className="pqat-eyebrow">Detail</div>
       <h2>Selected node</h2>
       {selectedNode ? (
-        <div className="pqat-panel pqat-panel--workspace" style={{ padding: 14, marginTop: 4 }}>
-          <div style={{ fontWeight: 800, fontSize: '1.02rem', letterSpacing: '-0.02em' }}>{nodeLabel(selectedNode)}</div>
+        <div className="pqat-readoutShell pqat-panel pqat-panel--workspace" style={{ padding: 14, marginTop: 4 }} aria-label="Selected node readout">
+          <div className="pqat-readoutKicker">Operator in focus</div>
+          <div className="pqat-readoutTitle">{nodeLabel(selectedNode)}</div>
+          {(() => {
+            const br = operatorBriefingLine(selectedNode)
+            return br ? (
+              <div className="pqat-operatorBriefing" aria-label="Operator briefing">
+                <div className="pqat-operatorBriefing__kicker">Briefing</div>
+                {br}
+              </div>
+            ) : null
+          })()}
           {(() => {
             const js = joinLabelAndSubtitle(selectedNode, byId)
             if (!js?.subtitle) return null
             return <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{js.subtitle}</div>
           })()}
+          <TechnicalIdCollapsible nodeId={selectedNode.nodeId} />
           {selectedNode.operatorInterpretation?.trim() ? (
             <div
               style={{
@@ -127,7 +141,10 @@ export function AnalyzeSelectedNodePanel(props: {
           })()}
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={async () => {
+              type="button"
+              data-testid="analyze-copy-node-reference"
+              onClick={async (e) => {
+                e.stopPropagation()
                 if (!selectedNodeId) return
                 const text = nodeReferenceText(selectedNodeId, byId)
                 await copyNode.copy(text, 'Copied node reference')
@@ -138,7 +155,8 @@ export function AnalyzeSelectedNodePanel(props: {
             </button>
             <button
               type="button"
-              onClick={async () => {
+              onClick={async (e) => {
+                e.stopPropagation()
                 if (!selectedNodeId) return
                 const path = analyzeDeepLinkPath(
                   locationPathname,
@@ -147,7 +165,7 @@ export function AnalyzeSelectedNodePanel(props: {
                     nodeId: selectedNodeId,
                   }),
                 )
-                await copyShareLink.copy(`${window.location.origin}${path}`, shareLinkUi.toast)
+                await copyShareLink.copy(appUrlForPath(path), shareLinkUi.toast)
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
             >

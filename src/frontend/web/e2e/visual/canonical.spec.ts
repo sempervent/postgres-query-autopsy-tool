@@ -25,6 +25,16 @@ test.beforeAll(async ({ request }) => {
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' })
   await page.addInitScript(() => {
+    // Phase 65: lock dark theme for deterministic pixels (canonical visual baseline).
+    try {
+      localStorage.setItem('pqat_theme_v1', 'dark')
+    } catch {
+      /* ignore */
+    }
+    document.documentElement.setAttribute('data-theme', 'dark')
+    document.documentElement.setAttribute('data-effective-theme', 'dark')
+    document.documentElement.setAttribute('data-theme-preference', 'dark')
+    document.documentElement.style.colorScheme = 'dark'
     document.documentElement.setAttribute('data-visual-regression', '1')
   })
 })

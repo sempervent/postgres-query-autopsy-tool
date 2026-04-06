@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeComparisonStoryBeat, normalizeStoryPropagationBeat } from './planReferencePresentation'
+import {
+  humanNodeAnchorFromPlan,
+  normalizeComparisonStoryBeat,
+  normalizeStoryPropagationBeat,
+} from './planReferencePresentation'
+import type { PlanAnalysisResult } from '../api/types'
 
 describe('planReferencePresentation', () => {
   it('normalizes legacy string propagation beats', () => {
@@ -30,6 +35,32 @@ describe('planReferencePresentation', () => {
       focusNodeIdA: null,
       focusNodeIdB: null,
       pairAnchorLabel: '',
+      beatBriefing: null,
     })
+    expect(
+      normalizeComparisonStoryBeat({
+        text: 'x',
+        focusNodeIdA: 'a',
+        focusNodeIdB: 'b',
+        pairAnchorLabel: 'p',
+        beatBriefing: 'Brief on B',
+      }),
+    ).toMatchObject({ beatBriefing: 'Brief on B' })
+  })
+
+  it('humanNodeAnchorFromPlan avoids raw root paths for unknown ids', () => {
+    const plan = {
+      nodes: [
+        {
+          nodeId: 'root.0',
+          parentNodeId: null,
+          childNodeIds: [],
+          node: { nodeType: 'Seq Scan', relationName: 'users' },
+          metrics: {},
+        },
+      ],
+    } as unknown as PlanAnalysisResult
+    expect(humanNodeAnchorFromPlan('root.0', plan)).toContain('users')
+    expect(humanNodeAnchorFromPlan('root.9.9', plan)).toBe('an operator in this plan')
   })
 })

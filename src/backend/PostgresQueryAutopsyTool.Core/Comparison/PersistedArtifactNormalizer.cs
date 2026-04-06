@@ -29,18 +29,22 @@ public static class PersistedArtifactNormalizer
 
         var suggestions = raw.OptimizationSuggestions.Select(OptimizationSuggestionCompat.NormalizeFields).ToArray();
         var withSugs = raw with { OptimizationSuggestions = suggestions };
-        var story = withSugs.PlanStory ?? PlanStoryBuilder.Build(
-            withSugs.RootNodeId,
-            withSugs.Summary,
-            withSugs.Nodes,
-            withSugs.Findings,
-            withSugs.Narrative,
-            withSugs.IndexOverview,
-            withSugs.IndexInsights,
-            withSugs.OptimizationSuggestions,
-            withSugs.QueryText);
+        var byId = withSugs.Nodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        var briefedBottlenecks = PlanBottleneckBriefingOverlay.AttachOperatorBriefings(withSugs.Summary.Bottlenecks, byId);
+        var summaryWithBriefings = withSugs.Summary with { Bottlenecks = briefedBottlenecks };
+        var withSummary = withSugs with { Summary = summaryWithBriefings };
+        var story = withSummary.PlanStory ?? PlanStoryBuilder.Build(
+            withSummary.RootNodeId,
+            withSummary.Summary,
+            withSummary.Nodes,
+            withSummary.Findings,
+            withSummary.Narrative,
+            withSummary.IndexOverview,
+            withSummary.IndexInsights,
+            withSummary.OptimizationSuggestions,
+            withSummary.QueryText);
 
-        return withSugs with
+        return withSummary with
         {
             PlanStory = story,
             ArtifactSchemaVersion = ArtifactSchema.Current,
@@ -56,13 +60,15 @@ public static class PersistedArtifactNormalizer
         var planA = NormalizeLoadedAnalysis(raw.PlanA, storeCreatedUtc);
         var planB = NormalizeLoadedAnalysis(raw.PlanB, storeCreatedUtc);
         var compareSugs = raw.CompareOptimizationSuggestions.Select(NormalizeCompareSuggestionForDeepLinks).ToArray();
+        var bottleneckBackfill = raw.BottleneckBrief ?? BottleneckComparisonBuilder.Build(planA, planB);
         var cmpStory = raw.ComparisonStory ?? ComparisonStoryBuilder.Build(
             planA,
             planB,
             raw.Summary,
             raw.TopWorsenedNodes,
             raw.TopImprovedNodes,
-            raw.FindingsDiff);
+            raw.FindingsDiff,
+            bottleneckBackfill);
 
         return raw with
         {

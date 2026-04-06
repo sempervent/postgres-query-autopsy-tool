@@ -1186,3 +1186,367 @@ Verified (agent run, 2026-04-04):
 
 **Limitations:** Labels remain **inferred** from plan fields; query hints are **heuristic**, not SQL semantics. Sparse plans still fall back to **operator type + depth**. Canonical ids stay in APIs for focus; debug surfaces may still show ids where useful.
 
+## Phase 62 — Story refinement + narrative-first visual polish (2026-04-04)
+
+**Backend**
+
+- **`PlanNodeReferenceBuilder`:** nearest-join walk-up for **`RoleInPlan`** (outer/inner, probe/build) via **`SideIndexUnderJoin`**; **`HashJoinProbeBuildIndices`** when **`Hash`** sits on left vs right; **`JoinBetweenPhrase`** copy; **`Hash build table (…)`** **`PrimaryLabelCore`** for **`Hash`** under **`Hash Join`**; **`RelationThroughHashWrapper`** for join side relations.
+- **`OperatorNarrativeHelper.SymptomNoteIfJoinHeavySide`** (hash-build symptom) wired from **`PlanBottleneckBuilder`**.
+- **`ComparisonStoryBuilder`** + **`CompareOptimizationSuggestionEngine`** (`CmpHumanLabel` → **`SafePrimary`**, **`CmpPairHumanAnchors`** for resolved-rule rationale) reduce id-heavy compare prose.
+- **Fixtures:** `hash_join_build_left.json`. **Tests:** extended **`PlanNodeReferenceBuilderTests`**.
+
+**Frontend**
+
+- **`storyPresentation`:** **Plan briefing** / **Change briefing** + section label helpers; **`planReferencePresentation.humanNodeAnchorFromPlan`**; **`nodeLabels`** hash-left probe/build parity with backend.
+- **`workstation-patterns.css`:** story **lanes**, bottleneck **triage** cards, change-story beat rows, readout shell, **technical id** details.
+- **`TechnicalIdCollapsible`** / **`TechnicalPairIdsCollapsible`**; **`AnalyzePlanGuideRail`**, **`AnalyzeSummaryCard`**, **`AnalyzeSelectedNodePanel`**, **`CompareSummaryColumn`**, **`CompareSelectedPairPanel`** layout/copy updates.
+- **Tests:** **`planReferencePresentation`**, **`storyPresentation`**, **`ComparePage.ux.test`** aria label for change briefing.
+
+**Docs / reports**
+
+- **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**; **`PlanAnalysisService`** Markdown/HTML headings → **Plan briefing** / **Change briefing**.
+
+**Verification (Docker SDK 8.0 + local Node 20)**
+
+- `docker run … dotnet test tests/backend.unit/…` — **OK** (132 tests after Phase 62 additions).
+- `cd src/frontend/web && npm test` — **OK**.
+- `cd src/frontend/web && npm run build` — **OK** (run locally).
+- `docker compose build` — **OK** (API + web images).
+- `docker run … python:3.12-slim-bookworm` — `pip install -r requirements-docs.txt`, `mkdocs build --strict` — **OK**.
+
+**Limitations:** Join probe/build when **both** or **neither** child is **`Hash`** falls back to PostgreSQL’s usual left-probe/right-build assumption. Role phrases may omit “between X and Y” when relations cannot be resolved. **`Technical id`** remains the explicit escape hatch—primary story copy still avoids casual **`root.*`** leakage when anchors exist.
+
+## Phase 63 — Deeper compare storytelling + denser operator briefings (2026-04-05)
+
+**Backend**
+
+- **`AnalyzedPlanNode.OperatorBriefingLine`** + **`OperatorNarrativeHelper.BuildOperatorBriefingLine`** (primary · **`RoleInPlan`** · brief pressure clause); set in **`PlanNodeInterpretationAugmentor`** alongside **`OperatorInterpretation`**.
+- **`PlanNodeReferenceBuilder`:** **`JoinFamilyTypeLooksBinary`**, **`IsBinaryJoinOperator`** broadened; **`FormatJoinSideRole`** handles **semi/anti** (hash probe/build + existence/anti phrasing; NL/Merge outer/inner with existence probes).
+- **`ComparisonStoryBuilder`:** optional **`BottleneckComparisonBrief`** parameter; regression + “primary class unchanged” beat; **severe findings delta** beat; several beat and walkthrough rewrites; **`PersistedArtifactNormalizer`** backfills story with computed bottleneck brief when needed.
+- **`ComparisonEngine`:** humanized **findings** narrative lines (titles vs raw **`RuleId`**), **pair evidence** wording, investigation guidance; **`FormatPairEvidence`** uses plain relation phrasing and readable time/read deltas.
+- **`FindingIndexDiffLinker`:** corroboration cues and sentences avoid backtick-wrapped relations and rule-token-first phrasing where practical.
+- **Fixtures:** `hash_semi_join.json` + **`.sql`**. **Tests:** **`PlanNodeReferenceBuilderTests`** (semi join, briefing line), **`ComparisonStoryBuilderTests`**.
+
+**Frontend**
+
+- **`briefingReadoutPresentation.ts`** + tests; **`operatorBriefingLine`** on **`AnalyzedPlanNode`** type.
+- **`pqat-operatorBriefing`**, **`pqat-pairBriefingGrid`**, **`pqat-changeStoryLead__body`**; **Analyze** guide + selected node show briefing; **Compare** pair readout shows A/B briefing columns; compare summary section label tweaks.
+
+**Docs**
+
+- **`architecture.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`findings-catalog.md`**, this log.
+
+**Verification**
+
+- `docker run … dotnet test tests/backend.unit/…` — **OK** (135 tests).
+- `docker run … node:20 … npm ci && npm test && npm run build` (in `src/frontend/web`) — **OK** (Vitest: **141** tests).
+- `docker compose build` — **OK** (API + web).
+- `docker run … python:3.12-slim-bookworm` + `requirements-docs.txt` + `mkdocs build --strict` — **OK**.
+
+**Limitations:** Semi/anti role copy assumes PostgreSQL’s usual **two-child** join layout; exotic join nodes may still fall back to generic **`RoleInPlan`**. **`operatorBriefingLine`** omits boundary/query-correspondence hints to stay one line—full paragraph remains in **`operatorInterpretation`**.
+
+## Phase 64 — Forensic briefing refinement + fixture-backed story confidence (2026-04-05)
+
+**Backend**
+
+- **`PlanBottleneckBriefingOverlay`** + **`PlanBottleneckInsight.OperatorBriefingLine`**; **`PlanAnalysisService`** attaches after **`PlanNodeInterpretationAugmentor`**; Markdown/HTML bottleneck lists include **Briefing** when present.
+- **`PlanNodeReferenceBuilder.HashJoinProbeBuildIndices`:** dual direct **`Hash`** children → smaller row magnitude as **build**; neither direct **`Hash`** → shallow **`Hash`** under join child (skips nested join roots) + row tie-break; ambiguous → **probe/build unclear—defaulting to child order**.
+- **`ComparisonStoryBeat.BeatBriefing`** + JSON **`beatBriefing`**; **`ComparisonStoryBuilder`** sets it from plan B **`OperatorBriefingLine`** on the top regression beat; converter read/write extended.
+- **`OperatorNarrativeHelper`:** stronger **Sort** (external/disk vs upstream row growth), **Gather** / **Gather Merge**, **partial/final aggregate** bottleneck paragraphs; **`PlanStoryBuilder`** inspect-first sequencing copy.
+- **`FindingIndexDiffLinker`** + **`CompareOptimizationSuggestionEngine`** metadata lines favor titles / human anchors over raw **`ruleId`** in user-visible suggestion metadata.
+- **Fixtures:** **`gather_merge_partial_agg`**, **`hash_join_nested_build_hash`** (+ **`.sql`** stubs). **Tests:** **`PlanNodeReferenceBuilderTests`**, **`ComparisonStoryBeatJsonTests`**; **`AnalysisFixtureBuilder`** runs augment + bottleneck briefing overlay (matches API pipeline).
+
+**Frontend**
+
+- **`PlanBottleneckInsight.operatorBriefingLine`**, **`ComparisonStoryBeat.beatBriefing`**; **`normalizeComparisonStoryBeat`**; **`pqat-bottleneckCard__briefing`**, **`pqat-changeStoryBeat__briefing`**; **Compare** summary renders beat briefing strip.
+
+**Docs**
+
+- **`architecture.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`findings-catalog.md`**, this log.
+
+**Verification**
+
+- `docker run … mcr.microsoft.com/dotnet/sdk:8.0 … dotnet test tests/backend.unit/…` — **OK** (**141** tests).
+- `docker run … node:20 … npm ci && npm test && npm run build` (in `src/frontend/web`) — **OK** (Vitest: **141** tests).
+- `docker compose build` — **OK** (API + web).
+- `docker run … python:3.12-slim-bookworm` + `requirements-docs.txt` + `mkdocs build --strict` — **OK**.
+
+**Limitations:** Shallow-hash discovery does not cross nested **join** roots; exotic plans may still fall back to child-order defaults. **`beatBriefing`** is intentionally limited to the primary regression beat to avoid repetition.
+
+## Phase 65 — Theme system (dark / light / system) + cross-theme workstation polish (2026-04-05)
+
+**Frontend**
+
+- **`src/theme/`:** **`ThemePreference`** **`system` | `dark` | `light`** (default **`system`**), **`THEME_STORAGE_KEY`** **`pqat_theme_v1`**, **`resolveEffectiveTheme`**, **`applyThemeToDocument`**, **`useThemePreference`** (live **`prefers-color-scheme`** subscription when **`system`**; safe no-op when **`matchMedia`** is missing).
+- **`index.html`:** inline boot script aligns **`data-theme`**, **`data-theme-preference`**, **`color-scheme`** with **`localStorage`** before paint.
+- **`ThemeAppearanceSelect`** + top-bar placement in **`App.tsx`** / **`App.css`**.
+- **`index.css`**, **`workstation.css`**, **`workstation-patterns.css`:** dark via **`html[data-theme='dark']`**, light on **`:root`**; shared severity / metric delta tokens; light root wash vs dark gradient; reduced-motion behavior unchanged in intent.
+
+**Backend**
+
+- **`PersistedArtifactNormalizer`:** after hydrate, **`PlanBottleneckBriefingOverlay.AttachOperatorBriefings`** on summary bottlenecks when nodes still expose **`operatorBriefingLine`** (restores briefing on older stored analyses). **`ComparisonEngine`:** small compare narrative wording tweak (index + resolved findings).
+- **Tests:** **`PersistedArtifactNormalizerTests`** (briefing strip removed from persisted summary → normalized back).
+
+**E2E / tests**
+
+- **`e2e/visual/canonical.spec.ts`:** init script locks **dark** theme + existing visual-regression flag.
+- **`src/theme/theme.test.ts`:** resolver + hook + persistence.
+
+**Docs**
+
+- **`index.md`**, **`architecture.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`contributing.md`**, **`e2e/visual/README.md`**, this log.
+
+**Verified (agent run, 2026-04-05)**
+
+- **Backend:** `docker run --rm -v "$PWD":/src -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj` — **OK** (135 passed).
+- **Frontend:** `cd src/frontend/web && npm install && npm test` — **OK** (31 files, 146 tests). `npm run build` — **OK**.
+- **Docs:** `docker run … python:3.12-slim-bookworm` + `pip install -r requirements-docs.txt` + `mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` (API + web) — **OK**.
+
+**Limitations:** Theme is **local-only** (no account sync). When **`matchMedia`** is absent, **system** resolves to **light** (`matches` false). Reconstructed bottleneck briefing lines require **`operatorBriefingLine`** on nodes in the stored snapshot; missing augment data cannot be invented.
+
+## Phase 66 — Theme integration hardening + cross-theme storytelling audit (2026-04-06)
+
+**Frontend**
+
+- **Tokens:** **`--pqat-tint-positive|negative|warn|search|indigo`** and **`--pqat-story-edge-*`** in **`index.css`** (light + dark); replace hard-coded hex in **`workstation-patterns.css`** (join badges, suggestion callout, panel warn, story lane accents), **`CompareTopChangesPanel`** (`.pqat-topChangeRow--*`), **`AnalyzePlanGraphCore`** (severity border + search ring). Light **`.pqat-storyLane`** borders/background tuned; **`--code-bg`** cooler for mono blocks.
+- **DOM:** **`data-effective-theme`** set in **`applyThemeToDocument`** + **`index.html`** boot (matches **`data-theme`**).
+- **Appearance UX:** **`ThemeAppearanceSelect`** column layout, **→ Dark/Light** when **System**, **`data-testid="theme-appearance-select"`**, **`themePresentation`** for labels + **`aria-describedby`**.
+- **Server sync:** **`APPEARANCE_THEME_PREFERENCE_KEY`** **`appearance_theme_v1`** in **`api/client.ts`**. **`App`** calls **`fetchAppConfig`**; **`useThemePreference({ serverSyncEnabled: authEnabled })`** GET-hydrates and debounced **PUT** (500ms) when auth + **`hasAuthFetchCredentials()`**.
+- **E2E:** **`e2e/theme-appearance.spec.ts`** — **`about:blank`** localStorage clear (not **`addInitScript`** on reload); asserts preferences, **`data-effective-theme`**, persistence, **`emulateMedia`**, top-bar color delta. **`playwright.config.mjs`** **`e2e-smoke`** **`testMatch`** includes this file.
+- **Tests:** **`theme.test.ts`** — **`matchMedia`** change, server hydrate + debounced save (mocked API).
+
+**Backend**
+
+- **`ComparisonEngine`:** corroboration sentence for resolved index + finding neighborhood (clearer **mapped pair** wording).
+
+**Docs**
+
+- **`index.md`**, **`architecture.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`contributing.md`**, **`e2e/visual/README.md`**, this log.
+
+**Verified (agent run, 2026-04-06)**
+
+- **Backend:** `docker run … dotnet test PostgresQueryAutopsyTool.sln` — **OK** (135 passed).
+- **Frontend:** `cd src/frontend/web && npm test` — **OK** (31 files, 149 tests). `npm run build` — **OK**.
+- **E2E:** `docker compose --env-file .env.testing --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS="e2e/theme-appearance.spec.ts --project=e2e-smoke" playwright` — **OK** (2 tests). Full **`./scripts/e2e-playwright-docker.sh`** — **OK** (8 tests including theme + persisted flows).
+- **Docs:** `mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` — **OK**.
+
+**Limitations:** Server theme sync requires **auth enabled** and **SPA credentials**; otherwise behavior matches Phase 65 local-only. **`about:blank`** clear in theme E2E does not isolate storage between unrelated sites in the same browser profile (Playwright uses a fresh context per run). When **`matchMedia`** is missing, **system** still resolves to **light**.
+
+## Phase 67 — Nested-loop / rewrite fixtures + compare region continuity (2026-04-04)
+
+**Backend**
+
+- Fixtures: **`nl_inner_seq_heavy`**, **`rewrite_nl_orders_lineitems`**, **`rewrite_hash_orders_lineitems`** (+ `.sql` companions) under **`tests/.../fixtures/postgres-json/`**.
+- **`NodePairDetail.RegionContinuityHint`**, **`PlanNodeReferenceBuilder.PairRegionContinuityHint`** / **`PairHumanLabel`** continuity suffix; **`ComparisonEngine`**, **`ComparisonStoryBuilder`** consume hints; **`CompareOptimizationSuggestionEngine.AddRegionContinuityRewriteCue`**.
+- **`OperatorNarrativeHelper`**: nested-loop **`BottleneckDetailLine`** + inner-side **`SymptomNoteIfNestedLoopInner`** when **`Actual Loops`** is large.
+- **`ComparisonEngineTests`**: rewrite pair continuity, compare suggestion, NL inner-heavy narrative assertions; **`NestedLoopInnerIndexSupportRule`** in **`AnalyzeFixture`** rule set.
+
+**Frontend**
+
+- **`NodePairDetail.regionContinuityHint`** on **`types.ts`**; **`CompareSelectedPairPanel`** (**Same region · strategy shift**); **`CompareTopChangesPanel`** continuity line under top worsened/improved.
+- **`ComparePage.ux.test.tsx`**: mock hint + assertions.
+
+**Docs**
+
+- **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln` — **OK** (138 passed). *(Host-only `dotnet test` with `DOTNET_ROLL_FORWARD=LatestMajor` can fail `UserPreferencesApiTests` on some SDK mixes; container matches CI.)*
+- **Frontend:** `docker run … node:22-bookworm-slim` → `npm ci && npm test && npm run build` under `src/frontend/web` — **OK** (149 tests).
+- **Docs:** `docker run … python:3.12-slim` → `pip install -r requirements-docs.txt && mkdocs build --strict` — **OK**. *(Plain `mkdocs-material` image lacks `mermaid2`.)*
+- **Docker:** `docker compose build` — **OK** (api + web).
+
+**Limitations:** Region continuity requires **medium+** match confidence and **relation / join-table** agreement; weak mappings correctly omit **`regionContinuityHint`**. **`N0`** loop formatting in narrative strings follows runtime culture. Dual-**`Hash`** and other ambiguous join layouts remain **conservative** (Phase 64 behavior unchanged).
+
+## Phase 68 — Scan/order rewrite storytelling + continuity refinement (2026-04-04)
+
+**Backend**
+
+- Fixtures (+ `.sql`): **`rewrite_access_seq_shipments`**, **`rewrite_access_idx_shipments`**, **`rewrite_sort_seq_shipments`**, **`rewrite_index_ordered_shipments`** under **`tests/.../fixtures/postgres-json/`**.
+- **`PlanNodeReferenceBuilder.PairRegionContinuityHint`**: sort-parent seq→index variant; **Sort → index scan** path when sort keys align with index cond (token heuristic); **`PairContinuityShortSuffix`** updates.
+- **`NodeMappingEngine`**: **`accessRewrite`** score bonus for same-relation **Seq Scan ↔ index-backed scan** (Medium+ confidence for common rewrites).
+- **`ComparisonStoryBuilder`**: continuity on **largest regression** beat when hint present.
+- **`CompareOptimizationSuggestionEngine`**: **`RegionContinuityFollowUpSentence`** for hint-shaped tails on **Rewrite changed operator shape**.
+
+**Frontend**
+
+- **`compareContinuityPresentation.ts`** (**`pairContinuitySectionTitle`**); **`CompareSelectedPairPanel`** / **`CompareTopChangesPanel`** kickers; **`compareContinuityPresentation.test.ts`**; **`ComparePage.ux.test.tsx`** assertion updates.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test PostgresQueryAutopsyTool.sln` — **OK** (140 passed).
+- **Frontend:** `docker run … node:22-bookworm-slim` → `npm ci && npm test && npm run build` under `src/frontend/web` — **OK** (152 tests).
+- **Docs:** `docker run … python:3.12-slim` → `pip install -r requirements-docs.txt && mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` — **OK** (api + web).
+
+**Limitations:** Ordering continuity uses **token overlap** on **sort key** vs **index cond**—typos, wrapped expressions, or planner-simplified keys can drop the ordering-specific line while scan continuity may still apply. Mapper bonus applies only to **same-relation seq ↔ index-backed scan**; unrelated tables are unchanged.
+
+## Phase 69 — Richer rewrite continuity + compact summary cue (2026-04-04)
+
+**Backend**
+
+- **`PlanNodeReferenceBuilder`**: **`ClassifyOrderingContinuity`** (column-level sort key vs **index cond** / **presorted key** with identifier boundaries → **Strong**; token overlap → **Weak**; else no Sort→scan hint). Same-relation scan hints for **seq ↔ bitmap heap**, **bitmap ↔ index / index-only**, **index ↔ index-only**; sort-under-seq uses structured ordering when parent **Sort** keys are available. **`PairContinuityShortSuffix`** extended.
+- **`CompareContinuitySummaryCue`**: maps long **`PairRegionContinuityHint`** text to short cue strings (ordering strong/weak, bitmap, bitmap→index, index-only, narrower access, etc.).
+- **`NodePairDetail.RegionContinuitySummaryCue`**; **`ComparisonEngine.BuildPairDetail`** sets it via **`FromHint`**.
+- **`NodeMappingEngine`**: **`accessRewrite`** bonus covers **seq ↔ bitmap heap**, **bitmap ↔ index-backed**, **index ↔ index-only** (same relation).
+- **`CompareOptimizationSuggestionEngine.RegionContinuityFollowUpSentence`**: tails for strong/weak ordering, bitmap, index-only, access-narrowed residual framing.
+- Fixtures (+ `.sql`): **`rewrite_access_bitmap_shipments`**, **`rewrite_access_idxonly_shipments`**.
+- **`ComparisonEngineTests`**: bitmap / index-only / strong ordering / summary cue assertions.
+
+**Frontend**
+
+- **`types.ts`**: **`regionContinuitySummaryCue`** on **`NodePairDetail`**.
+- **`compareContinuityPresentation`**: **`resolveCompareContinuitySummaryCue`** (selected pair, else first story beat with pair focus); **`pairContinuitySectionTitle`** branches for Phase 69 hint shapes.
+- **`CompareSummaryColumn`**: continuity **chip** under **Change briefing** (`data-testid="compare-continuity-summary-cue"`).
+- **`ComparePage`**: passes resolved cue into summary column.
+- **`ComparePage.ux.test.tsx`**: mock cue + chip assertion.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj` — **OK** (143 passed).
+- **Frontend:** `docker run … node:20-bookworm-slim` → `npm ci && npm test && npm run build` under `src/frontend/web` — **OK** (155 tests, build OK).
+- **Docs:** `docker run … python:3.12-slim` → `pip install -r requirements-docs.txt && mkdocs build --strict` — **OK** (see command below).
+- **Docker:** `docker compose build` — **OK** (api + web).
+
+**Limitations:** **Weak** ordering lines depend on **token** overlap—users should confirm with **ORDER BY** and plan shape. **Reverse** bitmap↔index cues may fall back to generic **strategy shift** when hint wording does not match a specific pattern. Low-confidence mappings still omit continuity fields entirely.
+
+## Phase 70 — Continuity confidence, query-assisted ordering, regression cues (2026-04-04)
+
+**Backend**
+
+- **`RegionContinuityData`** (`Hint` + **`KindKey`** + **`ContinuityOutcome`**) from **`PlanNodeReferenceBuilder.TryPairRegionContinuity`**; **`PairRegionContinuityHint`** remains a thin wrapper over the hint string.
+- **Structured continuity**: scan/join/aggregate branches set stable **`KindKey`** values (e.g. `access.narrower`, `access.indexToBitmap.regression`, `aggregate.partialFinal`); **`CompareContinuitySummaryCue.FromContinuity`** maps kind → chip; **`FromHint`** remains fallback.
+- **Query text**: bounded **ORDER BY** substring check upgrades ordering classification to **query-assisted** when JSON evidence is thin but both plans’ captured SQL lists sort columns aligned with sort keys.
+- **Regression cues**: index↔bitmap “reverse” paths, index→seq, index-only→heap get **regressed** outcome and non-optimistic chip copy.
+- **Aggregate**: partial vs finalize when **GROUP BY** keys match and **Partial Mode** differs between plans.
+- **Partial-win** phrasing appended to many hints; **`CompareOptimizationSuggestionEngine`** tail ordering prefers specific access/ordering lines before generic **partial win** follow-up.
+- **`NodePairDetail.ContinuityKindKey`** (JSON **`continuityKindKey`**).
+- **`ComparisonEngine` / `ComparisonStoryBuilder`**: pass **`QueryText`** from both plans into continuity.
+
+**Frontend**
+
+- **`continuityKindKey`** on **`NodePairDetail`**; **Change briefing** shows **“Continuity ·”** label before the chip (`aria-labelledby`).
+
+**E2E**
+
+- **`e2e/persisted-flows.spec.ts`**: real Compare flow asserts **`compare-continuity-summary-cue`** + continuity label + hint substring.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj` — **OK** (144 passed).
+- **Frontend:** `docker run … node:20-bookworm-slim` → `npm ci && npm test && npm run build` under `src/frontend/web` — **OK** (155 tests).
+- **E2E:** `docker compose --env-file .env.testing up -d --build api web` → `docker compose --env-file .env.testing --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS="--project=e2e-smoke e2e/persisted-flows.spec.ts -g continuity" playwright` — **OK** (1 test).
+- **Docs:** `docker run … python:3.12-slim` → `pip install -r requirements-docs.txt && mkdocs build --strict` — **OK** (re-run after edits).
+- **Docker:** `docker compose build` — **OK** (api + web).
+
+**Limitations:** Query-assisted ordering is **not** full SQL parsing—only **ORDER BY** section substring checks. Aggregate continuity requires **matching GROUP BY** text and differing **Partial Mode**. Very sparse or dynamic SQL may still miss tie-breaks.
+
+## Phase 71 — Aggregate/output continuity + query-assisted story confidence (2026-04-04)
+
+**Backend**
+
+- **`PlanNodeReferenceBuilder`**: **`GroupKeysLooselyMatch`** promoted to class scope; **`TryPairRegionContinuity`** adds **Gather / Gather Merge** ↔ **single-node (non-partial) aggregate** hints (**`aggregate.gatherVsSingle`**, **`aggregate.singleVsGather`**), **GROUP BY** clause bridging (**`QueryTextGroupByBridgesKeys`** + **`aggregate.queryTextGroupKeyBridge`**), **partial/final** variants with **`aggregate.partialFinal.queryText`**, **time_bucket**-aware hedges (**`QueryTextTimeBucketInQuery`** + group-key **bucket** token check), and refined **partial-win** baseline wording.
+- **`NodeMappingEngine`**: **`OperatorFamily.Gather`**, near-family **Gather↔Aggregate** similarity, **`gatherAggRewrite`** score bonus.
+- **`CompareContinuitySummaryCue`**: chips for **ordering region**, **grouped output** (partial/final, SQL bridge, gather vs single), refined weak-ordering label.
+- **`ComparisonStoryBuilder`**: **`GroupedOutputContinuityTail`** on regression/improved beats when grouped-output continuity applies.
+- **`CompareOptimizationSuggestionEngine`**: follow-up lines for **grouped-output** and **ORDER BY** where JSON was thin.
+
+**Fixtures / tests**
+
+- New **`postgres-json`** + **`.sql` companions**: **`rewrite_queryassist_sort_priority_shipments`**, **`rewrite_aggregate_{hash,gather_merge,partial,hash_qualified}_customer_shipments`**, **`rewrite_aggregate_{hash,partial}_bucket_shipments`**.
+- **`ComparisonEngineTests`**: query-assisted ordering, gather vs single, partial vs hash, GROUP BY bridge, time_bucket wording.
+- **E2E fixtures**: **`e2e/fixtures/rewrite_access_idx_shipments.json`**, **`rewrite_access_bitmap_shipments.json`**; **`persisted-flows.spec.ts`** regression continuity test.
+
+**Frontend**
+
+- **`compareContinuityPresentation`**: **Grouped output · same region** title; Vitest coverage.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**, **`findings-catalog.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj` (repo mounted at `/src`) — **OK** (149 passed).
+- **Frontend:** `npm install` (rolldown binding repair on host) → `npm test -- --run` — **OK** (156 tests); `npm run build` — **OK**.
+- **Docs:** `pip install -r requirements-docs.txt && mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` (api + web) — **OK**.
+
+**Limitations:** **GROUP BY** / **time_bucket** logic is **not** a SQL parser—identifier overlap and substring checks only. **Gather↔aggregate** mapping remains **heuristic**; low scores can still drop continuity. **Ordering** tie-break from query text does not prove the planner eliminated sort work.
+
+## Phase 72 — Dynamic analyze fixture sweep + copy-action reliability (2026-04-06)
+
+**Backend**
+
+- **`PostgresJsonAnalyzeFixtureSweepTests`**: async sweep of all **`fixtures/postgres-json/*.json`** (top-level only) through **`PlanAnalysisService`** with structural assertions (**`PlanStory`**, narrative, summary counts, findings, index, suggestions). Documented exclusions hook: **`ExcludedFixtureFiles`**.
+- **`cumulative_group_by.json`**: repaired to valid pure JSON (removed `psql` header/SQL noise); companion **`.sql`** header updated. **`Cumulative_group_by_fixture_has_sort_aggregate_and_plan_story`** asserts Sort + Aggregate + **`PlanStory`** + temp I/O or depth.
+
+**Frontend**
+
+- **`copyToClipboard.ts`**: **Clipboard API** + **`document.execCommand('copy')`** fallback for contexts without **`writeText`**.
+- **`useCopyFeedback`**: **try/catch**; longer status for failures.
+- **`ClickableRow`**: ignores activation when target is inside **`button`**, **`a[href]`**, form controls, or **`[data-pqat-row-no-activate]`**.
+- **`ReferenceCopyButton`**: sets **`data-pqat-row-no-activate`**.
+- **`AnalyzeSelectedNodePanel`**: **`type="button"`**, **`stopPropagation`**, **`data-testid="analyze-copy-node-reference"`**.
+- **`AnalyzeCapturePanel`**: **`data-testid="analyze-copy-suggested-explain"`**.
+- **`nodeReferences`**: **`nodeReferenceText`** / **`pairReferenceText`** append planner **node id** tails for copy payloads.
+
+**Tests**
+
+- Vitest: **`copyToClipboard.test.ts`**, **`useCopyFeedback.test.ts`**; updated **`nodeReferences.test.ts`**.
+- Playwright **`persisted-flows.spec.ts`**: **`context.grantPermissions(['clipboard-read','clipboard-write'])`** + **Analyze → copy node reference** clipboard read.
+
+**Docs**
+
+- **`fixtures.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`contributing.md`**, this log.
+
+**Verified (agent run, 2026-04-06)**
+
+- **Backend:** `docker run --rm -v "$REPO:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **OK** (151 passed). On hosts with only a newer global SDK (for example .NET 10 without the 8.0 runtime), run tests in this container rather than bare `dotnet test`.
+- **Frontend:** `npm test -- --run` — **OK** (161 tests, `src/frontend/web`); `npm run build` — **OK**.
+- **Docs:** `mkdocs build --strict` — **OK** (repo root).
+- **Docker:** `docker compose build` — **OK** (api + web images).
+
+**Limitations:** **`execCommand`** fallback depends on browser policy and user gesture. E2E clipboard test requires Chromium permission grant; some browsers may still block in hardened profiles. Corpus sweep is **structural**—it does not prove semantic correctness of every finding.
+
+## Phase 73 — CI workflow repair + Playwright/copy path hardening (2026-04-06)
+
+**CI**
+
+- **`.github/workflows/ci.yml`**: Fixed invalid YAML where unquoted **`run: echo "… # …"`** was truncated at **`#`**, and unquoted **`echo "Local: ./…"`** tripped **`:`**+space mapping rules. Wrapped affected **`run:`** values in **single quotes**. Added a short file-header comment for future editors. Renamed a few **E2E** step titles for clarity (**clipboard regression** called out on the default **`e2e-smoke`** Playwright step).
+
+**Frontend**
+
+- **`package.json`**: **`npm run test:e2e:copy`** → **`playwright test e2e/persisted-flows.spec.ts --project=e2e-smoke`** (fast local slice matching Phase 72 clipboard + persisted flows).
+- **`shareAppUrl.ts`** + **`shareAppUrl.test.ts`**: **`appUrlForPath`** replaces duplicated **`window.location.origin + path`** in **Analyze** / **Compare** copy-link handlers.
+- **`playwright.config.mjs`**: Comment tying **`e2e-smoke`** to **persisted-flows** clipboard coverage.
+
+**Docs**
+
+- **`contributing.md`**, **`architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-06)**
+
+- **Workflow YAML:** `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` — **OK** (Psych parse; catches **`#`** / **`Local:`** scalar issues).
+- **Backend:** `docker run --rm -v "$REPO:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release` — **OK** (151 passed).
+- **Frontend:** `npm test` — **OK** (162 tests, `src/frontend/web`); `npm run build` — **OK**.
+- **Docs:** `mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` — **OK**.
+
+**Limitations:** Full Playwright in CI still runs via **Docker Compose** (not bare **`npm run test:e2e`** on the ubuntu runner); **`test:e2e:copy`** is primarily for **local** reproduction against a running **:3000** stack.
+

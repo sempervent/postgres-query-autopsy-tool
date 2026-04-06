@@ -81,10 +81,18 @@ export function joinLabelAndSubtitle(n: AnalyzedPlanNode, byId: Map<string, Anal
 
   const child0 = n.childNodeIds?.[0] ?? null
   const child1 = n.childNodeIds?.[1] ?? null
-  const leftRel = child0 ? firstDescendantWithRelation(child0, byId) : null
+  let leftRel = child0 ? firstDescendantWithRelation(child0, byId) : null
   let rightRel = child1 ? firstDescendantWithRelation(child1, byId) : null
 
-  // Hash Join build side is often the Hash node as the right child; prefer the Hash's input relation.
+  // Unwrap Hash on either side so join subtitles match probe/build heuristics (Phase 62).
+  if (isHashJoin && child0) {
+    const leftNode = byId.get(child0)
+    const leftType = String((leftNode?.node as any)?.nodeType ?? '')
+    if (leftType.toLowerCase() === 'hash') {
+      const hashInput = leftNode?.childNodeIds?.[0]
+      if (hashInput) leftRel = firstDescendantWithRelation(hashInput, byId) ?? leftRel
+    }
+  }
   if (isHashJoin && child1) {
     const rightNode = byId.get(child1)
     const rightType = String((rightNode?.node as any)?.nodeType ?? '')
@@ -94,13 +102,24 @@ export function joinLabelAndSubtitle(n: AnalyzedPlanNode, byId: Map<string, Anal
     }
   }
 
+  const leftIsHash = child0 && String((byId.get(child0)?.node as any)?.nodeType ?? '').toLowerCase() === 'hash'
+  const rightIsHash = child1 && String((byId.get(child1)?.node as any)?.nodeType ?? '').toLowerCase() === 'hash'
+
   const label = leftRel && rightRel ? `${type} (${leftRel} × ${rightRel})` : type
 
   const roleParts: string[] = []
   if (leftRel || rightRel) {
     if (isHashJoin) {
-      if (rightRel) roleParts.push(`build: ${rightRel}`)
-      if (leftRel) roleParts.push(`probe: ${leftRel}`)
+      if (rightIsHash && !leftIsHash) {
+        if (rightRel) roleParts.push(`build: ${rightRel}`)
+        if (leftRel) roleParts.push(`probe: ${leftRel}`)
+      } else if (leftIsHash && !rightIsHash) {
+        if (leftRel) roleParts.push(`build: ${leftRel}`)
+        if (rightRel) roleParts.push(`probe: ${rightRel}`)
+      } else {
+        if (rightRel) roleParts.push(`build: ${rightRel}`)
+        if (leftRel) roleParts.push(`probe: ${leftRel}`)
+      }
     } else if (isNestedLoop || isMergeJoin) {
       if (leftRel) roleParts.push(`outer: ${leftRel}`)
       if (rightRel) roleParts.push(`inner: ${rightRel}`)

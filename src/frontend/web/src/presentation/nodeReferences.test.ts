@@ -13,7 +13,7 @@ describe('nodeReferences', () => {
   test('nodeReferenceText does not require raw ids', () => {
     const byId = new Map<string, any>()
     byId.set('x', { nodeId: 'x', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
-    expect(nodeReferenceText('x', byId as any)).toBe('Seq Scan on users')
+    expect(nodeReferenceText('x', byId as any)).toBe('Seq Scan on users · node x')
     expect(nodeReferenceText('x', byId as any)).not.toMatch(/root\./)
   })
 
@@ -31,7 +31,9 @@ describe('nodeReferences', () => {
     byId.set('x', { nodeId: 'x', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
     expect(hotspotReferenceText('x', byId as any, 'shared reads hotspot')).toMatch(/Seq Scan on users/)
     expect(hotspotReferenceText('x', byId as any, 'shared reads hotspot')).not.toMatch(/root\./)
-    expect(findingReferenceText('x', byId as any, 'severe misestimation')).toBe('Seq Scan on users — severe misestimation')
+    expect(findingReferenceText('x', byId as any, 'severe misestimation')).toBe(
+      'Seq Scan on users · node x — severe misestimation',
+    )
   })
 })
 

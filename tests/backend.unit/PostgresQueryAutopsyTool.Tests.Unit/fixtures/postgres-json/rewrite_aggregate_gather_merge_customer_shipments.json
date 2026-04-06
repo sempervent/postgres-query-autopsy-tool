@@ -1,0 +1,51 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Gather Merge",
+      "Parallel Aware": true,
+      "Workers Planned": 2,
+      "Workers Launched": 2,
+      "Startup Cost": 120.0,
+      "Total Cost": 42000.0,
+      "Plan Rows": 500,
+      "Plan Width": 24,
+      "Actual Startup Time": 2.0,
+      "Actual Total Time": 95.0,
+      "Actual Rows": 500,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Partial Aggregate",
+          "Strategy": "Sorted",
+          "Partial Mode": "Partial",
+          "Group Key": ["customer_id"],
+          "Startup Cost": 80.0,
+          "Total Cost": 40000.0,
+          "Plan Rows": 500,
+          "Plan Width": 24,
+          "Actual Startup Time": 1.0,
+          "Actual Total Time": 88.0,
+          "Actual Rows": 500,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Parallel Seq Scan",
+              "Relation Name": "shipments",
+              "Schema": "public",
+              "Alias": "shipments",
+              "Parallel Aware": true,
+              "Startup Cost": 0.0,
+              "Total Cost": 36000.0,
+              "Plan Rows": 800000,
+              "Plan Width": 24,
+              "Actual Startup Time": 0.02,
+              "Actual Total Time": 80.0,
+              "Actual Rows": 800000,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

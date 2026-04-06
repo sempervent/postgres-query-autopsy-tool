@@ -1,0 +1,2 @@
+-- Fixture companion: parallel gather-merge over partial aggregate on customer_id (compare vs single-node hash aggregate).
+-- Example shape: SELECT customer_id, count(*) FROM shipments GROUP BY customer_id; (parallel plan)

@@ -23,6 +23,7 @@ export function ReferenceCopyButton({
       }}
       aria-label={ariaLabel ?? label}
       className="pqat-copyBtn"
+      data-pqat-row-no-activate=""
       style={style}
     >
       {label}

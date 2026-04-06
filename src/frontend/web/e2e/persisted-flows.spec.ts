@@ -15,6 +15,25 @@ test.beforeAll(async ({ request }) => {
   expect(health.ok(), 'API must be reachable at the same origin as baseURL (docker :3000 or Vite :5173 with proxy)').toBeTruthy()
 })
 
+test('Analyze: copy node reference populates clipboard', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+
+  const copyBtn = page.getByTestId('analyze-copy-node-reference')
+  await expect(copyBtn).toBeVisible({ timeout: 30_000 })
+  await copyBtn.click()
+
+  const clip = await page.evaluate(() => navigator.clipboard.readText())
+  expect(clip).toMatch(/Seq Scan|users/i)
+  expect(clip).toMatch(/node\s+[^\s]+/i)
+})
+
 test('Analyze: paste fixture, persist, reopen in fresh tab, restore node deep link', async ({ page, context }) => {
   const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
 
@@ -86,6 +105,42 @@ test('Compare: selected pair shell appears, heavy pair detail becomes available'
   await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 90_000 })
   await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
   await expect(page.getByText('Key metric deltas')).toBeVisible({ timeout: 45_000 })
+})
+
+test('Compare: continuity summary cue appears after real compare (seq vs index)', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  const cue = page.getByTestId('compare-continuity-summary-cue')
+  await expect(cue).toBeVisible({ timeout: 30_000 })
+  await expect(cue).toContainText(/narrower access|strategy shift/i)
+  await expect(page.getByText(/Continuity ·/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText(/same relation|sequential scan|index-backed/i).first()).toBeVisible({ timeout: 15_000 })
+})
+
+test('Compare: continuity summary shows regression cue for index vs bitmap heap', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('rewrite_access_idx_shipments.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('rewrite_access_bitmap_shipments.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  const cue = page.getByTestId('compare-continuity-summary-cue')
+  await expect(cue).toBeVisible({ timeout: 30_000 })
+  await expect(cue).toContainText(/bitmap|regression|heap/i)
+  await expect(page.getByText(/Continuity ·/)).toBeVisible()
 })
 
 test('Analyze reopen: corrupt artifact shows explicit error (422)', async ({ page, request }) => {

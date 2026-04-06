@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test --project=e2e-smoke",
     "test:e2e:smoke": "playwright test --project=e2e-smoke",
+    "test:e2e:copy": "playwright test e2e/persisted-flows.spec.ts --project=e2e-smoke",
     "test:e2e:auth": "playwright test --project=e2e-auth-api-key",
     "test:e2e:api-key": "playwright test --project=e2e-auth-api-key",
     "test:e2e:jwt": "playwright test --project=e2e-auth-jwt",

@@ -6,7 +6,7 @@
   --bg: #fafaf8;
   --border: #e2e0e6;
   --border-subtle: #ebe9ef;
-  --code-bg: #f0eee8;
+  --code-bg: #e9e7f1;
   --accent: #7c3aed;
   --accent-bg: rgba(124, 58, 237, 0.1);
   --accent-border: rgba(124, 58, 237, 0.42);
@@ -39,6 +39,29 @@
   --signal-denial-border: color-mix(in srgb, #7c3aed 35%, var(--border));
   --signal-denial-bg: color-mix(in srgb, #ddd6fe 40%, var(--surface-1));
   --deck-accent: color-mix(in srgb, #0891b2 40%, var(--accent) 60%);
+  --ambient-grid: transparent;
+  --pqat-metric-pos-bg: color-mix(in srgb, #16a34a 14%, var(--surface-metric));
+  --pqat-metric-neg-bg: color-mix(in srgb, #dc2626 14%, var(--surface-metric));
+  --pqat-sev0-border: color-mix(in srgb, #64748b 40%, var(--border-subtle));
+  --pqat-sev0-fg: var(--text-secondary);
+  --pqat-sev1-border: color-mix(in srgb, #0284c7 42%, var(--border-subtle));
+  --pqat-sev1-fg: #0369a1;
+  --pqat-sev2-border: color-mix(in srgb, #ca8a04 45%, var(--border-subtle));
+  --pqat-sev2-fg: #a16207;
+  --pqat-sev3-border: color-mix(in srgb, #ea580c 45%, var(--border-subtle));
+  --pqat-sev3-fg: #c2410c;
+  --pqat-sev4-border: color-mix(in srgb, #dc2626 48%, var(--border-subtle));
+  --pqat-sev4-fg: #b91c1c;
+  /* Phase 66: shared semantic tints (badges, graph chrome, story lanes, callouts). */
+  --pqat-tint-positive: #16a34a;
+  --pqat-tint-negative: #dc2626;
+  --pqat-tint-warn: #d97706;
+  --pqat-tint-search: #ca8a04;
+  --pqat-tint-indigo: #4f46e5;
+  --pqat-story-edge-cyan: #0891b2;
+  --pqat-story-edge-amber: #b45309;
+  --pqat-story-edge-violet: #6d28d9;
+  --pqat-story-edge-emerald: #047857;
   --pqat-radius-panel: 14px;
   --pqat-radius-control: 11px;
   --pqat-gap-section: 18px;
@@ -50,7 +73,7 @@
 
   font: 17px/150% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -63,55 +86,77 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #b4b9c9;
-    --text-h: #f0f2f8;
-    --text-secondary: #8f96ab;
-    --text-tertiary: #6d7589;
-    --bg: #0c0d10;
-    --border: #2f3340;
-    --border-subtle: #252830;
-    --code-bg: #161820;
-    --accent: #b794f6;
-    --accent-bg: rgba(183, 148, 246, 0.14);
-    --accent-border: rgba(183, 148, 246, 0.48);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.45) 0 12px 28px -6px, rgba(0, 0, 0, 0.35) 0 6px 12px -4px;
-    --elev-1: 0 1px 0 color-mix(in srgb, var(--text-h) 8%, transparent), 0 10px 28px -8px rgba(0, 0, 0, 0.55);
-    --elev-2: 0 1px 0 color-mix(in srgb, var(--text-h) 10%, transparent), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
-    --inset-glow: inset 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent);
-    --focus-ring: color-mix(in srgb, var(--accent-border) 32%, transparent);
-    --surface-1: #14151b;
-    --surface-2: #1a1c24;
-    --surface-workspace: #12131a;
-    --surface-rail: color-mix(in srgb, var(--accent-bg) 12%, #14151b);
-    --surface-detail: #161821;
-    --surface-capture: #13141a;
-    --surface-tool: #101118;
-    --surface-list: color-mix(in srgb, var(--accent-bg) 10%, #14151b);
-    --surface-suggestion: color-mix(in srgb, var(--accent-bg) 8%, #14151b);
-    --surface-input: #0f1015;
-    --surface-graph: #0f1016;
-    --surface-graph-canvas: #0a0b0f;
-    --surface-metric: #15161e;
-    /* Phase 55 — signal surfaces (dark) */
-    --signal-info-border: color-mix(in srgb, #38bdf8 42%, var(--border));
-    --signal-info-bg: color-mix(in srgb, #38bdf8 10%, var(--surface-1));
-    --signal-warn-border: color-mix(in srgb, #fbbf24 50%, var(--border));
-    --signal-warn-bg: color-mix(in srgb, #fbbf24 11%, var(--surface-1));
-    --signal-error-border: color-mix(in srgb, #f87171 52%, var(--border));
-    --signal-error-bg: color-mix(in srgb, #f87171 10%, var(--surface-1));
-    --signal-denial-border: color-mix(in srgb, #a78bfa 48%, var(--border));
-    --signal-denial-bg: color-mix(in srgb, #a78bfa 9%, var(--surface-1));
-    --deck-accent: color-mix(in srgb, #22d3ee 55%, var(--accent) 45%);
-    --ambient-grid: color-mix(in srgb, var(--border-subtle) 35%, transparent);
-  }
+/* Phase 65: explicit dark theme (preference or system). */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --text: #b4b9c9;
+  --text-h: #f0f2f8;
+  --text-secondary: #8f96ab;
+  --text-tertiary: #6d7589;
+  --bg: #0c0d10;
+  --border: #2f3340;
+  --border-subtle: #252830;
+  --code-bg: #161820;
+  --accent: #b794f6;
+  --accent-bg: rgba(183, 148, 246, 0.14);
+  --accent-border: rgba(183, 148, 246, 0.48);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.45) 0 12px 28px -6px, rgba(0, 0, 0, 0.35) 0 6px 12px -4px;
+  --elev-1: 0 1px 0 color-mix(in srgb, var(--text-h) 8%, transparent), 0 10px 28px -8px rgba(0, 0, 0, 0.55);
+  --elev-2: 0 1px 0 color-mix(in srgb, var(--text-h) 10%, transparent), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+  --inset-glow: inset 0 1px 0 color-mix(in srgb, var(--text-h) 6%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent-border) 32%, transparent);
+  --surface-1: #14151b;
+  --surface-2: #1a1c24;
+  --surface-workspace: #12131a;
+  --surface-rail: color-mix(in srgb, var(--accent-bg) 12%, #14151b);
+  --surface-detail: #161821;
+  --surface-capture: #13141a;
+  --surface-tool: #101118;
+  --surface-list: color-mix(in srgb, var(--accent-bg) 10%, #14151b);
+  --surface-suggestion: color-mix(in srgb, var(--accent-bg) 8%, #14151b);
+  --surface-input: #0f1015;
+  --surface-graph: #0f1016;
+  --surface-graph-canvas: #0a0b0f;
+  --surface-metric: #15161e;
+  --signal-info-border: color-mix(in srgb, #38bdf8 42%, var(--border));
+  --signal-info-bg: color-mix(in srgb, #38bdf8 10%, var(--surface-1));
+  --signal-warn-border: color-mix(in srgb, #fbbf24 50%, var(--border));
+  --signal-warn-bg: color-mix(in srgb, #fbbf24 11%, var(--surface-1));
+  --signal-error-border: color-mix(in srgb, #f87171 52%, var(--border));
+  --signal-error-bg: color-mix(in srgb, #f87171 10%, var(--surface-1));
+  --signal-denial-border: color-mix(in srgb, #a78bfa 48%, var(--border));
+  --signal-denial-bg: color-mix(in srgb, #a78bfa 9%, var(--surface-1));
+  --deck-accent: color-mix(in srgb, #22d3ee 55%, var(--accent) 45%);
+  --ambient-grid: color-mix(in srgb, var(--border-subtle) 35%, transparent);
+  --pqat-metric-pos-bg: color-mix(in srgb, #22c55e 14%, var(--surface-metric));
+  --pqat-metric-neg-bg: color-mix(in srgb, #ef4444 14%, var(--surface-metric));
+  --pqat-sev0-border: color-mix(in srgb, #64748b 40%, var(--border-subtle));
+  --pqat-sev0-fg: var(--text-secondary);
+  --pqat-sev1-border: color-mix(in srgb, #38bdf8 45%, var(--border-subtle));
+  --pqat-sev1-fg: #7dd3fc;
+  --pqat-sev2-border: color-mix(in srgb, #fbbf24 50%, var(--border-subtle));
+  --pqat-sev2-fg: #fcd34d;
+  --pqat-sev3-border: color-mix(in srgb, #fb923c 50%, var(--border-subtle));
+  --pqat-sev3-fg: #fdba74;
+  --pqat-sev4-border: color-mix(in srgb, #f87171 55%, var(--border-subtle));
+  --pqat-sev4-fg: #fca5a5;
+  --pqat-tint-positive: #4ade80;
+  --pqat-tint-negative: #f87171;
+  --pqat-tint-warn: #fbbf24;
+  --pqat-tint-search: #fcd34d;
+  --pqat-tint-indigo: #a5b4fc;
+  --pqat-story-edge-cyan: #22d3ee;
+  --pqat-story-edge-amber: #fbbf24;
+  --pqat-story-edge-violet: #c4b5fd;
+  --pqat-story-edge-emerald: #34d399;
+  color: var(--text);
+  background: var(--bg);
+}
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+html[data-theme='dark'] #social .button-icon {
+  filter: invert(1) brightness(2);
 }
 
 /* Phase 43: full-bleed root — workstation layout lives in .appShell / .content */
@@ -127,13 +172,19 @@
   background: var(--bg);
 }
 
-@media (prefers-color-scheme: dark) {
-  #root {
-    background:
-      radial-gradient(ellipse 120% 55% at 50% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 52%),
-      radial-gradient(ellipse 80% 40% at 100% 0%, color-mix(in srgb, #22d3ee 5%, transparent), transparent 45%),
-      var(--bg);
-  }
+html[data-theme='dark'] #root {
+  background:
+    radial-gradient(ellipse 120% 55% at 50% -8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 52%),
+    radial-gradient(ellipse 80% 40% at 100% 0%, color-mix(in srgb, #22d3ee 5%, transparent), transparent 45%),
+    var(--bg);
+}
+
+/* Light: subtle depth without heavy wash (Phase 65 polish). */
+html[data-theme='light'] #root {
+  background:
+    radial-gradient(ellipse 115% 50% at 50% -6%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 50%),
+    radial-gradient(ellipse 70% 38% at 100% 0%, color-mix(in srgb, #0891b2 4%, transparent), transparent 42%),
+    var(--bg);
 }
 
 /* Phase 56: deterministic screenshots — flat bg, no ambient wash */

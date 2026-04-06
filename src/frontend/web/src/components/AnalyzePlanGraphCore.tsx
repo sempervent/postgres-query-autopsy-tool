@@ -140,7 +140,7 @@ function AnalyzePlanNode({
   const border = selected
     ? '2px solid var(--accent-border)'
     : data.severityMax != null && severityRank(data.severityMax) >= 3
-      ? '1px solid color-mix(in srgb, #ef4444 45%, var(--border))'
+      ? '1px solid color-mix(in srgb, var(--pqat-tint-negative) 45%, var(--border))'
       : '1px solid var(--border)'
 
   const bg =
@@ -149,7 +149,10 @@ function AnalyzePlanNode({
       : 'transparent'
 
   const opacity = data.isSearchDim ? 0.25 : 1
-  const ring = data.isSearchMatch && !selected ? '0 0 0 2px color-mix(in srgb, #f59e0b 45%, transparent)' : 'none'
+  const ring =
+    data.isSearchMatch && !selected
+      ? '0 0 0 2px color-mix(in srgb, var(--pqat-tint-search) 50%, transparent)'
+      : 'none'
 
   const hotBadges: string[] = []
   if (data.isHotExclusive) hotBadges.push('hot ex')

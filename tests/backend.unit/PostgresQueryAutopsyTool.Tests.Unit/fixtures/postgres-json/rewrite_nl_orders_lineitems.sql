@@ -1,0 +1,1 @@
+-- Compare plan A: nested-loop join orders ↔ line_items with repeated inner seq scans.

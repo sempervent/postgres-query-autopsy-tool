@@ -72,6 +72,11 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
         var rankedFindings = _findingsEngine.EvaluateAndRank(root.NodeId, analyzedNodes);
         var summary = PlanSummaryBuilder.Build(root.NodeId, analyzedNodes, rankedFindings, queryText: queryText);
         analyzedNodes = PlanNodeInterpretationAugmentor.Augment(analyzedNodes, root.NodeId, summary, queryText);
+        var byIdAug = analyzedNodes.ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        summary = summary with
+        {
+            Bottlenecks = PlanBottleneckBriefingOverlay.AttachOperatorBriefings(summary.Bottlenecks, byIdAug)
+        };
         var narrative = NarrativeGenerator.From(summary, analyzedNodes, rankedFindings);
         var findingCtx = new FindingEvaluationContext(root.NodeId, analyzedNodes);
         var indexOverview = IndexSignalAnalyzer.BuildOverview(analyzedNodes, findingCtx);
@@ -194,13 +199,14 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
                 var note = string.IsNullOrWhiteSpace(b.SymptomNote) ? "" : $" _(Note: {b.SymptomNote})_";
                 var prop = string.IsNullOrWhiteSpace(b.PropagationNote) ? "" : $" _(Flow: {b.PropagationNote})_";
                 var hum = string.IsNullOrWhiteSpace(b.HumanAnchorLabel) ? "" : $" _(Where: {b.HumanAnchorLabel})_";
-                return $"- **({b.Rank}) [{b.Kind}]** {b.Headline}: {b.Detail}{hum}{note}{prop}";
+                var br = string.IsNullOrWhiteSpace(b.OperatorBriefingLine) ? "" : $" _(Briefing: {b.OperatorBriefingLine})_";
+                return $"- **({b.Rank}) [{b.Kind}]** {b.Headline}: {b.Detail}{hum}{br}{note}{prop}";
             }));
 
         var planStoryMd = analysis.PlanStory is null
             ? ""
             : $@"
-## Plan story (structured)
+## Plan briefing (structured)
 - **Plan overview:** {analysis.PlanStory.PlanOverview}
 - **Work concentration:** {analysis.PlanStory.WorkConcentration}
 - **Likely expense drivers:** {analysis.PlanStory.LikelyExpenseDrivers}
@@ -284,8 +290,11 @@ AnalysisId: {analysis.AnalysisId}
                 var hum = string.IsNullOrWhiteSpace(b.HumanAnchorLabel)
                     ? ""
                     : $" <i>Where:</i> {System.Net.WebUtility.HtmlEncode(b.HumanAnchorLabel!)}";
+                var br = string.IsNullOrWhiteSpace(b.OperatorBriefingLine)
+                    ? ""
+                    : $" <i>Briefing:</i> {System.Net.WebUtility.HtmlEncode(b.OperatorBriefingLine!)}";
                 return
-                    $"<li><b>({b.Rank}) [{System.Net.WebUtility.HtmlEncode(b.Kind)}]</b> {System.Net.WebUtility.HtmlEncode(b.Headline)}: {System.Net.WebUtility.HtmlEncode(b.Detail)}{hum}{note}{prop}</li>";
+                    $"<li><b>({b.Rank}) [{System.Net.WebUtility.HtmlEncode(b.Kind)}]</b> {System.Net.WebUtility.HtmlEncode(b.Headline)}: {System.Net.WebUtility.HtmlEncode(b.Detail)}{hum}{br}{note}{prop}</li>";
             }));
 
         var flowHtml = analysis.PlanStory is null || analysis.PlanStory.PropagationBeats.Count == 0
@@ -301,7 +310,7 @@ AnalysisId: {analysis.AnalysisId}
 
         var planStoryHtml = analysis.PlanStory is null
             ? ""
-            : $@"<h2>Plan story</h2>
+            : $@"<h2>Plan briefing</h2>
 <p>{System.Net.WebUtility.HtmlEncode(analysis.PlanStory.PlanOverview)}</p>
 <ul>
 <li><b>Work:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.WorkConcentration)}</li>
@@ -411,7 +420,7 @@ ComparisonId: {comparison.ComparisonId}
 - Max depth Δ: {s.MaxDepthDelta}
 - Severe findings Δ: {s.SevereFindingsDelta}
 
-## Change story
+## Change briefing
 {(comparison.ComparisonStory is null
     ? "- No structured change story (legacy payload)."
     : $@"{comparison.ComparisonStory.Overview}

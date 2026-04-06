@@ -1,0 +1,2 @@
+-- Fixture companion: partial aggregate staging vs simple finalize-style aggregate (partial/final continuity).
+-- Example shape: SELECT customer_id, count(*) FROM shipments GROUP BY customer_id;

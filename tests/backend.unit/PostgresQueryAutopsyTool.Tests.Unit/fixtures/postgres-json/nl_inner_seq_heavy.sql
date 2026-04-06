@@ -1,0 +1,2 @@
+-- Fixture: nested loop with inner sequential scan executed many times (repeated probe pattern).
+-- Outer drives ~120 rows; inner line_items seq scan runs per outer row (high Actual Loops).

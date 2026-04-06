@@ -2,6 +2,7 @@ import type { NodeDelta, PlanComparisonResult } from '../../api/types'
 import { pairShortLabel } from '../../presentation/nodeLabels'
 import { pairReferenceText } from '../../presentation/nodeReferences'
 import { compareWhatChangedMostCopy } from '../../presentation/comparePresentation'
+import { pairContinuitySectionTitle } from '../../presentation/compareContinuityPresentation'
 import { ClickableRow } from '../ClickableRow'
 import { ReferenceCopyButton } from '../ReferenceCopyButton'
 import { prefetchCompareSelectedPairHeavySections } from './prefetchCompareSelectedPairHeavySections'
@@ -38,17 +39,25 @@ export function CompareTopChangesPanel(props: CompareTopChangesPanelProps) {
                 aria-label={`Top worsened: ${lab}`}
                 onActivate={() => setSelectedPair({ a: w0.nodeIdA, b: w0.nodeIdB })}
                 onPointerIntent={prefetchCompareSelectedPairHeavySections}
-                style={{
-                  padding: 10,
-                  borderRadius: 12,
-                  border: '1px solid var(--border)',
-                  background: 'color-mix(in srgb, #ef4444 10%, transparent)',
-                }}
+                className="pqat-topChangeRow pqat-topChangeRow--worsened"
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top worsened</div>
                     <div style={{ fontWeight: 900, marginTop: 4 }}>{lab}</div>
+                    {p0?.regionContinuityHint ? (
+                      <>
+                        <div className="pqat-readoutKicker" style={{ marginTop: 8, fontSize: 11, opacity: 0.88 }}>
+                          {pairContinuitySectionTitle(p0.regionContinuityHint)}
+                        </div>
+                        <div
+                          className="pqat-hint"
+                          style={{ marginTop: 4, fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}
+                        >
+                          {p0.regionContinuityHint}
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                   {p0 ? (
                     <ReferenceCopyButton
@@ -73,17 +82,25 @@ export function CompareTopChangesPanel(props: CompareTopChangesPanelProps) {
                 aria-label={`Top improved: ${lab}`}
                 onActivate={() => setSelectedPair({ a: i0.nodeIdA, b: i0.nodeIdB })}
                 onPointerIntent={prefetchCompareSelectedPairHeavySections}
-                style={{
-                  padding: 10,
-                  borderRadius: 12,
-                  border: '1px solid var(--border)',
-                  background: 'color-mix(in srgb, #22c55e 10%, transparent)',
-                }}
+                className="pqat-topChangeRow pqat-topChangeRow--improved"
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, opacity: 0.85 }}>Top improved</div>
                     <div style={{ fontWeight: 900, marginTop: 4 }}>{lab}</div>
+                    {p0?.regionContinuityHint ? (
+                      <>
+                        <div className="pqat-readoutKicker" style={{ marginTop: 8, fontSize: 11, opacity: 0.88 }}>
+                          {pairContinuitySectionTitle(p0.regionContinuityHint)}
+                        </div>
+                        <div
+                          className="pqat-hint"
+                          style={{ marginTop: 4, fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}
+                        >
+                          {p0.regionContinuityHint}
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                   {p0 ? (
                     <ReferenceCopyButton

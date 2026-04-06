@@ -1,0 +1,42 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Sort",
+      "Startup Cost": 120.0,
+      "Total Cost": 52000.0,
+      "Plan Rows": 200000,
+      "Plan Width": 48,
+      "Actual Startup Time": 8.0,
+      "Actual Total Time": 135.0,
+      "Actual Rows": 8000,
+      "Actual Loops": 1,
+      "Sort Key": ["shipments.shipped_at DESC"],
+      "Sort Method": "quicksort",
+      "Sort Space Used": 5120,
+      "Sort Space Type": "Memory",
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "shipments",
+          "Schema": "public",
+          "Alias": "shipments",
+          "Startup Cost": 0.0,
+          "Total Cost": 25000.0,
+          "Plan Rows": 200000,
+          "Plan Width": 48,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 42.0,
+          "Actual Rows": 8000,
+          "Actual Loops": 1,
+          "Filter": "(warehouse_id = 3)",
+          "Buffers": {
+            "Shared Hit Blocks": 180,
+            "Shared Read Blocks": 6200,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        }
+      ]
+    }
+  }
+]

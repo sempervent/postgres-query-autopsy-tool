@@ -143,6 +143,8 @@ function tryParseArtifactGetError(text: string): ArtifactGetErrorJson | null {
 /** Phase 40: server-stored JSON preference per authenticated user (`/api/me/preferences/{key}`). */
 export const ANALYZE_WORKSPACE_PREFERENCE_KEY = 'analyze_workspace_v1'
 export const COMPARE_WORKSPACE_PREFERENCE_KEY = 'compare_workspace_v1'
+/** Phase 66: persisted appearance (`system` | `dark` | `light`) when auth + credentials. */
+export const APPEARANCE_THEME_PREFERENCE_KEY = 'appearance_theme_v1'
 
 export async function fetchUserPreference(key: string): Promise<unknown | null> {
   const res = await fetch(`/api/me/preferences/${encodeURIComponent(key)}`, { headers: jsonGetHeaders() })

@@ -125,5 +125,11 @@ public sealed record NodePairDetail(
     /// <summary>Compact index/access-path compare cues for this mapped pair (Phase 30).</summary>
     IReadOnlyList<string> IndexDeltaCues,
     /// <summary>Finding ↔ index-delta corroboration for this pair when cross-links exist (Phase 31).</summary>
-    IReadOnlyList<string> CorroborationCues);
+    IReadOnlyList<string> CorroborationCues,
+    /// <summary>Phase 67: when mapping confidence is medium+, hints that the pair is the same plan region with a rewritten operator strategy.</summary>
+    string? RegionContinuityHint = null,
+    /// <summary>Phase 69: compact summary-lane cue derived from <see cref="RegionContinuityHint"/> (null when no hint).</summary>
+    string? RegionContinuitySummaryCue = null,
+    /// <summary>Phase 70: stable key from <see cref="PostgresQueryAutopsyTool.Core.Analysis.PlanNodeReferenceBuilder.TryPairRegionContinuity"/> (e.g. <c>access.narrower</c>).</summary>
+    string? ContinuityKindKey = null);
 

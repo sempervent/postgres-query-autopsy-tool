@@ -1,0 +1,2 @@
+-- Fixture companion: index-backed access on shipments (plan B in access-path rewrite compare).
+-- Example shape: same query as rewrite_access_seq_shipments.sql after adding a supporting index.

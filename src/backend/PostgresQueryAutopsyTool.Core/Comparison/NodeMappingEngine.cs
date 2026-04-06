@@ -269,6 +269,14 @@ public sealed class NodeMappingEngine
         // Here we add a small bonus when relation matches (or both absent) AND family matches.
         var ancestor = (rel >= 0.5 && family >= 0.7) ? 1.0 : 0.0;
 
+        // Phase 68–69: same-relation scan-family rewrites (seq ↔ index/index-only, seq ↔ bitmap heap, bitmap ↔ index, index ↔ index-only)—boost so continuity hints can apply at Medium+.
+        var accessRewrite =
+            rel >= 0.99 && family >= 0.99 && ScanAccessRewritePair(a.NodeType, b.NodeType) ? 0.24 : 0.0;
+
+        // Phase 71: Gather / Gather Merge roots often sit over Partial Aggregate vs a single-node hash/final aggregate—boost mapping when relation context is absent on both.
+        var gatherAggRewrite =
+            GatherAggregateRewritePair(a.NodeType, b.NodeType) && rel >= 0.99 ? 0.20 : 0.0;
+
         var total =
             wType * type +
             wFamily * family +
@@ -278,7 +286,9 @@ public sealed class NodeMappingEngine
             wDepth * depth +
             wShape * shape +
             wPred * pred +
-            wAncestor * ancestor;
+            wAncestor * ancestor +
+            accessRewrite +
+            gatherAggRewrite;
 
         var breakdown = new Dictionary<string, double>
         {
@@ -290,7 +300,9 @@ public sealed class NodeMappingEngine
             ["depth"] = depth,
             ["shape"] = shape,
             ["predicates"] = pred,
-            ["ancestorProxy"] = ancestor
+            ["ancestorProxy"] = ancestor,
+            ["accessRewrite"] = accessRewrite,
+            ["gatherAggRewrite"] = gatherAggRewrite
         };
 
         return (Math.Clamp(total, 0, 1), breakdown);
@@ -315,7 +327,29 @@ public sealed class NodeMappingEngine
 
         // Near-family compatibility: scans vs bitmap scans.
         if (a == OperatorFamily.Scan && b == OperatorFamily.Scan) return 1.0;
+
+        // Phase 71: parallel gather-merge stack vs single-node aggregate finalization.
+        if ((a == OperatorFamily.Gather && b == OperatorFamily.Aggregate) ||
+            (b == OperatorFamily.Gather && a == OperatorFamily.Aggregate))
+            return 0.80;
+
         return 0.0;
+    }
+
+    private static bool GatherAggregateRewritePair(string? nodeTypeA, string? nodeTypeB)
+    {
+        var a = (nodeTypeA ?? "").Trim();
+        var b = (nodeTypeB ?? "").Trim();
+        if (a.Length == 0 || b.Length == 0)
+            return false;
+
+        static bool IsGatherRoot(string t) =>
+            t.Contains("Gather", StringComparison.OrdinalIgnoreCase) &&
+            !t.Contains("Aggregate", StringComparison.OrdinalIgnoreCase);
+
+        static bool IsAggregateNode(string t) => t.Contains("Aggregate", StringComparison.OrdinalIgnoreCase);
+
+        return (IsGatherRoot(a) && IsAggregateNode(b)) || (IsGatherRoot(b) && IsAggregateNode(a));
     }
 
     private enum OperatorFamily
@@ -325,7 +359,40 @@ public sealed class NodeMappingEngine
         Join = 2,
         Aggregate = 3,
         SortMaterialize = 4,
-        Append = 5
+        Append = 5,
+        Gather = 6
+    }
+
+    private static bool ScanAccessRewritePair(string? nodeTypeA, string? nodeTypeB)
+    {
+        var a = (nodeTypeA ?? "").Trim();
+        var b = (nodeTypeB ?? "").Trim();
+        if (a.Length == 0 || b.Length == 0) return false;
+
+        static bool IsSeq(string t) => t.Equals("Seq Scan", StringComparison.OrdinalIgnoreCase);
+
+        static bool IsBitmapHeap(string t) => t.Contains("Bitmap Heap", StringComparison.OrdinalIgnoreCase);
+
+        static bool IsIndexScan(string t) => t.Equals("Index Scan", StringComparison.OrdinalIgnoreCase);
+
+        static bool IsIndexOnlyScan(string t) =>
+            t.Contains("Index Only", StringComparison.OrdinalIgnoreCase) &&
+            t.Contains("Scan", StringComparison.OrdinalIgnoreCase);
+
+        static bool IsIndexBackedScan(string t) =>
+            t.Contains("Index", StringComparison.OrdinalIgnoreCase) &&
+            (t.Contains("Scan", StringComparison.OrdinalIgnoreCase) || t.Contains("Only", StringComparison.OrdinalIgnoreCase));
+
+        if ((IsSeq(a) && IsIndexBackedScan(b)) || (IsSeq(b) && IsIndexBackedScan(a)))
+            return true;
+        if ((IsSeq(a) && IsBitmapHeap(b)) || (IsSeq(b) && IsBitmapHeap(a)))
+            return true;
+        if ((IsBitmapHeap(a) && IsIndexBackedScan(b)) || (IsBitmapHeap(b) && IsIndexBackedScan(a)))
+            return true;
+        if ((IsIndexScan(a) && IsIndexOnlyScan(b)) || (IsIndexScan(b) && IsIndexOnlyScan(a)))
+            return true;
+
+        return false;
     }
 
     private static OperatorFamily ClassifyFamily(string nodeType)
@@ -351,6 +418,11 @@ public sealed class NodeMappingEngine
         // Append family
         if (t is "append" or "merge append")
             return OperatorFamily.Append;
+
+        // Gather / Gather Merge (not “Partial Aggregate”)
+        if (t.Contains("gather", StringComparison.OrdinalIgnoreCase) &&
+            !t.Contains("aggregate", StringComparison.OrdinalIgnoreCase))
+            return OperatorFamily.Gather;
 
         return OperatorFamily.Unknown;
     }

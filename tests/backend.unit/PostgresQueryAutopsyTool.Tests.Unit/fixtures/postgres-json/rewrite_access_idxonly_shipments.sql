@@ -1,0 +1,2 @@
+-- Fixture companion: index-only scan on shipments (plan B in index scan ↔ index-only compares).
+-- Example shape: covering index on warehouse_id (+ projected columns) so heap access drops.

@@ -1,0 +1,2 @@
+-- Fixture companion: same grouping as rewrite_aggregate_hash_customer_shipments but qualified group key in JSON (GROUP BY SQL bridge test).
+-- Example shape: SELECT count(*) FROM shipments GROUP BY shipments.customer_id;

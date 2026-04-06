@@ -44,7 +44,7 @@ export const analyzeWorkspaceRegionLabels: Record<AnalyzeWorkspaceRegionId, stri
 
 export const analyzeGuideSectionLabels: Record<AnalyzeGuideSectionId, string> = {
   selection: 'Selection snapshot',
-  whatHappened: 'Plan orientation & narrative',
+  whatHappened: 'Plan briefing & narrative',
   mainBottlenecks: 'Main bottlenecks',
   hotspots: 'Where to inspect next',
   topFindings: 'Top findings (preview)',

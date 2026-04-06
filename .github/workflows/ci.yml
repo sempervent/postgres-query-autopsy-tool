@@ -1,3 +1,7 @@
+# Phase 73: Unquoted `run:` scalars are fragile:
+# - `#` starts a YAML comment (truncates the line).
+# - A substring like `Local: ./path` contains `: ` which YAML can parse as a nested mapping.
+# Quote the full `run:` value (e.g. run: 'echo "Local: …"') when echoes include `#` or `word: ./…`.
 name: CI
 
 on:
@@ -54,8 +58,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh"
-        run: echo "Local: ./scripts/e2e-playwright-docker.sh  # .env.testing, project e2e-smoke"
+      - name: "Local reproduce: e2e-playwright-docker.sh (e2e-smoke)"
+        run: 'echo "Local: ./scripts/e2e-playwright-docker.sh  # .env.testing, project e2e-smoke"'
       - name: Start stack (.env.testing, E2E seeds)
         run: docker compose --env-file .env.testing up -d --build api web
       - name: Wait for health (:3000)
@@ -65,7 +69,7 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Playwright — project e2e-smoke
+      - name: Playwright (e2e-smoke — persisted flows + theme + clipboard regression)
         run: docker compose --env-file .env.testing --profile testing run --rm playwright
       - name: Compose down
         if: always()
@@ -77,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --auth"
-        run: echo "Local: ./scripts/e2e-playwright-docker.sh --auth"
+        run: 'echo "Local: ./scripts/e2e-playwright-docker.sh --auth"'
       - name: Start stack (.env.testing.auth)
         run: docker compose --env-file .env.testing.auth up -d --build api web
       - name: Wait for health (:3000)
@@ -102,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --jwt"
-        run: echo "Local: ./scripts/e2e-playwright-docker.sh --jwt"
+        run: 'echo "Local: ./scripts/e2e-playwright-docker.sh --jwt"'
       - name: Start stack (.env.testing.jwt)
         run: docker compose --env-file .env.testing.jwt up -d --build api web
       - name: Wait for health (:3000)
@@ -127,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --proxy"
-        run: echo "Local: ./scripts/e2e-playwright-docker.sh --proxy"
+        run: 'echo "Local: ./scripts/e2e-playwright-docker.sh --proxy"'
       - name: Start stack (.env.testing.proxy)
         run: docker compose --env-file .env.testing.proxy up -d --build api web
       - name: Wait for health (:3000)
@@ -151,8 +155,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: "Reproduce: ./scripts/e2e-playwright-docker.sh --visual"
-        run: echo "Local: ./scripts/e2e-playwright-docker.sh --visual  # .env.testing, project e2e-visual"
+      - name: "Local reproduce: e2e-playwright-docker.sh --visual (e2e-visual)"
+        run: 'echo "Local: ./scripts/e2e-playwright-docker.sh --visual  # .env.testing, project e2e-visual"'
       - name: Start stack (.env.testing, E2E seeds)
         run: docker compose --env-file .env.testing up -d --build api web
       - name: Wait for health (:3000)

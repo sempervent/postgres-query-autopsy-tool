@@ -1,0 +1,2 @@
+-- Fixture companion: time_bucket-style grouping label (bucket) for query-text + continuity wording tests.
+-- Example shape: SELECT time_bucket('1 hour', created_at) AS bucket, count(*) FROM shipments GROUP BY bucket;

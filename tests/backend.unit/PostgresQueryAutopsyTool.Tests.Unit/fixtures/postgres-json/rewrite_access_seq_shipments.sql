@@ -1,0 +1,2 @@
+-- Fixture companion: broad sequential access on shipments (plan A in access-path rewrite compare).
+-- Example shape: SELECT * FROM shipments WHERE warehouse_id = 3;
