@@ -7,6 +7,22 @@
 - `tests/backend.unit/` xUnit tests + fixtures
 - `docs/` documentation source (MkDocs)
 
+## Repo health, workflows, and .NET runtime (Phase 74)
+
+**Workflow lint:** **`./scripts/lint-workflows.sh`** runs [**actionlint**](https://github.com/rhysd/actionlint) on **`.github/workflows`** (binary on **PATH**, or **Docker** image **`rhysd/actionlint:latest`**). CI runs the same check via job **`workflow-lint`** (**`rhysd/actionlint@v1`**). Use this before pushing if you edit workflows — it catches YAML issues and embedded **shellcheck** problems.
+
+**Make shortcuts** (run from repo root; **`make help`** lists all):
+
+| Goal | Command |
+|------|---------|
+| Fast sanity (lint + frontend tests) | **`make repo-health`** |
+| Full local verify (lint + backend on PATH + frontend) | **`make verify`** — requires **.NET 8 runtime** for **`dotnet test`** (same as CI **`backend`** job) |
+| Same as verify but backend via Docker SDK 8 | **`make verify-docker`** — use when the host only has **.NET 9/10** SDK or tests fail with “framework 8.0 not found” |
+| Backend unit tests only (Docker) | **`make test-backend-docker`** |
+| Copy/persisted-flow Playwright slice (host) | **`make test-e2e-copy`** — requires **`api` + `web`** on **`:3000`** with **`.env.testing`** (see [Browser E2E](#browser-e2e-playwright)); equivalent to **`npm run test:e2e:copy`** in **`src/frontend/web`** with **`PLAYWRIGHT_*`** env set |
+
+**Analyze fixture sweep** is still **`PostgresJsonAnalyzeFixtureSweepTests`** plus **`Support/AnalyzeFixtureCorpus*`**; there is no separate CLI — run **`make test-backend-docker`** or **`dotnet test`** on the unit project to execute it.
+
 ## Node.js (frontend)
 
 - **Supported:** Node **20.x** (matches CI and the **web** Docker build). **`src/frontend/web/.nvmrc`** is **`20`**; **`package.json`** has **`engines.node`** **`>=20 <25`**; optional **Volta** (`package.json` **`volta.node`**) and repo **`.tool-versions`** (asdf) pin **20.18.0**.
@@ -23,7 +39,7 @@ make test
 #### Backend (xUnit + fixtures)
 
 - **`FixtureSqlCompanionTests`** enforces `postgres-json/*.sql` siblings and comparison-case SQL companions.
-- **Phase 72:** **`PostgresJsonAnalyzeFixtureSweepTests`** runs **full** **`PlanAnalysisService`** over every top-level **`fixtures/postgres-json/*.json`** so new single-plan fixtures are not silently skipped. Add deep assertions in focused tests when a fixture encodes a specific regression; keep the sweep **structural** (no prose golden files).
+- **Phase 72–74:** **`PostgresJsonAnalyzeFixtureSweepTests`** runs **full** **`PlanAnalysisService`** over every top-level **`fixtures/postgres-json/*.json`** (discovery via **`AnalyzeFixtureCorpus`**) so new single-plan fixtures are not silently skipped. Structural expectations live in **`AnalyzeFixtureStructuralAssertions`**. Add deep assertions in focused tests when a fixture encodes a specific regression; keep the sweep **structural** (no prose golden files).
 
 #### Frontend (Vitest + TypeScript)
 
@@ -51,7 +67,7 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 | **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing |
 | **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial |
 | **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial |
-| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** canonical screenshots (Analyze/Compare happy, corrupt **422**, access denied via **`page.route` 403**); **Phase 65:** suite locks **`pqat_theme_v1=dark`** + **`data-theme="dark"`** for pixel stability; see **`e2e/visual/README.md`** |
+| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** tests, **region-targeted** PNGs (**Phase 75**): Analyze/Compare happy paths use labeled story surfaces (summary, workspace/navigator/pair, findings) — not full-page height; error cases capture **`analyze-page-error`** only; **Phase 65:** dark theme lock; see **`e2e/visual/README.md`** |
 
 **npm scripts** (host Playwright; API must already match the mode): **`test:e2e`** / **`test:e2e:smoke`**, **`test:e2e:copy`** (**`e2e/persisted-flows.spec.ts`** only — Phase 72 clipboard + persisted Analyze/Compare smoke; same **`e2e-smoke`** project), **`test:e2e:auth`** (alias **`test:e2e:api-key`**), **`test:e2e:jwt`**, **`test:e2e:proxy`**, **`test:e2e:visual`** / **`test:e2e:visual:update`**.
 
@@ -93,7 +109,7 @@ Details: **`e2e/auth/README.md`**. Visual baselines: **`e2e/visual/README.md`**.
 
 CI jobs **`e2e-playwright`**, **`e2e-playwright-auth`**, **`e2e-browser-auth-jwt`**, **`e2e-playwright-proxy`**, **`e2e-playwright-visual`**; each step echoes the matching **`e2e-playwright-docker.sh`** flag for local reproduction where applicable.
 
-**Phase 73 (CI workflow):** **`.github/workflows/ci.yml`** must not use **unquoted** **`run:`** lines that contain **`#`** (YAML comment) or plain-text patterns like **`Local: ./…`** (the **`:`** + space can be parsed as a nested mapping). Quote the full shell string (see the workflow file header comment). The **`e2e-playwright`** job runs Docker Compose **`playwright`** with default **`PLAYWRIGHT_CLI_ARGS=--project=e2e-smoke`**, which already includes **`persisted-flows.spec.ts`** (clipboard + persisted flows). For a fast local repro of that slice only: stack up with **`.env.testing`**, then from **`src/frontend/web`**: **`PLAYWRIGHT_SKIP_WEBSERVER=1`**, **`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000`**, **`npm run test:e2e:copy`** (or full **`npm run test:e2e:smoke`**).
+**Phase 73 (CI workflow):** **`.github/workflows/ci.yml`** must not use **unquoted** **`run:`** lines that contain **`#`** (YAML comment) or plain-text patterns like **`Local: ./…`** (the **`:`** + space can be parsed as a nested mapping). Quote the full shell string (see the workflow file header comment). The **`e2e-playwright`** job runs Docker Compose **`playwright`** with default **`PLAYWRIGHT_CLI_ARGS=--project=e2e-smoke`**, which already includes **`persisted-flows.spec.ts`** (clipboard + persisted flows). For a fast local repro of that slice only: stack up with **`.env.testing`**, then **`make test-e2e-copy`** or from **`src/frontend/web`**: **`PLAYWRIGHT_SKIP_WEBSERVER=1`**, **`PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000`**, **`npm run test:e2e:copy`** (or full **`npm run test:e2e:smoke`**).
 
 ### Docs
 

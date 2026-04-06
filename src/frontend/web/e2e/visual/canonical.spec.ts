@@ -1,5 +1,6 @@
 /**
  * Phase 56–57 — canonical workstation visual regression.
+ * Phase 75 — region-targeted screenshots for Analyze/Compare happy paths (avoids brittle full-page height drift).
  * Requires: API + web with `PQAT_E2E_ENABLED=true` (`.env.testing` Docker stack).
  * Access-denied frame uses `page.route` (403) so it stays deterministic without a second auth stack.
  * Update baselines (Linux, same as CI): from repo root, with stack up:
@@ -9,7 +10,12 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import {
+  expectStableRegionScreenshot,
+  waitForFontsReady,
+  waitForReactFlowFirstNode,
+} from './visualTestHelpers'
 
 function postgresJsonFixture(fileName: string): string {
   return path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', fileName)
@@ -39,16 +45,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-async function waitForStableCanvas(page: Page) {
-  await page.evaluate(() => document.fonts.ready)
-}
-
-/** Wait until React Flow has laid out at least one node (reduces graph flake on screenshots). */
-async function waitForReactFlowNodes(page: Page) {
-  await page.locator('.react-flow__node').first().waitFor({ state: 'visible', timeout: 45_000 })
-}
-
-test('visual snapshot: Analyze happy path', async ({ page }) => {
+test('visual snapshot: Analyze happy path (story surfaces)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
   await page.goto('/')
@@ -57,16 +54,17 @@ test('visual snapshot: Analyze happy path', async ({ page }) => {
   await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByLabel('Analyze workspace')).toBeVisible({ timeout: 45_000 })
   await page.locator('.react-flow').waitFor({ state: 'visible', timeout: 45_000 }).catch(() => {})
-  await waitForReactFlowNodes(page)
+  await waitForReactFlowFirstNode(page)
   await expect(page.getByRole('button', { name: /^Finding:/ }).first()).toBeVisible({ timeout: 30_000 })
-  await waitForStableCanvas(page)
-  await expect(page).toHaveScreenshot('analyze-happy.png', {
-    fullPage: true,
-    animations: 'disabled',
-  })
+  await expect(page.getByLabel('Findings list')).toBeVisible({ timeout: 30_000 })
+  await waitForFontsReady(page)
+
+  await expectStableRegionScreenshot(page.getByLabel('Analysis summary'), 'analyze-happy-summary.png')
+  await expectStableRegionScreenshot(page.getByLabel('Analyze workspace'), 'analyze-happy-workspace.png')
+  await expectStableRegionScreenshot(page.getByLabel('Findings list'), 'analyze-happy-findings.png')
 })
 
-test('visual snapshot: Compare happy path', async ({ page }) => {
+test('visual snapshot: Compare happy path (story surfaces)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
   const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
@@ -78,11 +76,14 @@ test('visual snapshot: Compare happy path', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 45_000 })
   await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
   await expect(page.getByText('Key metric deltas')).toBeVisible({ timeout: 45_000 })
-  await waitForStableCanvas(page)
-  await expect(page).toHaveScreenshot('compare-happy.png', {
-    fullPage: true,
-    animations: 'disabled',
-  })
+  await expect(page.getByLabel('Compare summary')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByLabel('Compare navigator')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByLabel('Compare pair inspector')).toBeVisible({ timeout: 30_000 })
+  await waitForFontsReady(page)
+
+  await expectStableRegionScreenshot(page.getByLabel('Compare summary'), 'compare-happy-summary.png')
+  await expectStableRegionScreenshot(page.getByLabel('Compare navigator'), 'compare-happy-navigator.png')
+  await expectStableRegionScreenshot(page.getByLabel('Compare pair inspector'), 'compare-happy-pair.png')
 })
 
 test('visual snapshot: Analyze corrupt artifact banner', async ({ page, request }) => {
@@ -97,11 +98,8 @@ test('visual snapshot: Analyze corrupt artifact banner', async ({ page, request 
   const err = page.getByTestId('analyze-page-error')
   await expect(err).toBeVisible()
   await expect(err).toContainText(/corrupt|read|unreadable/i)
-  await waitForStableCanvas(page)
-  await expect(page).toHaveScreenshot('analyze-error-corrupt.png', {
-    fullPage: true,
-    animations: 'disabled',
-  })
+  await waitForFontsReady(page)
+  await expectStableRegionScreenshot(err, 'analyze-error-corrupt.png')
 })
 
 test('visual snapshot: Analyze access denied (403)', async ({ page }) => {
@@ -121,9 +119,6 @@ test('visual snapshot: Analyze access denied (403)', async ({ page }) => {
   await expect(err).toBeVisible()
   await expect(err.getByText('Access blocked')).toBeVisible()
   await expect(err).toContainText(/access denied/i)
-  await waitForStableCanvas(page)
-  await expect(page).toHaveScreenshot('analyze-error-access-denied.png', {
-    fullPage: true,
-    animations: 'disabled',
-  })
+  await waitForFontsReady(page)
+  await expectStableRegionScreenshot(err, 'analyze-error-access-denied.png')
 })

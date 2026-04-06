@@ -1550,3 +1550,62 @@ Verified (agent run, 2026-04-04):
 
 **Limitations:** Full Playwright in CI still runs via **Docker Compose** (not bare **`npm run test:e2e`** on the ubuntu runner); **`test:e2e:copy`** is primarily for **local** reproduction against a running **:3000** stack.
 
+## Phase 74 — Fixture/test workflow hardening + contributor-path coherence (2026-04-06)
+
+**Workflow guard**
+
+- **`.github/workflows/ci.yml`**: Job **`workflow-lint`** (**`rhysd/actionlint@v1`**). Health wait loops use **`for _ in …`** to satisfy **shellcheck** (unused **`i`**).
+- **`scripts/lint-workflows.sh`**: Local **actionlint** or **Docker** **`rhysd/actionlint:latest`** from repo root.
+
+**Fixture sweep maintainability**
+
+- **`Support/AnalyzeFixtureCorpus`**, **`AnalyzeFixtureStructuralAssertions`**, **`AnalyzeFixtureCorpusTests`**: shared discovery + structural asserts; sweep test class delegates to them.
+
+**Contributor paths**
+
+- **`Makefile`**: **`lint-workflows`**, **`repo-health`**, **`verify`**, **`verify-docker`**, **`test-backend-docker`**, **`test-e2e-copy`**, expanded **`help`**.
+
+**Docs**
+
+- **`contributing.md`** (repo health table, .NET 8 Docker fallback, **`make test-e2e-copy`**), **`fixtures.md`**, **`architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-06)**
+
+- **actionlint:** `./scripts/lint-workflows.sh` (Docker) — **OK**.
+- **Backend:** `docker run … dotnet test tests/backend.unit/…Tests.Unit.csproj -c Release` — **OK** (153 passed).
+- **Frontend:** `npm test` — **OK** (162 tests); `npm run build` — **OK**.
+- **`make repo-health`:** — **OK** (lint + frontend tests).
+- **Docs:** `mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` — **OK**.
+
+**Limitations:** **`make verify`** still depends on a host **.NET 8** runtime for **`dotnet test`**; use **`verify-docker`** when only a newer SDK is installed. **`actionlint` Docker** pull requires network on first run.
+
+## Phase 75 — Visual regression stabilization + screenshot strategy (2026-04-06)
+
+**Problem:** **`e2e-visual`** Analyze happy path used **`fullPage: true`**; workstation UI growth caused massive height drift (**~5112px → ~6060px**) and CI failures.
+
+**Strategy**
+
+- **Analyze happy:** three **element** screenshots — **`Analysis summary`**, **`Analyze workspace`**, **`Findings list`** (`aria-label`s).
+- **Compare happy:** three regions — **`Compare summary`**, **`Compare navigator`**, **`Compare pair inspector`** (new **`aria-label`**s on **`CompareSummaryColumn`**, **`CompareNavigatorPanel`**, **`ComparePairColumn`**).
+- **Error cases:** snapshot **`[data-testid="analyze-page-error"]`** only (not full viewport).
+- **`e2e/visual/visualTestHelpers.ts`:** **`waitForFontsReady`**, **`waitForReactFlowFirstNode`**, **`expectStableRegionScreenshot`** (`scrollIntoViewIfNeeded` + **`toHaveScreenshot`**).
+
+**Baselines**
+
+- Regenerated **Linux** PNGs via **`docker compose --env-file .env.testing --profile testing run --rm -e PLAYWRIGHT_CLI_ARGS="--project=e2e-visual --update-snapshots" playwright`** (eight files under **`canonical.spec.ts-snapshots/`**). Removed obsolete **`analyze-happy`** / **`compare-happy`** single full-page images.
+
+**Docs**
+
+- **`e2e/visual/README.md`**, **`contributing.md`**, **`architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-06)**
+
+- **`e2e-visual`:** same Docker command **without** `--update-snapshots` — **4 passed**.
+- **Backend:** `docker run … dotnet test tests/backend.unit/…Tests.Unit.csproj -c Release` — **OK** (153 passed).
+- **Frontend:** `npm test` — **OK** (162 tests); `npm run build` — **OK**.
+- **Docs:** `mkdocs build --strict` — **OK**.
+- **Docker:** `docker compose build` — **OK**.
+
+**Limitations:** Region shots still change when **copy inside** those panels changes; update baselines deliberately. Virtualized lists could theoretically vary row virtualization boundaries — current fixtures stay below aggressive thresholds.
+

@@ -408,7 +408,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
   }
 
   return (
-    <div className="pqat-panel pqat-panel--detail pqat-panelPad--md">
+    <div className="pqat-panel pqat-panel--detail pqat-panelPad--md" aria-label="Compare navigator">
       {copyNav.status ? <div className="pqat-hint" style={{ marginBottom: 10 }}>{copyNav.status}</div> : null}
       {showFilterRow ? (
         <div className="pqat-filterBar">

@@ -25,7 +25,7 @@ export function ComparePairColumn(props: ComparePairColumnProps) {
   }
 
   return (
-    <div className="pqat-panel pqat-panel--workspace pqat-panelPad--md pqat-workspaceColumn">
+    <div className="pqat-panel pqat-panel--workspace pqat-panelPad--md pqat-workspaceColumn" aria-label="Compare pair inspector">
       {showBranchStrip && branchViewModel ? (
         <CompareBranchStrip model={branchViewModel} onSelectPair={setSelectedPair} pairHeading={branchPairHeading} />
       ) : null}

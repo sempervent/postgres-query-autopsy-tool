@@ -371,7 +371,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
   if (!hasAny) return null
 
   return (
-    <div className="pqat-summaryShell pqat-workspaceReveal">
+    <div className="pqat-summaryShell pqat-workspaceReveal" aria-label="Compare summary">
       <div className="pqat-summaryHeader">
         <h3 className="pqat-sectionHeadline">Summary</h3>
         {vis.summaryCards ? (

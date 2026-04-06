@@ -37,14 +37,20 @@ Convention:
 3. If it’s illustrative, say so at the top of the SQL file.
 4. Ensure fixture hygiene checks pass (CI will fail if required companions are missing).
 
-## Analyze corpus sweep (Phase 72)
+## Analyze corpus sweep (Phase 72 + 74)
 
 **`PostgresJsonAnalyzeFixtureSweepTests`** (xUnit) walks **every** `*.json` file **directly** under `fixtures/postgres-json/` (not subfolders) and runs the same **`PlanAnalysisService`** pipeline as production Analyze: parse → metrics → findings → summary → narrative → index overview/insights → **`OptimizationSuggestionEngine`** → **`PlanStoryBuilder`**.
 
 - **In scope:** top-level `postgres-json/*.json` only (including compare-oriented single plans such as `compare_before_seq_scan.json`, which are still valid one-plan analyzes).
 - **Out of scope:** `fixtures/comparison/<case>/planA|B.json` — paired compare corpus; covered by compare tests and companion SQL rules.
-- **Opt-out:** add a basename to **`ExcludedFixtureFiles`** in the test class if a file is intentionally non-JSON or not an explain plan (should be rare).
+- **Opt-out:** add a basename to **`ExcludedFixtureFiles`** in **`PostgresJsonAnalyzeFixtureSweepTests`** if a file is intentionally non-JSON or not an explain plan (should be rare).
 - Failures report **`[file] Stage: message`** so CI logs stay actionable.
+
+**Phase 74 helpers** (same test assembly, `Support/`):
+
+- **`AnalyzeFixtureCorpus`**: **`ResolvePostgresJsonDirectory()`**, **`ListJsonFixturePaths(excludedBasenames?)`** — single definition of “which files are in the sweep.”
+- **`AnalyzeFixtureStructuralAssertions`**: shared **`AssertStructuralSanity`** for sweep + targeted fixture tests.
+- **`AnalyzeFixtureCorpusTests`**: asserts the directory exists and exclusion filtering works (regression guard for shadow-copy / path wiring).
 
 ## Realistic buffer-shape fixtures
 
