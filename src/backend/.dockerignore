@@ -1,0 +1,10 @@
+# Phase 79 — keep `docker compose build api` context small; exclude build outputs and IDE junk.
+# Context is `src/backend/` only (see docker-compose.yml).
+**/bin/
+**/obj/
+.git
+.idea/
+.vs/
+*.user
+*.userosscache
+TestResults/

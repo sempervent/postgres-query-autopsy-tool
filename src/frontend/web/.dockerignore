@@ -1,0 +1,8 @@
+# Phase 76: `COPY . .` must not overwrite `npm ci` output with the host's `node_modules`
+# (different OS/arch/Node → broken TypeScript + native deps in the image).
+node_modules
+dist
+playwright-report
+test-results
+**/*.png
+.git

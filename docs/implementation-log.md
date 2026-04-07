@@ -1509,7 +1509,7 @@ Verified (agent run, 2026-04-04):
 **Tests**
 
 - Vitest: **`copyToClipboard.test.ts`**, **`useCopyFeedback.test.ts`**; updated **`nodeReferences.test.ts`**.
-- Playwright **`persisted-flows.spec.ts`**: **`context.grantPermissions(['clipboard-read','clipboard-write'])`** + **Analyze → copy node reference** clipboard read.
+- Playwright **`persisted-flows.spec.ts`**: **Analyze → copy node reference** (Phase 77: **`e2eClipboardCapture`** stub + payload assert; Phase 72 used permission + **`readText()`**).
 
 **Docs**
 
@@ -1554,8 +1554,8 @@ Verified (agent run, 2026-04-04):
 
 **Workflow guard**
 
-- **`.github/workflows/ci.yml`**: Job **`workflow-lint`** (**`rhysd/actionlint@v1`**). Health wait loops use **`for _ in …`** to satisfy **shellcheck** (unused **`i`**).
-- **`scripts/lint-workflows.sh`**: Local **actionlint** or **Docker** **`rhysd/actionlint:latest`** from repo root.
+- **`.github/workflows/ci.yml`**: Health wait loops use **`for _ in …`** to satisfy **shellcheck** (unused **`i`**). (Workflow lint lives in **`workflow-lint.yml`**; Phase 77 uses **`./scripts/lint-workflows.sh`**, not **`uses: rhysd/actionlint@…`**.)
+- **`scripts/lint-workflows.sh`**: Local **actionlint** or **Docker** **`rhysd/actionlint:1.7.7`** from repo root (Phase 76 pin; supersedes early **`:latest`**).
 
 **Fixture sweep maintainability**
 
@@ -1614,7 +1614,7 @@ Verified (agent run, 2026-04-04):
 **Pins**
 
 - **`@playwright/test`:** **`1.52.0`** exact in **`package.json`** (aligned with **`mcr.microsoft.com/playwright:v1.52.0-jammy`**).
-- **actionlint:** **`rhysd/actionlint@v1.7.7`** in **`.github/workflows/workflow-lint.yml`**; Docker **`rhysd/actionlint:1.7.7`** in **`scripts/lint-workflows.sh`** (override via **`ACTIONLINT_DOCKER_IMAGE`**).
+- **actionlint:** **`.github/workflows/workflow-lint.yml`** runs **`./scripts/lint-workflows.sh`** (Docker **`rhysd/actionlint:1.7.7`**); Phase 77 removed **`uses: rhysd/actionlint@…`** (invalid action resolution).
 
 **Workflow lint**
 
@@ -1629,6 +1629,8 @@ Verified (agent run, 2026-04-04):
 
 - **`e2e/visual/README.md`** (viewport matrix, tooling pins, CI split), **`contributing.md`** (Vitest/rolldown recovery, workflow lint), **`architecture.md`**, this log.
 
+**Docker web build (Phase 76 follow-up):** **`src/frontend/web/.dockerignore`** excludes **`node_modules`**, **`dist`**, Playwright artifacts, etc., so **`COPY . .`** after **`npm ci`** does not replace the image’s clean install with the host’s **`node_modules`** (different Node/OS → **`tsc`** / typings failures and huge build context).
+
 **Optional sixth region:** not added — current eight PNGs already cover primary story surfaces; Compare error pixel test deferred (no thinner stable shell than full-page error without new product chrome).
 
 **Verified (agent run, 2026-04-07)**
@@ -1637,5 +1639,78 @@ Verified (agent run, 2026-04-04):
 - **`e2e-visual`:** `docker compose … playwright` (**`--project=e2e-visual`**) — **4 passed** (no baseline refresh needed after graph settle).
 - **Backend:** `docker run … dotnet test …Tests.Unit.csproj -c Release` — **OK** (153 passed).
 - **Frontend:** `docker run … node:20-alpine` **`npm ci && npm test && npm run build`** — **OK** (162 tests).
+- **Docker web image:** **`docker compose build web`** — **OK** (after **`.dockerignore`**; context ~10 KB instead of copying host **`node_modules`**).
 - **Docs:** `mkdocs build --strict` — **OK**.
+
+## Phase 77 — CI workflow-lint resolution + deterministic clipboard E2E (2026-04-07)
+
+**Workflow lint:** **`.github/workflows/workflow-lint.yml`** runs **`./scripts/lint-workflows.sh`** on **`ubuntu-latest`** (Docker **`rhysd/actionlint:1.7.7`**) instead of **`uses: rhysd/actionlint@…`**, which GitHub cannot resolve — the upstream repo is not a publishable Actions wrapper.
+
+**Clipboard smoke:** **`e2e/helpers/e2eClipboardCapture.ts`** — **`installE2eClipboardCapture`** + **`readE2eCapturedClipboard`**; **`persisted-flows.spec.ts`** **`beforeEach`** installs stub; copy test asserts **`writeText`** payload (still matches **Seq Scan** / **users** / **node …**). Removed **`context.grantPermissions`** and **`navigator.clipboard.readText()`** page evaluate.
+
+**Docs:** **`contributing.md`**, **`architecture.md`**, **`analyze-workflow.md`**, **`playwright.config.mjs`** comment, **`ci.yml`** step title.
+
+**Verified (agent run, 2026-04-07)**
+
+- **`./scripts/lint-workflows.sh`** — **OK** (Docker **actionlint 1.7.7**).
+- **`docker compose build`** (api + web) — **OK**.
+- **E2E smoke:** **`./scripts/e2e-playwright-docker.sh`** — **11 passed** (copy test first; **`persisted-flows`** + **`theme-appearance`**).
+- **Frontend:** `npm ci && npm test && npm run build` — **OK** (162 unit tests).
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test …Tests.Unit.csproj -c Release` — **OK** (153 passed).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 78 — README hosted docs + CI parity table + doc sweep (2026-04-07)
+
+**README:** Prominent link to **https://sempervent.github.io/postgres-query-autopsy-tool/**; local **`mkdocs serve`** instructions kept; pointer to **`docs/contributing.md#ci-parity-verified-commands`**.
+
+**Contributing:** New **“CI parity (verified commands)”** table (workflow lint, backend Docker/host, frontend, **`docker compose build`**, smoke + visual E2E, docs); **`make verify` / `verify-docker` / `repo-health`** summarized; workflow-lint paragraph explicitly warns against **`uses: rhysd/actionlint@v1`**.
+
+**Sweep:** **`implementation-log.md`** Phase 74 **`lint-workflows.sh`** bullet — **`:latest`** → pinned **`:1.7.7`** with historical note.
+
+**Clipboard helper:** **`e2eClipboardCapture.ts`** JSDoc — when to reuse (`beforeEach` + **`readE2eCapturedClipboard`**).
+
+**Verified (agent run, 2026-04-07)**
+
+- **`./scripts/lint-workflows.sh`** — **OK**.
+- **`docker compose build`** — **OK**.
+- **Frontend:** **`npm ci && npm test && npm run build`** in **`node:20-alpine`** (mount **`src/frontend/web`**) — **OK** (162 tests); host **Node 25** failed Vitest rolldown binding — same workaround as **`contributing.md`**.
+- **Backend:** `docker run … mcr.microsoft.com/dotnet/sdk:8.0 dotnet test …Tests.Unit.csproj -c Release` — **OK** (153 passed).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 79 — Digest-pinned toolchain + `verify-frontend-docker` + API build context (2026-04-07)
+
+**Image pins (multi-arch index digests):** **`docker-compose.yml`** **`playwright`**; **`src/frontend/web/Dockerfile`** **`node:20-alpine`**, **`nginx:alpine`**; **`PostgresQueryAutopsyTool.Api/Dockerfile`** **dotnet/sdk:8.0**, **aspnet:8.0**; **`Makefile`** **`test-backend-docker`**; **`scripts/verify-frontend-docker.sh`** default **`PQAT_NODE_IMAGE`**.
+
+**Docker frontend verify:** **`./scripts/verify-frontend-docker.sh`**, **`make verify-frontend-docker`** — **`npm ci && npm test && npm run build`** in container. **`make verify-docker`** now uses **`verify-frontend-docker`** instead of host **`test-frontend`**.
+
+**API context:** **`src/backend/.dockerignore`** excludes **`bin/`**, **`obj/`**, etc.
+
+**Docs / UX:** **`README`** quick-checks line; **`contributing.md`** CI parity + container pin note + **`ci.yml`** job table; **`docs/index.md`** Pages + contributing anchor; **`architecture.md`**; **`e2e/visual/README.md`** Playwright digest.
+
+**Verified (agent run, 2026-04-07)**
+
+- **`./scripts/lint-workflows.sh`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (162 tests, **`vite build`**).
+- **`make verify-docker`** — **OK**.
+- **`docker compose build`** — **OK** (leaner API context).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 80 — Actionlint digest + bootstrap fallback + `repo-health-docker` + Node 20.18.0 CI (2026-04-07)
+
+**actionlint:** Default Docker image **`rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9`** in **`scripts/lint-workflows.sh`**. **`ACTIONLINT_BOOTSTRAP=1`** downloads **v1.7.7** release tarball to **`.cache/pqat-actionlint/`** (gitignored) when neither **PATH** binary nor Docker works. **`ACTIONLINT_VERSION_BOOTSTRAP`** / **`ACTIONLINT_DOCKER_IMAGE`** override.
+
+**Make:** **`repo-health-docker`** = **`lint-workflows`** + **`verify-frontend-docker`**. **`make help`** regrouped into verification tiers.
+
+**CI / Node:** **`.github/workflows/ci.yml`** **`setup-node`** → **`20.18.0`**; **`src/frontend/web/.nvmrc`** → **`20.18.0`**.
+
+**Docs:** **`README`**, **`contributing.md`** (tiers table, fallbacks), **`index.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-07)**
+
+- **`./scripts/lint-workflows.sh`** (Docker path) — **OK**.
+- **`PATH=/usr/bin:/bin:/usr/sbin ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** — **OK** (bootstrap path; after cache warm).
+- **`make repo-health-docker`** — **OK**.
+- **`make verify-docker`** — **OK**.
+- **`docker compose build`** — **OK**.
+- **`mkdocs build --strict`** — **OK**.
 

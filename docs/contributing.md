@@ -7,19 +7,71 @@
 - `tests/backend.unit/` xUnit tests + fixtures
 - `docs/` documentation source (MkDocs)
 
+## Verification tiers (Phase 80)
+
+| Tier | Intent | Typical command |
+|------|--------|-----------------|
+| **A — fast host** | Lint + frontend unit tests only; smallest loop | **`make repo-health`** |
+| **B — Docker frontend** | Same as A but **no** reliance on host Node (Vitest/Rolldown safe) | **`make repo-health-docker`** |
+| **C — full local** | Lint + backend on PATH + host frontend tests | **`make verify`** |
+| **D — full Docker** | Lint + Docker **.NET 8** + Docker Node frontend (max parity, minimal host deps) | **`make verify-docker`** |
+| **Specialty** | E2E, visual PNGs, docs site, copy slice | **`make e2e-playwright-docker*`**, **`make docs-build`**, **`make test-e2e-copy`** |
+
+**Workflow lint alone:** **`make lint-workflows`**. Order inside script: **actionlint** on **PATH** → **Docker** (digest-pinned **`rhysd/actionlint:1.7.7@sha256:887a…`**, override **`ACTIONLINT_DOCKER_IMAGE`**) → optional **`ACTIONLINT_BOOTSTRAP=1`** (GitHub release **v1.7.7** binary into **`.cache/pqat-actionlint/`**, needs **curl**) → error with install hints.
+
+## CI parity (verified commands)
+
+These paths mirror what **GitHub Actions** exercises (see **`.github/workflows/ci.yml`**, **`.github/workflows/workflow-lint.yml`**). Use **Docker-backed** backend tests when the host only has a newer .NET SDK/runtime.
+
+| Concern | Command (repo root unless noted) |
+|--------|----------------------------------|
+| **Workflow YAML** | **`make lint-workflows`** or **`./scripts/lint-workflows.sh`** (same as **`workflow-lint.yml`**; Docker image digest-pinned; **`ACTIONLINT_BOOTSTRAP=1`** if no Docker — see [Verification tiers](#verification-tiers-phase-80)) |
+| **Backend unit tests** | **`make test-backend`** (needs **.NET 8** on PATH) or **`make test-backend-docker`** (**.NET SDK 8** in Docker — digest-pinned in **`Makefile`**, matches **`PostgresQueryAutopsyTool.Api/Dockerfile`**) |
+| **Frontend (host Node 20)** | **`cd src/frontend/web && npm ci && npm test && npm run build`** |
+| **Frontend (Docker — CI-like)** | **`make verify-frontend-docker`** or **`./scripts/verify-frontend-docker.sh`** — **Node 20 Alpine** digest-pinned (same family as **`src/frontend/web/Dockerfile`**); override with **`PQAT_NODE_IMAGE`** if needed |
+| **Docker images** | **`docker compose build`** (**`docker-smoke`** job) |
+| **E2E smoke** (persisted flows + theme + copy capture) | **`make e2e-playwright-docker`** or **`./scripts/e2e-playwright-docker.sh`** (**`.env.testing`**, **`e2e-smoke`**) |
+| **E2E visual** | **`make e2e-playwright-docker-visual`** or **`./scripts/e2e-playwright-docker.sh --visual`** |
+| **Docs site** | Docs venv + **`mkdocs build --strict`** (see [Docs](#docs) below) |
+
+**Shortcuts:** **`make verify`** = lint + host backend + host frontend tests; **`make verify-docker`** = lint + **`test-backend-docker`** + **`verify-frontend-docker`**. **`make repo-health`** / **`make repo-health-docker`** = tier A / B above. **`workflow-lint.yml`** runs only when workflow files or **`.actionlint.yaml`** change — still run **`make lint-workflows`** before pushing workflow edits.
+
+### Container image pins (Phase 79–80)
+
+Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (**`node:20-alpine`**, **`nginx:alpine`**), **API** **.NET 8** images, **`Makefile`** **`test-backend-docker`**, **`scripts/verify-frontend-docker.sh`**, and **`scripts/lint-workflows.sh`** default **actionlint** Docker image. Bump when retargeting versions: **`docker buildx imagetools inspect <image:tag>`** → update digest + comment.
+
+### CI Node version (Phase 80)
+
+**`.github/workflows/ci.yml`** **`frontend`** job uses **`actions/setup-node@v4`** with **`node-version: "20.18.0"`** — aligns with **`package.json`** **`volta.node`**, **`src/frontend/web/.nvmrc`**, and the digest-pinned **Node 20 Alpine** used by **`verify-frontend-docker`** / **`Dockerfile`**. Patch bumps: change all three together when you intentionally move the pinned minor/patch.
+
+### GitHub Actions job families (`ci.yml` + `workflow-lint.yml`)
+
+| Workflow / job | What it covers | Local parallel |
+|----------------|----------------|----------------|
+| **`workflow-lint.yml`** | **actionlint** on workflow edits | **`make lint-workflows`** |
+| **`backend`** | **`dotnet test`** solution | **`make test-backend`** |
+| **`frontend`** | **Node 20.18.0**, **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** | Host **`cd src/frontend/web && …`** or **`make verify-frontend-docker`** |
+| **`docker-smoke`** | **`docker compose build`** | **`docker compose build`** |
+| **`e2e-playwright`** | Compose **`playwright`** → **`e2e-smoke`** | **`make e2e-playwright-docker`** |
+| **`e2e-playwright-auth` / `jwt` / `proxy`** | Auth projects + matching **`.env.testing.*`** | **`make e2e-playwright-docker-auth`** (etc.) |
+| **`e2e-playwright-visual`** | **`e2e-visual`** PNG suite | **`make e2e-playwright-docker-visual`** |
+| **`docs`** | **`mkdocs build --strict`** | **`make docs-build`** |
+
 ## Repo health, workflows, and .NET runtime (Phase 74)
 
-**Workflow lint:** **`./scripts/lint-workflows.sh`** runs [**actionlint**](https://github.com/rhysd/actionlint) (binary on **PATH**, or **Docker** **`rhysd/actionlint:1.7.7`** — override with **`ACTIONLINT_DOCKER_IMAGE`** if needed). Config: **`.actionlint.yaml`**. CI runs **`.github/workflows/workflow-lint.yml`** (**`rhysd/actionlint@v1.7.7`**) when **`.github/workflows/**`** or **`.actionlint.yaml`** changes (saves runner time when workflows are untouched). **`make repo-health`** still runs lint locally on every invocation — use that before pushing workflow edits.
+**Workflow lint:** [**actionlint**](https://github.com/rhysd/actionlint) via **`./scripts/lint-workflows.sh`**. Config: **`.actionlint.yaml`**. **`.github/workflows/workflow-lint.yml`** runs this script (path-scoped); do **not** use **`uses: rhysd/actionlint@v1`**. Resolution order and fallbacks: [Verification tiers](#verification-tiers-phase-80). **Without Docker:** install the **actionlint** binary (see upstream docs), or **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** once (cached under **`.cache/pqat-actionlint/`**).
 
-**Host Vitest / optional native bindings (Phase 76):** If **`npm test`** fails with **rolldown** / **“Cannot find native binding”** / missing **`@rolldown/binding-*`**, the toolchain’s optional platform binary did not install cleanly. **Supported fix:** from **`src/frontend/web`**, remove **`node_modules`** and **`package-lock.json`**, run **`npm install`** again on a [supported Node](https://github.com/npm/cli/issues/4828) (**20.x** per **`engines`** / **`.nvmrc`**), or run tests in **`node:20-alpine`** the same way **`Dockerfile`** / CI do. Avoid **Node 25+** for local dev until the stack officially supports it.
+**Host Vitest / optional native bindings (Phase 76 + 79):** If **`npm test`** fails with **rolldown** / **“Cannot find native binding”** / missing **`@rolldown/binding-*`**, run **`make verify-frontend-docker`** (or **`./scripts/verify-frontend-docker.sh`**) — same steps as CI **`frontend`** job, without relying on host Node. **Alternatively:** from **`src/frontend/web`**, clean **`node_modules`** / lockfile and reinstall on **20.x** (**`engines`** / **`.nvmrc`**). Avoid **Node 25+** for local dev until the stack officially supports it.
 
 **Make shortcuts** (run from repo root; **`make help`** lists all):
 
 | Goal | Command |
 |------|---------|
-| Fast sanity (lint + frontend tests) | **`make repo-health`** |
-| Full local verify (lint + backend on PATH + frontend) | **`make verify`** — requires **.NET 8 runtime** for **`dotnet test`** (same as CI **`backend`** job) |
-| Same as verify but backend via Docker SDK 8 | **`make verify-docker`** — use when the host only has **.NET 9/10** SDK or tests fail with “framework 8.0 not found” |
+| Fast sanity (lint + frontend tests on host) | **`make repo-health`** — if Vitest fails, **`make repo-health-docker`** |
+| Fast sanity (lint + Docker frontend) | **`make repo-health-docker`** — no host Node required for the frontend leg |
+| Full local verify (lint + backend on PATH + frontend on host) | **`make verify`** — requires **.NET 8 runtime** for **`dotnet test`** (same as CI **`backend`** job) |
+| Full verify without host .NET / reliable Node | **`make verify-docker`** — lint + **`test-backend-docker`** + **`verify-frontend-docker`** |
+| Frontend only (Docker, CI-like) | **`make verify-frontend-docker`** |
 | Backend unit tests only (Docker) | **`make test-backend-docker`** |
 | Copy/persisted-flow Playwright slice (host) | **`make test-e2e-copy`** — requires **`api` + `web`** on **`:3000`** with **`.env.testing`** (see [Browser E2E](#browser-e2e-playwright)); equivalent to **`npm run test:e2e:copy`** in **`src/frontend/web`** with **`PLAYWRIGHT_*`** env set |
 
@@ -27,7 +79,7 @@
 
 ## Node.js (frontend)
 
-- **Supported:** Node **20.x** (matches CI and the **web** Docker build). **`src/frontend/web/.nvmrc`** is **`20`**; **`package.json`** has **`engines.node`** **`>=20 <25`**; optional **Volta** (`package.json` **`volta.node`**) and repo **`.tool-versions`** (asdf) pin **20.18.0**.
+- **Supported:** Node **20.18.0** for parity with **CI** (**`ci.yml`** **`setup-node`**) and **Volta** / **asdf** pins. **`src/frontend/web/.nvmrc`** is **`20.18.0`**; **`package.json`** **`engines.node`** remains **`>=20 <25`**. **Docker** frontend verification uses digest-pinned **Node 20 Alpine** (same major line).
 - **Avoid Node 25+** for local **`npm run build`** until the toolchain clearly supports it — optional native packages (e.g. Rolldown-related bindings) may not publish binaries for bleeding-edge Node versions.
 
 ## Development workflow
@@ -55,6 +107,7 @@ End-to-end smoke lives under **`src/frontend/web/e2e/`** and targets **real** An
 
 **Docker Compose layout (Phase 51)**
 
+- **Web image (`src/frontend/web/Dockerfile`):** **`npm ci`** runs before **`COPY . .`**. A **`.dockerignore`** in that directory keeps host **`node_modules`** / **`dist`** out of the build context so the final copy does not overwrite the image’s dependencies (Phase 76). If **`docker compose build web`** fails with odd **`tsc`** / “is not a module” errors, confirm you are not bypassing Docker with a broken context.
 - **Default:** `docker compose up -d --build` (or **`make up`**) starts **`api`** + **`web`** only. No Playwright image, no browser automation stack.
 - **Testing profile:** `docker compose --profile testing …` adds the **`playwright`** service (official image bundles Chromium; no separate Chrome container). Use together with **`--env-file .env.testing`** so the API sets **`PQAT_E2E_ENABLED=true`** → **`E2E__Enabled`** and seed routes work.
 - **One-shot E2E:** `./scripts/e2e-playwright-docker.sh` — brings up **`api`** + **`web`** with **`.env.testing`**, waits for **`:3000`**, then runs Playwright project **`e2e-smoke`** (non-auth **`persisted-flows.spec.ts`**).
@@ -78,7 +131,7 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 **What runs (smoke)**
 
 - Persisted **Analyze** share/reopen + **`?node=`** deep link
-- **Phase 72:** **Analyze copy node reference** — clipboard read/write permission + **`data-testid="analyze-copy-node-reference"`** smoke
+- **Phase 72 + 77:** **Analyze copy node reference** — **`data-testid="analyze-copy-node-reference"`** + **`e2e/helpers/e2eClipboardCapture.ts`** stubs **`navigator.clipboard.writeText`** and asserts the payload (avoids **`readText()`**, often missing in CI Chromium)
 - Persisted **Compare** reopen + findings diff
 - Lazy Compare **selected pair** shell → **Key metric deltas**
 - **422** corrupt + **409** future-schema artifact errors (explicit UI copy)

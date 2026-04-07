@@ -32,6 +32,8 @@ flowchart TD
 
 ## Quick links
 
+- **Published documentation:** [GitHub Pages](https://sempervent.github.io/postgres-query-autopsy-tool/) (same content as this site when built)
+- [Contributing — verification tiers & CI parity](contributing.md#verification-tiers-phase-80)
 - [Getting Started](getting-started.md)
 - [Capturing EXPLAIN JSON](capturing-explain-json.md)
 - [Architecture](architecture.md)

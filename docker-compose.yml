@@ -75,10 +75,10 @@ services:
 
   # Opt-in: `docker compose --profile testing …` — not started on plain `docker compose up`.
   # Playwright image includes Chromium; no separate Chrome service is required for this suite.
-  # Phase 76: Pin image tag to match `src/frontend/web/package.json` → `@playwright/test` (1.52.x).
+  # Phase 76–79: Tag matches `package.json` → `@playwright/test` 1.52.x; digest = multi-arch index (immutable pull).
   playwright:
     profiles: ["testing"]
-    image: mcr.microsoft.com/playwright:v1.52.0-jammy
+    image: mcr.microsoft.com/playwright:v1.52.0-jammy@sha256:ff2946177f0756c87482c0ef958b7cfbf389b92525ace78a1c9890281d0d60f4
     depends_on:
       web:
         condition: service_healthy

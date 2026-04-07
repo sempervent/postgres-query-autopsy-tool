@@ -2,9 +2,12 @@
 
 A serious forensic tool for PostgreSQL execution plans, with an interactive UI that helps explain why a query is slow, misleading, memory-heavy, buffer-heavy, or structurally cursed.
 
-## Docs
+## Documentation
 
-- Local docs site:
+**Hosted docs (MkDocs on GitHub Pages):**  
+**[https://sempervent.github.io/postgres-query-autopsy-tool/](https://sempervent.github.io/postgres-query-autopsy-tool/)**
+
+**Local preview** (edit `docs/`, same toolchain as CI `docs` job):
 
 ```bash
 python -m venv .venv-docs
@@ -13,7 +16,9 @@ pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
-- Published docs: GitHub Pages (workflow included). Update `mkdocs.yml` `repo_url` after you set the repo location.
+**Match CI locally:** **[Verification tiers](docs/contributing.md#verification-tiers-phase-80)** + **[CI parity table](docs/contributing.md#ci-parity-verified-commands)** in `docs/contributing.md`.
+
+**Quick checks (repo root):** **`make help`** lists the verification tiers. Short version: **`make repo-health`** when the host has Node **20.18.x** (matches CI). If host Node is wrong or Vitest/Rolldown fails, use **`make repo-health-docker`** (workflow lint + **`npm ci` / test / build** in the digest-pinned Node image — no host Node needed). Full CI-like stack without host **.NET 8** or Node: **`make verify-docker`**. Workflow lint with no Docker: install [**actionlint**](https://github.com/rhysd/actionlint) or run **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** (downloads v**1.7.7** to **`.cache/`**, needs **curl**).
 
 ## What you can do (MVP)
 
@@ -38,4 +43,3 @@ Then open:
 - `src/frontend/web/` React + TypeScript UI
 - `tests/backend.unit/` fixtures + backend unit tests
 - `docs/` MkDocs docs source
-

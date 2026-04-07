@@ -37,8 +37,10 @@ Keep these aligned when bumping Playwright:
 | Piece | Pinned value |
 |-------|----------------|
 | **`package.json`** | **`@playwright/test`: `1.52.0`** (exact) |
-| **`docker-compose.yml`** **`playwright`** image | **`mcr.microsoft.com/playwright:v1.52.0-jammy`** |
+| **`docker-compose.yml`** **`playwright`** image | **`mcr.microsoft.com/playwright:v1.52.0-jammy@sha256:ff2946177f0756c87482c0ef958b7cfbf389b92525ace78a1c9890281d0d60f4`** (index digest — Phase 79) |
 | **actionlint** (CI + **`scripts/lint-workflows.sh`**) | **`v1.7.7`** / **`rhysd/actionlint:1.7.7`** |
+
+**Docker `web` build:** **`src/frontend/web/.dockerignore`** ignores **`node_modules`** so **`docker compose build web`** does not **`COPY`** the host tree over **`npm ci`** — do not remove it.
 
 **Baseline weight:** eight PNGs total; prefer **updating existing regions** over adding new files unless a surface lacks contract coverage (Phase 75–76 kept the suite lean — no extra region added in Phase 76).
 
@@ -88,7 +90,7 @@ Commit updates under **`canonical.spec.ts-snapshots/`**.
 ## CI
 
 - **`.github/workflows/ci.yml`** — **`e2e-playwright-visual`** runs **`--project=e2e-visual`** against **`.env.testing`**.
-- **`.github/workflows/workflow-lint.yml`** — **actionlint** when workflow files or **`.actionlint.yaml`** change.
+- **`.github/workflows/workflow-lint.yml`** — runs **`./scripts/lint-workflows.sh`** (not **`uses: rhysd/actionlint@…`**) when workflow files or **`.actionlint.yaml`** change.
 
 ## Host Playwright
 

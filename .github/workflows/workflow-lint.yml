@@ -12,10 +12,14 @@ on:
       - ".github/workflows/**"
       - ".actionlint.yaml"
 
+# Phase 77: Do not use `uses: rhysd/actionlint@…` — the actionlint repo is a binary release tree,
+# not a publishable GitHub Action (refs like @v1 fail resolution). CI matches local: Docker image
+# `rhysd/actionlint:1.7.7` via `./scripts/lint-workflows.sh`.
 jobs:
   workflow-lint:
     name: Lint GitHub workflows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rhysd/actionlint@v1.7.7
+      - name: Lint workflows (actionlint — same as scripts/lint-workflows.sh)
+        run: ./scripts/lint-workflows.sh

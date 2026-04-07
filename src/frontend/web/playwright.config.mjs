@@ -43,7 +43,7 @@ export default defineConfig({
   },
   projects: [
     {
-      // Phase 72–73: persisted-flows includes Analyze clipboard regression; theme-appearance is DOM theme smoke.
+      // Phase 72–73 + 77: persisted-flows (Analyze copy reference via init-script capture); theme-appearance is DOM theme smoke.
       name: 'e2e-smoke',
       testMatch: ['**/persisted-flows.spec.ts', '**/theme-appearance.spec.ts'],
     },

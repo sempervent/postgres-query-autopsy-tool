@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
+import { installE2eClipboardCapture, readE2eCapturedClipboard } from './helpers/e2eClipboardCapture'
 
 /** Bundled copies of `tests/backend.unit/.../postgres-json/*` (keeps Dockerized Playwright mounts small). */
 function postgresJsonFixture(fileName: string): string {
@@ -15,8 +16,12 @@ test.beforeAll(async ({ request }) => {
   expect(health.ok(), 'API must be reachable at the same origin as baseURL (docker :3000 or Vite :5173 with proxy)').toBeTruthy()
 })
 
-test('Analyze: copy node reference populates clipboard', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+/** Capture `navigator.clipboard.writeText` payloads for assertions (see e2e/helpers/e2eClipboardCapture.ts). */
+test.beforeEach(async ({ page }) => {
+  await installE2eClipboardCapture(page)
+})
+
+test('Analyze: copy node reference writes expected reference text', async ({ page }) => {
   const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
 
   await page.goto('/')
@@ -29,7 +34,8 @@ test('Analyze: copy node reference populates clipboard', async ({ page, context 
   await expect(copyBtn).toBeVisible({ timeout: 30_000 })
   await copyBtn.click()
 
-  const clip = await page.evaluate(() => navigator.clipboard.readText())
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip.length).toBeGreaterThan(0)
   expect(clip).toMatch(/Seq Scan|users/i)
   expect(clip).toMatch(/node\s+[^\s]+/i)
 })

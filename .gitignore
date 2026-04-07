@@ -74,3 +74,6 @@ src/frontend/web/*.log
 
 # MkDocs build output
 site/
+
+# Phase 80 — actionlint bootstrap cache (scripts/lint-workflows.sh + ACTIONLINT_BOOTSTRAP=1)
+.cache/pqat-actionlint/

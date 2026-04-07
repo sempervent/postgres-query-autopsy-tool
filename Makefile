@@ -1,17 +1,23 @@
-.PHONY: help up down logs test test-backend test-backend-docker test-frontend test-e2e-copy \
+.PHONY: help up down logs test test-backend test-backend-docker test-frontend verify-frontend-docker test-e2e-copy \
 	e2e-playwright-docker e2e-playwright-docker-auth e2e-playwright-docker-jwt e2e-playwright-docker-proxy \
 	e2e-playwright-docker-visual e2e-playwright-docker-all-auth \
-	lint-workflows repo-health verify verify-docker lint format docs-install docs-serve docs-build
+	lint-workflows repo-health repo-health-docker verify verify-docker lint format docs-install docs-serve docs-build
 
 help:
 	@echo "Targets:"
 	@echo ""
-	@echo "  Repo health / quick checks (Phase 74)"
-	@echo "    make lint-workflows   - actionlint 1.7.7 (PATH or Docker rhysd/actionlint:1.7.7)"
-	@echo "    make repo-health      - lint-workflows + frontend unit tests (fast)"
-	@echo "    make verify           - lint-workflows + test-backend + test-frontend (needs .NET 8 runtime)"
-	@echo "    make verify-docker    - lint-workflows + test-backend-docker + test-frontend (SDK 8 in Docker)"
-	@echo "    make test-e2e-copy    - host Playwright persisted-flows only (needs api+web on :3000, .env.testing)"
+	@echo "  Verification (pick by how much host toolchain you trust — Phase 80)"
+	@echo "    Tier A — fastest (host Node):"
+	@echo "      make repo-health             - lint + npm test (frontend only)"
+	@echo "    Tier B — Docker frontend (no host Node needed for tests/build):"
+	@echo "      make repo-health-docker      - lint + verify-frontend-docker"
+	@echo "      make verify-frontend-docker  - npm ci + test + build in Node 20 image (digest-pinned)"
+	@echo "    Tier C — full:"
+	@echo "      make verify                  - lint + backend (PATH) + frontend tests (host)"
+	@echo "      make verify-docker           - lint + backend (Docker SDK 8) + verify-frontend-docker"
+	@echo "    Shared:"
+	@echo "      make lint-workflows          - actionlint only (PATH | Docker digest pin | ACTIONLINT_BOOTSTRAP=1)"
+	@echo "      make test-e2e-copy           - host Playwright slice (api+web :3000, .env.testing)"
 	@echo ""
 	@echo "  Stack"
 	@echo "    make up                     - docker compose up --build (api + web only)"
@@ -22,7 +28,8 @@ help:
 	@echo "    make test                   - run backend + frontend tests (dotnet on PATH)"
 	@echo "    make test-backend           - dotnet test PostgresQueryAutopsyTool.sln -c Release"
 	@echo "    make test-backend-docker    - same unit project via mcr.microsoft.com/dotnet/sdk:8.0"
-	@echo "    make test-frontend          - npm test in src/frontend/web"
+	@echo "    make test-frontend             - npm test in src/frontend/web (host)"
+	@echo "    make verify-frontend-docker    - see above (Docker Node 20)"
 	@echo ""
 	@echo "  Browser E2E (Docker)"
 	@echo "    make e2e-playwright-docker         - non-auth E2E (compose + .env.testing)"
@@ -54,15 +61,23 @@ lint-workflows:
 
 repo-health: lint-workflows test-frontend
 	@echo "repo-health: workflow lint + frontend tests OK. Next: make test-backend or make test-backend-docker."
+	@echo "If host Node/Vitest fails: make repo-health-docker or make verify-frontend-docker"
+
+repo-health-docker: lint-workflows verify-frontend-docker
+	@echo "repo-health-docker: workflow lint + CI-like frontend (Docker) OK. Next: make test-backend-docker or make verify-docker"
 
 verify: lint-workflows test-backend test-frontend
 	@echo "verify: workflow lint + backend + frontend OK."
 
-verify-docker: lint-workflows test-backend-docker test-frontend
-	@echo "verify-docker: workflow lint + backend (Docker .NET 8) + frontend OK."
+verify-docker: lint-workflows test-backend-docker verify-frontend-docker
+	@echo "verify-docker: workflow lint + backend (Docker .NET 8) + frontend (Docker Node 20) OK."
+
+verify-frontend-docker:
+	./scripts/verify-frontend-docker.sh
 
 test-backend-docker:
-	docker run --rm -v "$(CURDIR):/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 \
+	docker run --rm -v "$(CURDIR):/src" -w /src \
+		mcr.microsoft.com/dotnet/sdk:8.0@sha256:a9330090b730c2abde8f3f43b3d1e24e4b8cba028de7bab1a7fdcd50cb7a3b7e \
 		dotnet test tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj -c Release
 
 test-e2e-copy:
