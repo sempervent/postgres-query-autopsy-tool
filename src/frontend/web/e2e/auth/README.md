@@ -27,6 +27,7 @@ Tests in **`../jwt-auth-smoke.spec.ts`**:
 Tests in **`../proxy-auth-smoke.spec.ts`**:
 
 - **Analyze** owner persist + reopen with **`X-PQAT-User`** (and optional **`X-PQAT-Groups`**) on **`/api/*`**, via **`installProxyHeadersRoute`** — same “edge injected identity” shape as production **ProxyHeaders** mode.
+- **Compare Copy link** (clipboard capture): URL + **`PQAT compare:`** + **`Pair ref:`** under proxy auth (**Phase 91**), mirroring JWT coverage.
 
 Env: **`.env.testing.proxy`** (**`PQAT_AUTH_MODE=ProxyHeaders`**). Principals: **`PQAT_PROXY_USER_ID_A`**, **`PQAT_PROXY_USER_ID_B`** (see **`proxyHeadersConfig.ts`**).
 

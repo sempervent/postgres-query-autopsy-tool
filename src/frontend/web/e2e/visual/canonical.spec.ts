@@ -6,6 +6,8 @@
  * Update baselines (Linux, same as CI): from repo root, with stack up:
  *   docker compose --env-file .env.testing --profile testing run --rm \
  *     -e PLAYWRIGHT_CLI_ARGS="--project=e2e-visual --update-snapshots" playwright
+ * Phase 92: Analyze summary snapshot uses data-testid analyze-visual-summary-contract (metrics + plan briefing only),
+ * not the full summary card (share/metadata/footer).
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -59,7 +61,7 @@ test('visual snapshot: Analyze happy path (story surfaces)', async ({ page }) =>
   await expect(page.getByLabel('Findings list')).toBeVisible({ timeout: 30_000 })
   await waitForFontsReady(page)
 
-  await expectStableRegionScreenshot(page.getByLabel('Analysis summary'), 'analyze-happy-summary.png')
+  await expectStableRegionScreenshot(page.getByTestId('analyze-visual-summary-contract'), 'analyze-happy-summary.png')
   await expectStableRegionScreenshot(page.getByLabel('Analyze workspace'), 'analyze-happy-workspace.png')
   await expectStableRegionScreenshot(page.getByLabel('Findings list'), 'analyze-happy-findings.png')
 })
@@ -76,12 +78,14 @@ test('visual snapshot: Compare happy path (story surfaces)', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 45_000 })
   await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
   await expect(page.getByText('Key metric deltas')).toBeVisible({ timeout: 45_000 })
-  await expect(page.getByLabel('Compare summary')).toBeVisible({ timeout: 30_000 })
+  // Phase 90: summary shell uses aria-labelledby="compare-summary-heading" (h2 "Summary"), not aria-label="Compare summary".
+  const compareSummaryRegion = page.locator('[aria-labelledby="compare-summary-heading"]')
+  await expect(compareSummaryRegion).toBeVisible({ timeout: 30_000 })
   await expect(page.getByLabel('Compare navigator')).toBeVisible({ timeout: 30_000 })
   await expect(page.getByLabel('Compare pair inspector')).toBeVisible({ timeout: 30_000 })
   await waitForFontsReady(page)
 
-  await expectStableRegionScreenshot(page.getByLabel('Compare summary'), 'compare-happy-summary.png')
+  await expectStableRegionScreenshot(compareSummaryRegion, 'compare-happy-summary.png')
   await expectStableRegionScreenshot(page.getByLabel('Compare navigator'), 'compare-happy-navigator.png')
   await expectStableRegionScreenshot(page.getByLabel('Compare pair inspector'), 'compare-happy-pair.png')
 })

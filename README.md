@@ -38,7 +38,7 @@ Commands run from the **repository root** unless noted.
 
 Details: **`make help`** and **[Contributing](docs/contributing.md)**.
 
-**Phase 83 (Vitest / Rolldown on CI):** **`src/frontend/web/package.json`** declares **`optionalDependencies`** **`@rolldown/binding-*`** (pinned to the same version as the bundled Rolldown stack) so **`npm ci`** on **linux-x64** always installs the native addon. Stay on **Node 20.18.x** per **`engines`** / **`.nvmrc`**; if host Node is outside that range or tooling misbehaves, use **`make repo-health-docker`** / **`make verify-frontend-docker`**.
+**Frontend CI (Phase 91):** GitHub Actions **`frontend`** runs **`./scripts/verify-frontend-docker.sh`** (digest-pinned **Node 20** Alpine) — **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** — the same path as **`make verify-frontend-docker`**, avoiding host-runner **npm optional-dependency** / **Rolldown** native-binding flakes. For local work, **`optionalDependencies`** **`@rolldown/binding-*`** still helps **host** **`npm ci`**; use **Node 20.18.x** per **`engines`** / **`.nvmrc`**, or the Docker script when Vitest fails to start.
 
 ---
 

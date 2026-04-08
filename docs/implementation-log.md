@@ -1977,3 +1977,79 @@ Verified (agent run, 2026-04-04):
 - **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**4** Playwright **`e2e-auth-jwt`** tests).
 - **`mkdocs build --strict`** — **OK** (repo root, **`docs/.venv`**).
 
+## Phase 91 — Frontend CI Docker verify + proxy Compare clipboard (2026-04-08)
+
+**CI / build reliability**
+
+- **`.github/workflows/ci.yml`** **`frontend`** job: **`./scripts/verify-frontend-docker.sh`** only (no **`setup-node`** / host **`npm ci`**). Eliminates **Rolldown** **`Cannot find native binding`** / missing **`@rolldown/binding-linux-x64-gnu`** on **ubuntu-latest** runners.
+
+**Compare / a11y / copy clarity**
+
+- **`proxy-auth-smoke.spec.ts`**: **Compare Copy link** test (**`installE2eClipboardCapture`**, **`PQAT compare:`**, **`Pair ref:`**) — parity with **JWT**.
+- **`CompareSummaryColumn`**: **Pin** **`aria-describedby`** suggestion **`h3`** id.
+- **`CompareSummaryColumn`** / **`CompareSelectedPairPanel`**: **`title`** tooltips — **share link** = current URL; **Copy link** (pair) = ticket-sized block with pinned highlights.
+
+**Docs**
+
+- **`README.md`**, **`docs/contributing.md`**, **`compare-workflow.md`**, **`architecture.md`**, **`e2e/auth/README.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**182** Vitest + **`npm run build`**).
+- **`make test-backend-docker`** — **OK** (**166** xUnit tests).
+- **`./scripts/e2e-playwright-docker.sh --proxy`** — **OK** (**3** Playwright **`e2e-auth-proxy`** tests).
+- **`mkdocs build --strict`** — **OK** (repo root).
+
+## Phase 92 — Visual regression contract + Compare finding= deep link (2026-04-08)
+
+**Visual / e2e-visual**
+
+- **`AnalyzeSummaryCard`**: **`data-testid="analyze-visual-summary-contract"`** wraps **Snapshot** header, metric tiles, and **Structured plan briefing** only — excludes share row, **ArtifactSharingPanel**, **Plan source / EXPLAIN metadata**, etc. Stabilizes **`analyze-happy-summary`** PNG against layout churn below the story.
+- **`canonical.spec.ts`**: Analyze screenshot targets **`getByTestId('analyze-visual-summary-contract')`**. Compare summary uses **`[aria-labelledby="compare-summary-heading"]`** (Phase 90 **`h2`** **Summary**); fixes **`getByLabel('Compare summary')`** mismatch.
+- **Baselines:** refreshed under Linux Playwright (**`canonical.spec.ts-snapshots/*-e2e-visual-linux.png`**) after contract + locator fixes.
+
+**Playwright**
+
+- **`persisted-flows.spec.ts`**: **`Compare: finding= deep link highlight survives reopen in fresh tab`** — **`pqat-artifactOutline--active`** on **`finding-diff`** row.
+
+**Docs**
+
+- **`e2e/visual/README.md`**, **`docs/contributing.md`**, **`compare-workflow.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**182** Vitest + build).
+- **`make test-backend-docker`** — **OK** (**166** xUnit).
+- **`docker compose … playwright`** **`e2e-visual`** — **OK** (**4** tests; clean **`node_modules`** before run when re-invoking Playwright on host-mounted **`src/frontend/web`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**22** **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 93 — Deep-link parity, copy pins, graph test harness (2026-04-08)
+
+**Deep links (Playwright `e2e-smoke`)**
+
+- **`Compare: indexDiff= deep link highlight survives reopen in fresh tab`** — seq↔index fixtures; **`compare-index-changes-callout`**; **`pqat-indexInsightItem--active`**; **`comparison=`** + **`indexDiff=`** in the URL after reload and on second tab.
+- **`finding=`** test: asserts **`finding=`** + **`comparison=`** match the built deep link after **`goto`** and on reopen.
+- **`suggestion=`** test: captures **settled** `suggestion=` after hydrate (may differ from seed `canonicalSuggestionId`); asserts **reopen preserves** that value (durable collaboration handle).
+
+**Copy / UI**
+
+- **`compareDeepLinkClipboardPayload`**: optional **`Pinned finding:`** / **`Pinned index insight:`** / **`Pinned suggestion:`** lines when highlights are set (**`CompareSelectedPairPanel`**).
+- **`CompareSummaryColumn`**: **`data-testid="compare-index-changes-callout"`** on the **Index changes** callout.
+
+**Vitest / jsdom**
+
+- **`setup.ts`**: **`getBoundingClientRect`** override for nodes under **`.react-flow`** when width/height are zero (finite **1024×768** box).
+- **`AnalyzePage.interaction.test.tsx`**: removed file-scoped **`console.error`** filter for React NaN-attribute warnings (harness improvement + **`getBoundingClientRect`** patch).
+
+**Docs**
+
+- **`compare-workflow.md`**, **`architecture.md`**, **`e2e/visual/README.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`npm test`** / **`npm run build`** (**`src/frontend/web`**) — **OK** (**183** Vitest tests).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**23** **`e2e-smoke`** tests including **`theme-appearance`**).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend `dotnet test`**: not run on this host (**.NET 8 runtime missing**; Docker **`make test-backend-docker`** is the parity path when local SDK/runtime unavailable).
+

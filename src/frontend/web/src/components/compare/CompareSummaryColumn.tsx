@@ -130,7 +130,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
       case 'summaryIndexChanges':
         if (!indexSection || (indexSection.overviewLines.length === 0 && indexSection.topInsightDiffs.length === 0)) return null
         return (
-          <div className="pqat-callout pqat-callout--accent">
+          <div className="pqat-callout pqat-callout--accent" data-testid="compare-index-changes-callout">
             <div className="pqat-callout__title">Index changes</div>
             {indexSection.headlineResolved ? (
               <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 6, color: 'var(--text)' }}>
@@ -327,6 +327,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
                     className="pqat-btn pqat-btn--sm pqat-btn--ghost pqat-suggestionPinBtn"
                     style={{ gridColumn: 2, gridRow: 1, justifySelf: 'end' }}
                     onClick={() => setHighlightSuggestionId(s.suggestionId)}
+                    aria-describedby={`compare-next-step-title-${s.suggestionId}`}
                     aria-label={`Pin “${s.title}” for the shared link`}
                     title="Pin this suggestion for the shared link"
                   >
@@ -465,7 +466,12 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         {vis.summaryCards ? (
           <div className="pqat-shareRow">
             {coverage ? <div className="pqat-monoMuted">{coverage}</div> : null}
-            <button type="button" className="pqat-btn pqat-btn--sm" onClick={() => void copyShareCompare.copy(window.location.href, shareCompareUi.toast)}>
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm"
+              title="Copies the current page URL (comparison id and query params as shown in the address bar)."
+              onClick={() => void copyShareCompare.copy(window.location.href, shareCompareUi.toast)}
+            >
               {shareCompareUi.label}
             </button>
             {copyShareCompare.status ? (

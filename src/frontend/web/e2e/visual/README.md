@@ -2,6 +2,8 @@
 
 **Phase 75:** Happy-path captures are **region-targeted** (stable story surfaces), not full-page document shots — the Analyze workstation grew taller; full-page baselines were brittle against layout expansion.
 
+**Phase 92:** The first Analyze PNG (**`analyze-happy-summary`**) targets **`data-testid="analyze-visual-summary-contract"`** — **Summary & metadata** metric tiles plus the **Structured plan briefing** callout only. It **excludes** share buttons, **ArtifactSharingPanel**, **Plan source / EXPLAIN metadata**, and other footer/meta blocks so the contract tracks **story surfaces** without churn from sharing/metadata layout. The full card remains **`aria-label="Analysis summary"`** for assistive tech.
+
 **Phase 76:** **Tooling pins**, **`waitForGraphLayoutSettled`** before the Analyze **workspace** screenshot, and a **viewport / tooling matrix** (below) so contributors know what CI assumes.
 
 Error-path captures use the **`analyze-page-error`** panel only (compact, deterministic).
@@ -12,7 +14,7 @@ The suite stays **small** by design: **four tests**, **eight PNG baselines** (Li
 
 | Test | Viewport | Captures |
 |------|-----------|----------|
-| Analyze happy | **1280 × 900** | Three **region** PNGs: **Analysis summary**, **Analyze workspace** (graph + guide), **Findings list** |
+| Analyze happy | **1280 × 900** | Three **region** PNGs: **metrics + plan briefing** (`analyze-visual-summary-contract`), **Analyze workspace** (graph + guide), **Findings list** |
 | Compare happy | **1280 × 900** | Three **region** PNGs: **Compare summary**, **Compare navigator**, **Compare pair inspector** |
 | Analyze corrupt | **1280 × 720** | **`analyze-page-error`** element only |
 | Analyze access denied | **1280 × 720** | **`analyze-page-error`** element only |
@@ -48,7 +50,7 @@ Keep these aligned when bumping Playwright:
 
 - **Playwright project:** `e2e-visual` (`playwright.config.mjs`).
 - **Spec:** `canonical.spec.ts` (helpers in `visualTestHelpers.ts`).
-- **Compare regions:** `Compare summary`, `Compare navigator`, `Compare pair inspector` — `aria-label`s on `CompareSummaryColumn`, `CompareNavigatorPanel`, `ComparePairColumn` (Phase 75).
+- **Compare regions:** **Summary** column is captured via **`[aria-labelledby="compare-summary-heading"]`** (Phase 92; matches **`h2` “Summary”**). **Navigator** / **pair inspector** use **`aria-label`** on `CompareNavigatorPanel`, `ComparePairColumn` (Phase 75). **Index changes** in the summary column exposes **`data-testid="compare-index-changes-callout"`** (Phase 93) for Playwright and maintainers — not a visual snapshot target by default.
 
 ## Determinism & stability (Phase 57 + 65 + 75 + 76)
 
@@ -86,6 +88,8 @@ PLAYWRIGHT_SKIP_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run te
 ```
 
 Commit updates under **`canonical.spec.ts-snapshots/`**.
+
+**Host mount caveat (Phase 92):** The Compose **`playwright`** service bind-mounts **`src/frontend/web`**. Running **`npm ci`** twice in quick succession against a dirty **`node_modules`** can rarely error (**`ENOTEMPTY`**). If that happens, remove **`src/frontend/web/node_modules`** on the host and re-run, or run **`--update-snapshots`** only once per session.
 
 ## CI
 

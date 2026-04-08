@@ -1,5 +1,7 @@
-# Phase 80–81: frontend uses Node 20.18.0 (Volta / .nvmrc); npm cache speeds npm ci (Phase 81).
-# Phase 83: root optionalDependencies hoist @rolldown/binding-* so Vitest/Vite 8 native bindings install on ubuntu-latest (npm optional-dep quirk).
+# Phase 80–81: frontend uses Node 20.18.0 (Volta / .nvmrc) for local dev; see contributing.
+# Phase 83: optionalDependencies @rolldown/binding-* for host npm ci (still fragile on some runners).
+# Phase 91: frontend job runs ./scripts/verify-frontend-docker.sh — same digest-pinned Node image as Makefile;
+# avoids GitHub-hosted npm optional-dep / Rolldown native-binding failures (Vitest startup).
 # Phase 73: Unquoted `run:` scalars are fragile:
 # - `#` starts a YAML comment (truncates the line).
 # - A substring like `Local: ./path` contains `: ` which YAML can parse as a nested mapping.
@@ -28,27 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20.18.0"
-          cache: npm
-          cache-dependency-path: src/frontend/web/package-lock.json
-      - name: Install
-        run: |
-          cd src/frontend/web
-          npm ci
-      - name: E2E fixtures vs backend postgres-json
-        run: |
-          cd src/frontend/web
-          npm run fixtures:check
-      - name: Test
-        run: |
-          cd src/frontend/web
-          npm test
-      - name: Build
-        run: |
-          cd src/frontend/web
-          npm run build
+      - name: Frontend verify (Docker — npm ci, fixtures:check, Vitest, Vite build)
+        run: ./scripts/verify-frontend-docker.sh
 
   docker-smoke:
     runs-on: ubuntu-latest

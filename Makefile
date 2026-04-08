@@ -9,7 +9,7 @@ help:
 	@echo "  Verification (pick by how much host toolchain you trust — Phase 80)"
 	@echo "    Tier A — fastest (host Node):"
 	@echo "      make repo-health             - lint + npm test (frontend only)"
-	@echo "    Tier B — Docker frontend (no host Node needed for tests/build):"
+	@echo "    Tier B — Docker frontend (matches GitHub Actions frontend job; Phase 91):"
 	@echo "      make repo-health-docker      - lint + verify-frontend-docker"
 	@echo "      make verify-frontend-docker  - npm ci + test + build in Node 20 image (digest-pinned)"
 	@echo "    Tier C — full:"

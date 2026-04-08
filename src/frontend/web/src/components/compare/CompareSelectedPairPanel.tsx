@@ -155,6 +155,7 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
             <button
               type="button"
               data-testid="compare-copy-deep-link"
+              title="Copies a ticket-friendly block: URL, PQAT compare line, Pair ref, and optional pinned finding / index insight / suggestion lines when highlights are set."
               onClick={async () => {
                 const params = buildCompareDeepLinkSearchParams({
                   comparisonId: comparison.comparisonId,
@@ -165,11 +166,11 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
                 })
                 const path = compareDeepLinkPath(pathname, params)
                 await copyDeepLink.copy(
-                  compareDeepLinkClipboardPayload(
-                    appUrlForPath(path),
-                    comparison.comparisonId,
-                    selectedDetail.pairArtifactId,
-                  ),
+                  compareDeepLinkClipboardPayload(appUrlForPath(path), comparison.comparisonId, selectedDetail.pairArtifactId, {
+                    findingDiffId: highlightFindingDiffId,
+                    indexInsightDiffId: highlightIndexInsightDiffId,
+                    suggestionId: highlightSuggestionId,
+                  }),
                   'Copied deep link',
                 )
               }}

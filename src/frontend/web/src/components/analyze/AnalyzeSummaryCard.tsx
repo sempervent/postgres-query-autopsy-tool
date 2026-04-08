@@ -43,25 +43,30 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
 
   return (
     <div className="pqat-summaryDeck pqat-workspaceReveal" aria-label="Analysis summary">
-      <div className="pqat-eyebrow">Snapshot</div>
-      <h3 className="pqat-commandTitle">Summary &amp; metadata</h3>
-      <div className="pqat-metricGrid pqat-metricGrid--deck" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <div className="pqat-metricTile">
-          <div className="pqat-metricTile__label">Analysis id</div>
-          <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all', fontSize: 13, marginTop: 6, color: 'var(--text-h)' }}>
-            {analysis.analysisId}
+      {/*
+        Visual regression (e2e-visual): contract is metrics + plan briefing only — excludes share row, ArtifactSharingPanel,
+        and EXPLAIN metadata so snapshots track story surfaces without footer/meta churn (Phase 92).
+      */}
+      <div data-testid="analyze-visual-summary-contract">
+        <div className="pqat-eyebrow">Snapshot</div>
+        <h3 className="pqat-commandTitle">Summary &amp; metadata</h3>
+        <div className="pqat-metricGrid pqat-metricGrid--deck" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="pqat-metricTile">
+            <div className="pqat-metricTile__label">Analysis id</div>
+            <div style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all', fontSize: 13, marginTop: 6, color: 'var(--text-h)' }}>
+              {analysis.analysisId}
+            </div>
+          </div>
+          <div className="pqat-metricTile">
+            <div className="pqat-metricTile__label">Plan metrics</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12, marginTop: 6, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} severe={analysis.summary.severeFindingsCount} timing=
+              {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)} plannerCosts=
+              {String(analysis.summary.plannerCosts ?? 'unknown')}
+            </div>
           </div>
         </div>
-        <div className="pqat-metricTile">
-          <div className="pqat-metricTile__label">Plan metrics</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 12, marginTop: 6, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-            nodes={analysis.summary.totalNodeCount} depth={analysis.summary.maxDepth} severe={analysis.summary.severeFindingsCount} timing=
-            {String(analysis.summary.hasActualTiming)} buffers={String(analysis.summary.hasBuffers)} plannerCosts=
-            {String(analysis.summary.plannerCosts ?? 'unknown')}
-          </div>
-        </div>
-      </div>
-      {planStoryHasContent(analysis.planStory) ? (
+        {planStoryHasContent(analysis.planStory) ? (
         <div
           className="pqat-callout pqat-callout--accent"
           style={{ marginTop: 14 }}
@@ -157,6 +162,7 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
           ) : null}
         </div>
       ) : null}
+      </div>
       {analysis.planInputNormalization ? (
         <div className="pqat-hint" style={{ marginTop: 12 }} aria-label="Plan input normalization">
           {analysis.planInputNormalization.kind === 'queryPlanTable'

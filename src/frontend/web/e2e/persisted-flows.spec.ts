@@ -407,6 +407,9 @@ test('Compare: suggestion= deep link highlight survives reopen in fresh tab', as
 
   await page.goto(deepUrl)
   await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  const settled = new URL(page.url()).searchParams.get('suggestion')
+  expect(settled, 'Compare URL should retain a suggestion pin after hydrate').toBeTruthy()
+  expect(new URL(page.url()).searchParams.get('comparison')).toBe(body.comparisonId)
   const row = page.locator(`[data-artifact="compare-suggestion"][data-artifact-id="${body.canonicalSuggestionId}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
   await expect(row).toHaveClass(/pqat-suggestionItem--highlight/)
@@ -414,8 +417,97 @@ test('Compare: suggestion= deep link highlight survives reopen in fresh tab', as
   const reopen = await context.newPage()
   await reopen.goto(deepUrl)
   await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(reopen.url()).searchParams.get('suggestion')).toBe(settled)
+  expect(new URL(reopen.url()).searchParams.get('comparison')).toBe(body.comparisonId)
   const row2 = reopen.locator(`[data-artifact="compare-suggestion"][data-artifact-id="${body.canonicalSuggestionId}"]`)
   await expect(row2).toBeVisible({ timeout: 30_000 })
   await expect(row2).toHaveClass(/pqat-suggestionItem--highlight/)
+  await reopen.close()
+})
+
+test('Compare: finding= deep link highlight survives reopen in fresh tab', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+
+  const firstFinding = page.locator('[data-artifact="finding-diff"][data-artifact-id]').first()
+  await expect(firstFinding).toBeVisible({ timeout: 45_000 })
+  const diffId = await firstFinding.getAttribute('data-artifact-id')
+  expect(diffId).toBeTruthy()
+
+  const cmp = new URL(page.url()).searchParams.get('comparison')
+  expect(cmp).toBeTruthy()
+  const deepUrl = `/compare?comparison=${encodeURIComponent(cmp!)}&finding=${encodeURIComponent(diffId!)}`
+
+  await page.goto(deepUrl)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(page.url()).searchParams.get('finding')).toBe(diffId)
+  expect(new URL(page.url()).searchParams.get('comparison')).toBe(cmp)
+  const row = page.locator(`[data-artifact="finding-diff"][data-artifact-id="${diffId}"]`).first()
+  await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toHaveClass(/pqat-artifactOutline--active/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(deepUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(reopen.url()).searchParams.get('finding')).toBe(diffId)
+  expect(new URL(reopen.url()).searchParams.get('comparison')).toBe(cmp)
+  const row2 = reopen.locator(`[data-artifact="finding-diff"][data-artifact-id="${diffId}"]`).first()
+  await expect(row2).toBeVisible({ timeout: 30_000 })
+  await expect(row2).toHaveClass(/pqat-artifactOutline--active/)
+  await reopen.close()
+})
+
+test('Compare: indexDiff= deep link highlight survives reopen in fresh tab', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const firstInsight = indexCallout.locator('[data-artifact="index-insight-diff"][data-artifact-id]').first()
+  await expect(firstInsight).toBeVisible({ timeout: 30_000 })
+  const insightId = await firstInsight.getAttribute('data-artifact-id')
+  expect(insightId).toBeTruthy()
+  expect(insightId).toMatch(/^ii_/)
+
+  const cmp = new URL(page.url()).searchParams.get('comparison')
+  expect(cmp).toBeTruthy()
+  const deepUrl = `/compare?comparison=${encodeURIComponent(cmp!)}&indexDiff=${encodeURIComponent(insightId!)}`
+
+  await page.goto(deepUrl)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(page.url()).searchParams.get('indexDiff')).toBe(insightId)
+  expect(new URL(page.url()).searchParams.get('comparison')).toBe(cmp)
+  const row = indexCallout.locator(`[data-artifact-id="${insightId}"]`).first()
+  await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toHaveClass(/pqat-indexInsightItem--active/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(deepUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(reopen.url()).searchParams.get('indexDiff')).toBe(insightId)
+  expect(new URL(reopen.url()).searchParams.get('comparison')).toBe(cmp)
+  const row2 = reopen.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${insightId}"]`).first()
+  await expect(row2).toBeVisible({ timeout: 30_000 })
+  await expect(row2).toHaveClass(/pqat-indexInsightItem--active/)
   await reopen.close()
 })

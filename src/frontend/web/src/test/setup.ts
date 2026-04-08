@@ -123,6 +123,39 @@ globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserv
   })
 })()
 
+/**
+ * React Flow sometimes reads `getBoundingClientRect()` while the viewport is still 0×0 in jsdom,
+ * which can contribute to transient invalid SVG coordinates. When the rect is empty but the node
+ * lives under `.react-flow`, return a finite box so layout math stays numeric (complements offsetWidth/height above).
+ */
+;(function patchGetBoundingClientRectForReactFlow() {
+  const proto = globalThis.Element?.prototype
+  if (!proto) return
+  const orig = proto.getBoundingClientRect
+  if (typeof orig !== 'function') return
+  proto.getBoundingClientRect = function (this: Element) {
+    const r = orig.call(this)
+    if (r.width > 0 && r.height > 0) return r
+    const el = this as HTMLElement
+    if (!el.closest?.('.react-flow')) return r
+    const w = 1024
+    const h = 768
+    return {
+      x: 0,
+      y: 0,
+      width: w,
+      height: h,
+      top: 0,
+      left: 0,
+      right: w,
+      bottom: h,
+      toJSON() {
+        return {}
+      },
+    } as DOMRect
+  }
+})()
+
 /** jsdom in some Vitest/Node stacks omits `document.execCommand`; copy uses it synchronously first (Phase 84). */
 beforeAll(() => {
   const d = globalThis.document

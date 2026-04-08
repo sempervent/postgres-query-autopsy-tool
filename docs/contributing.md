@@ -24,7 +24,7 @@ README (**repository root**) and **`docs/index.md`** (MkDocs home) share the **s
 | Tier | Intent | Typical command |
 |------|--------|-----------------|
 | **A — fast host** | Lint + frontend unit tests only; smallest loop | **`make repo-health`** |
-| **B — Docker frontend** | Same as A but **no** reliance on host Node (Vitest/Rolldown safe) | **`make repo-health-docker`** |
+| **B — Docker frontend** | Same test/build as **CI `frontend`** (**`verify-frontend-docker.sh`**); no host Node / Rolldown binding issues | **`make repo-health-docker`** |
 | **C — full local** | Lint + backend on PATH + host frontend tests | **`make verify`** |
 | **D — full Docker** | Lint + Docker **.NET 8** + Docker Node frontend (max parity, minimal host deps) | **`make verify-docker`** |
 | **Specialty** | E2E, visual PNGs, docs site, copy slice | **`make e2e-playwright-docker*`**, **`make docs-build`**, **`make test-e2e-copy`** |
@@ -39,8 +39,8 @@ These paths mirror what **GitHub Actions** exercises (see **`.github/workflows/c
 |--------|----------------------------------|
 | **Workflow YAML** | **`make lint-workflows`** or **`./scripts/lint-workflows.sh`** (same as **`workflow-lint.yml`**; Docker image digest-pinned; **`ACTIONLINT_BOOTSTRAP=1`** if no Docker — see [Verification tiers](#verification-tiers-phase-80)) |
 | **Backend unit tests** | **`make test-backend`** (needs **.NET 8** on PATH) or **`make test-backend-docker`** (**.NET SDK 8** in Docker — digest-pinned in **`Makefile`**, matches **`PostgresQueryAutopsyTool.Api/Dockerfile`**) |
-| **Frontend (host Node 20)** | **`cd src/frontend/web && npm ci && npm test && npm run build`** |
-| **Frontend (Docker — CI-like)** | **`make verify-frontend-docker`** — mounts **full repo** at **`/repo`**, runs in **`src/frontend/web`**: **`npm ci`**, **`npm run fixtures:check`**, **`npm test`**, **`npm run build`** (matches **`ci.yml`** **`frontend`** job). **Node 20 Alpine** digest-pinned (same **major** line as CI **20.18.0**; see [CI Node version](#ci-node-version-phase-80)); override **`PQAT_NODE_IMAGE`** if needed |
+| **Frontend (host Node 20)** | **`cd src/frontend/web && npm ci && npm test && npm run build`** — convenient; may hit **Rolldown** optional-dep issues on some hosts (see below) |
+| **Frontend (Docker — canonical CI path)** | **`make verify-frontend-docker`** or **`./scripts/verify-frontend-docker.sh`** — mounts **full repo** at **`/repo`**, runs in **`src/frontend/web`**: **`npm ci`**, **`npm run fixtures:check`**, **`npm test`**, **`npm run build`**. **This is what GitHub Actions `frontend` runs (Phase 91).** **Node 20 Alpine** digest-pinned; override **`PQAT_NODE_IMAGE`** if needed |
 | **Docker images** | **`docker compose build`** (**`docker-smoke`** job) |
 | **E2E smoke** (persisted flows + theme + copy capture) | **`make e2e-playwright-docker`** or **`./scripts/e2e-playwright-docker.sh`** (**`.env.testing`**, **`e2e-smoke`**) |
 | **E2E visual** | **`make e2e-playwright-docker-visual`** or **`./scripts/e2e-playwright-docker.sh --visual`** |
@@ -60,7 +60,7 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 4. Re-run **`docker compose build`**, **`make verify-frontend-docker`**, **`make verify-docker`**, and Playwright Docker suites if the bump touches browser or Node.
 5. **`ACTIONLINT_BOOTSTRAP`**: if **`ACTIONLINT_VERSION_BOOTSTRAP`** / default Docker tag changes, confirm **`actionlint_${ver}_checksums.txt`** exists on the release (script verifies tarball against it).
 
-**CI npm cache (Phase 81):** **`setup-node`** uses **`cache: npm`** with **`cache-dependency-path: src/frontend/web/package-lock.json`** to speed **`npm ci`** — no change to verification semantics.
+**CI npm cache (Phase 81, superseded Phase 91 for `frontend` job):** The **`frontend`** job no longer uses **`setup-node`** / npm cache — it runs **`verify-frontend-docker.sh`** inside a container. Local contributors can still use **`actions/setup-node`** cache in forks if they customize workflows; upstream CI relies on Docker for deterministic installs.
 
 ### CI Node version (Phase 80)
 
@@ -76,7 +76,7 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 |----------------|----------------|----------------|
 | **`workflow-lint.yml`** | **actionlint** on workflow edits | **`make lint-workflows`** |
 | **`backend`** | **`dotnet test`** solution | **`make test-backend`** |
-| **`frontend`** | **Node 20.18.0**, **`npm ci`**, **`fixtures:check`**, **`npm test`**, **`npm run build`** | Host **`cd src/frontend/web && …`** or **`make verify-frontend-docker`** |
+| **`frontend`** | **`./scripts/verify-frontend-docker.sh`** (Docker; same as **`make verify-frontend-docker`**) | **`make verify-frontend-docker`** — **not** host **`npm ci`** (Phase 91) |
 | **`docker-smoke`** | **`docker compose build`** | **`docker compose build`** |
 | **`e2e-playwright`** | Compose **`playwright`** → **`e2e-smoke`** | **`make e2e-playwright-docker`** |
 | **`e2e-playwright-auth` / `jwt` / `proxy`** | Auth projects + matching **`.env.testing.*`** | **`make e2e-playwright-docker-auth`** (etc.) |
@@ -87,7 +87,7 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 
 **Workflow lint:** [**actionlint**](https://github.com/rhysd/actionlint) via **`./scripts/lint-workflows.sh`**. Config: **`.actionlint.yaml`**. **`.github/workflows/workflow-lint.yml`** runs this script (path-scoped); do **not** use **`uses: rhysd/actionlint@v1`**. **Without Docker:** install **actionlint** on **PATH**, or **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** (checksum-verified download to **`.cache/pqat-actionlint/`**). Clear the cache after changing **`ACTIONLINT_VERSION_BOOTSTRAP`**.
 
-**Host Vitest / optional native bindings (Phase 76 + 79 + 83):** **`src/frontend/web/package.json`** **`optionalDependencies`** explicitly lists **`@rolldown/binding-darwin-*`**, **`linux-x64-gnu`**, and **`win32-x64-msvc`** at the same version as Vitest/Vite’s Rolldown stack so **`npm ci`** on **ubuntu-latest** (and fresh contributor checkouts) does not depend on nested optional-dep luck. If **`npm test`** still fails with **“Cannot find native binding”**, run **`make verify-frontend-docker`** (or **`./scripts/verify-frontend-docker.sh`**) — same steps as CI **`frontend`** job, without relying on host Node. **Alternatively:** from **`src/frontend/web`**, clean **`node_modules`** and reinstall on **20.18.x** (**`engines`** / **`.nvmrc`** / **`volta`**). Avoid **Node 25+** for local dev until the stack officially supports it (**`engines`** caps **&lt;25**).
+**Host Vitest / optional native bindings (Phase 76 + 79 + 83 + 91):** **`src/frontend/web/package.json`** **`optionalDependencies`** lists **`@rolldown/binding-*`** platforms to help **host** **`npm ci`**. **GitHub Actions `frontend`** (Phase **91**) runs **`./scripts/verify-frontend-docker.sh`** so CI does **not** depend on the hosted runner’s npm optional-dep resolution. If **local** **`npm test`** fails with **“Cannot find native binding”**, use **`make verify-frontend-docker`** — the same install/test/build as CI. **Alternatively:** clean **`node_modules`** and **`npm ci`** on **Node 20.18.x** (**`engines`** / **`.nvmrc`** / **`volta`**). Avoid **Node 25+** until the stack officially supports it (**`engines`** caps **&lt;25**).
 
 **Clipboard tests (Phase 84 + 86):** Unit tests **`spyOn(document, 'execCommand').mockReturnValue(false)`** so **`navigator.clipboard.writeText`** is exercised (jsdom often lacks a real copy implementation). **`src/test/setup.ts`** defines a no-op **`execCommand`** when absent. Playwright **`installE2eClipboardCapture`** wraps both **`writeText`** and **`execCommand('copy')`** so E2E asserts match production order (**sync exec first**). **Phase 86** extends **`persisted-flows.spec.ts`** with **Compare Copy link** (URL + **`PQAT compare:`**) and **Analyze suggested EXPLAIN** copy; use **`page.getByLabel`** (not **`getByLabelText`**) for Playwright locators.
 
@@ -147,11 +147,11 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 | Project | Spec | Env file | What it proves |
 |--------|------|----------|----------------|
-| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare deep-link + **Pair scope** copy checks, **Phase 66** theme (no screenshots) |
+| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare deep-link + **Pair scope** copy, **`suggestion=`** / **`finding=`** / **`indexDiff=`** reopen highlights + URL bar checks, **Phase 66** theme (no screenshots) |
 | **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing + **Copy artifact link** clipboard payload (**URL** + **`PQAT analysis:`**, Phase 88) |
 | **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial, **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) |
-| **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial |
-| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** tests, **region-targeted** PNGs (**Phase 75**): Analyze/Compare happy paths use labeled story surfaces (summary, workspace/navigator/pair, findings) — not full-page height; error cases capture **`analyze-page-error`** only; **Phase 65:** dark theme lock; see **`e2e/visual/README.md`** |
+| **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial; **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**, Phase 91) |
+| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** tests, **region-targeted** PNGs: Analyze uses **`analyze-visual-summary-contract`**; Compare summary uses **`[aria-labelledby="compare-summary-heading"]`**; navigator/pair use **`aria-label`**; errors: **`analyze-page-error`** only; see **`e2e/visual/README.md`** |
 
 **npm scripts** (host Playwright; API must already match the mode): **`test:e2e`** / **`test:e2e:smoke`**, **`test:e2e:copy`** (**`e2e/persisted-flows.spec.ts`** only — Phase 72 clipboard + persisted Analyze/Compare smoke; same **`e2e-smoke`** project), **`test:e2e:auth`** (alias **`test:e2e:api-key`**), **`test:e2e:jwt`**, **`test:e2e:proxy`**, **`test:e2e:visual`** / **`test:e2e:visual:update`**.
 

@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
@@ -11,24 +11,6 @@ const { getAnalysisMock, fetchAppConfigMock } = vi.hoisted(() => ({
   getAnalysisMock: vi.fn(),
   fetchAppConfigMock: vi.fn(),
 }))
-
-/**
- * Phase 89–90: jsdom + React Flow can still log a transient NaN `x`/`y` warning for one frame despite
- * dagre finite coords, node position clamping, `defaultViewport`, and ResizeObserver width/height stubs.
- * Scoped here so other suites keep full `console.error` signal.
- */
-let analyzeInteractionOrigConsoleError: typeof console.error | null = null
-beforeAll(() => {
-  analyzeInteractionOrigConsoleError = console.error
-  console.error = (...args: unknown[]) => {
-    const s = args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ')
-    if (s.includes('Received NaN for the `') && s.includes('` attribute')) return
-    analyzeInteractionOrigConsoleError!.apply(console, args as [])
-  }
-})
-afterAll(() => {
-  if (analyzeInteractionOrigConsoleError) console.error = analyzeInteractionOrigConsoleError
-})
 
 const mockAnalysis = {
   analysisId: 'a1',

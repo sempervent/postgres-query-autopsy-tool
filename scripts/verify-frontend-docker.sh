@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # CI-like frontend verify: npm ci, fixtures:check (same as ci.yml frontend job), test, build.
+# Phase 91: GitHub Actions frontend job runs this script verbatim — canonical path for Rolldown/Vitest on linux-x64.
 # Mounts the full repository at /repo so check-e2e-fixtures.mjs can read tests/backend.unit/.../postgres-json.
 #
 # Override image: PQAT_NODE_IMAGE=… ./scripts/verify-frontend-docker.sh
