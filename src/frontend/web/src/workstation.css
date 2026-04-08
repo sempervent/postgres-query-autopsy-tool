@@ -292,6 +292,16 @@
   color: var(--text);
 }
 
+/* Phase 82 — “try next” reads as the primary action line */
+.pqat-signalLine--tryFirst {
+  border-color: color-mix(in srgb, var(--accent-border) 42%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 24%, var(--surface-tool) 76%);
+}
+
+.pqat-signalLine--tryFirst .pqat-signalLine__label {
+  color: color-mix(in srgb, var(--accent) 50%, var(--text-tertiary));
+}
+
 .pqat-suggestionMeta--readable {
   font-family: var(--sans);
   display: flex;

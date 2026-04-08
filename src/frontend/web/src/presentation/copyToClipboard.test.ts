@@ -13,15 +13,31 @@ describe('copyToClipboard', () => {
     vi.restoreAllMocks()
   })
 
-  test('prefers navigator.clipboard.writeText when defined', async () => {
+  test('uses synchronous execCommand(copy) when it succeeds (preserves user activation)', async () => {
+    const execFn = vi.fn(() => true)
+    vi.spyOn(document, 'execCommand').mockImplementation(execFn as typeof document.execCommand)
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
       writable: true,
     })
-    await copyToClipboard('payload-a')
-    expect(writeText).toHaveBeenCalledWith('payload-a')
+    await copyToClipboard('payload-sync')
+    expect(execFn).toHaveBeenCalledWith('copy')
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
+  test('falls back to navigator.clipboard.writeText when execCommand returns false', async () => {
+    const execFn = vi.fn(() => false)
+    vi.spyOn(document, 'execCommand').mockImplementation(execFn as typeof document.execCommand)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+      writable: true,
+    })
+    await copyToClipboard('payload-async')
+    expect(writeText).toHaveBeenCalledWith('payload-async')
   })
 
   test('falls back to execCommand when writeText is unavailable', async () => {
@@ -31,22 +47,18 @@ describe('copyToClipboard', () => {
       writable: true,
     })
     const execFn = vi.fn(() => true)
-    Object.defineProperty(document, 'execCommand', { value: execFn, configurable: true, writable: true })
-    await copyToClipboard('payload-b')
+    vi.spyOn(document, 'execCommand').mockImplementation(execFn as typeof document.execCommand)
+    await copyToClipboard('payload-fallback')
     expect(execFn).toHaveBeenCalledWith('copy')
   })
 
-  test('throws when both clipboard and execCommand fail', async () => {
+  test('throws when execCommand fails and Clipboard API is unavailable', async () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: undefined,
       configurable: true,
       writable: true,
     })
-    Object.defineProperty(document, 'execCommand', {
-      value: vi.fn(() => false),
-      configurable: true,
-      writable: true,
-    })
-    await expect(copyToClipboard('x')).rejects.toThrow(/execCommand/i)
+    vi.spyOn(document, 'execCommand').mockReturnValue(false as boolean)
+    await expect(copyToClipboard('x')).rejects.toThrow(/Clipboard unavailable/i)
   })
 })

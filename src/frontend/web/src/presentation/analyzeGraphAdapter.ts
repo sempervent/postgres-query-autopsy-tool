@@ -112,8 +112,12 @@ function layoutTopDown(nodes: Node<AnalyzeGraphNodeData>[], edges: Edge[]): Anal
   dagre.layout(g)
 
   const outNodes = nodes.map((n) => {
-    const p = g.node(n.id)
-    return { ...n, position: { x: p.x - w / 2, y: p.y - h / 2 } }
+    const p = g.node(n.id) as { x?: number; y?: number } | undefined
+    const rawX = typeof p?.x === 'number' ? p.x - w / 2 : 0
+    const rawY = typeof p?.y === 'number' ? p.y - h / 2 : 0
+    const x = Number.isFinite(rawX) ? rawX : 0
+    const y = Number.isFinite(rawY) ? rawY : 0
+    return { ...n, position: { x, y } }
   })
 
   return { nodes: outNodes, edges }

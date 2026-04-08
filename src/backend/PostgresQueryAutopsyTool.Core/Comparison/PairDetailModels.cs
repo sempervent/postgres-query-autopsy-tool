@@ -131,5 +131,7 @@ public sealed record NodePairDetail(
     /// <summary>Phase 69: compact summary-lane cue derived from <see cref="RegionContinuityHint"/> (null when no hint).</summary>
     string? RegionContinuitySummaryCue = null,
     /// <summary>Phase 70: stable key from <see cref="PostgresQueryAutopsyTool.Core.Analysis.PlanNodeReferenceBuilder.TryPairRegionContinuity"/> (e.g. <c>access.narrower</c>).</summary>
-    string? ContinuityKindKey = null);
+    string? ContinuityKindKey = null,
+    /// <summary>Phase 83: one-line rewrite outcome hint from pair metrics + continuity (evidence-bound).</summary>
+    string? RewriteVerdictOneLiner = null);
 

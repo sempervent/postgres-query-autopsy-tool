@@ -18,6 +18,7 @@ Tests in **`../jwt-auth-smoke.spec.ts`**:
 
 - **Analyze** + **Compare** owner reopen.
 - **Compare** private artifact denied to another **`sub`**.
+- **Compare Copy link** (clipboard capture): URL + **`PQAT compare:`** + **`Pair ref:`** under JWT (**Phase 90**).
 
 **`jwtMint.ts`** (HS256), **`installBearerRoute`** → **`Authorization: Bearer`**. Env: **`.env.testing.jwt`**.
 

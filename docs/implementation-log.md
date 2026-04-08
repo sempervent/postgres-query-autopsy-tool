@@ -650,7 +650,7 @@ Verified:
 Implemented:
 - **Models**: `OptimizationSuggestion`, `OptimizationSuggestionCategory`, `SuggestedActionType`, `SuggestionConfidenceLevel`, `SuggestionPriorityLevel` on `PlanAnalysisResult.optimizationSuggestions`; JSON string enums via `Serialization/OptimizationSuggestionEnumConverters.cs`.
 - **Engines**: `OptimizationSuggestionEngine` (analyze: findings + index insights + operator evidence + worker skew + temp/sort spill; suppresses naive seq-scan/J index bullets under chunked **P** posture); `CompareOptimizationSuggestionEngine` → `PlanComparisonResultV2.compareOptimizationSuggestions`.
-- **Reports**: analyze markdown/HTML **Optimization suggestions**; compare markdown **Next steps after this change (compare)**.
+- **Reports**: analyze markdown/HTML **Optimization suggestions**; compare markdown **Next steps after this change** (Phase 87 aligned the heading with HTML; older docs referred to “(compare)”).
 - **Web**: Analyze **Optimization suggestions** cards (top 5, pills, validate line, node jump, expandable rationale/cautions); selected-node **Related optimization suggestion**; Compare **Next steps after this change** + pair-scoped **Related compare next step**; `optimizationSuggestionsPresentation.ts` + tests.
 - **Tests**: `OptimizationSuggestionEngineTests` (seq scan, hash join, sort spill, stats, index heavy, NL inner, **complex_timescaledb_query** non-naive guardrail); `CompareOptimizationSuggestionEngineTests`; frontend `AnalyzePage.interaction.test.tsx` + `ComparePage.ux.test.tsx` + presentation test.
 - **Docs**: `analyze-workflow`, `compare-workflow`, `findings-catalog`, `fixtures`, `architecture`, `api-and-reports`.
@@ -1737,4 +1737,243 @@ Verified (agent run, 2026-04-04):
 - **`mkdocs build --strict`** — **OK** (from repo root with **`docs/.venv`** activated + **`pip install -r requirements-docs.txt`**).
 
 **Note:** Host had **.NET 10** only; **`dotnet test`** on the host was not used — **Docker** backend tests above are the authoritative local stand-in for **.NET 8**.
+
+## Phase 82 — User-facing explanation, actionability, and compare/analyze UX (2026-04-07)
+
+**Backend:** **`PlanStoryBuilder`** — **primary pressure types** wording; **Start here** step 4 references **Optimization suggestions** instead of inlining the top card; step 1 no longer pastes **operatorBriefingLine** (avoids triple repeat with bottleneck cards); **`AppendTimeBucketAnalyticalHint`** when SQL contains **`time_bucket`**. **`ComparisonStoryBuilder`** — overview second sentence for faster-root + worsened pairs / slower-root + improved pairs; grouped-output tail mentions buckets/partial aggregates + shared reads. **`PlanAnalysisService`** markdown/HTML plan-briefing labels aligned with UI lane names.
+
+**Frontend:** **`storyPresentation`** human-first eyebrows; **`optimizationSuggestionsPresentation`** — **`sortSuggestionsForLeverage`**, **`sortAndGroupSuggestionsForUi`**, **`suggestionActionLaneLabel`**, dedupe helper, leverage tier; **suggestion** panel hierarchy (**Try next** first, **Strongest next experiment**, chips); **Analyze** summary briefing hint; **Plan guide** hotspots pointer (no duplicate **inspect** wall); **selected node** bottleneck posture strip; **Compare** change-briefing subtitle; **`compareContinuityPresentation`** grouped/bucket title; CSS (**`pqat-signalLine--tryFirst`**, **`pqat-suggestionCard--topLead`**, etc.).
+
+**Docs:** **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-07)**
+
+- **`dotnet test`** **`PostgresQueryAutopsyTool.Tests.Unit`** — **OK** (**153** tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**165** frontend tests + **`npm run build`**).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+## Phase 83 — Frontend CI Rolldown bindings + structured inspect path + compare rewrite readout (2026-04-04)
+
+**CI / npm:** **`src/frontend/web/package.json`** **`optionalDependencies`** pins **`@rolldown/binding-*`** (darwin arm64/x64, **linux-x64-gnu**, win32) at **`1.0.0-rc.12`** so **`npm ci`** on **ubuntu-latest** installs the Vitest/Vite 8 native binding. **`.github/workflows/ci.yml`** comment documents the hoist. Lockfile refreshed under **`src/frontend/web`**.
+
+**Backend:** **`InspectFirstStep`** + **`PlanStory.InspectFirstSteps`** (JSON **`inspectFirstSteps`**); **`PlanStoryBuilder`** fills steps and keeps **`InspectFirstPath`** as joined legacy text. **`PairRewriteVerdictBuilder`** + **`NodePairDetail.RewriteVerdictOneLiner`**; **`ComparisonEngine.BuildPairDetail`** wires verdict; low-confidence **Weak mapping—** prefix when metric/continuity text is shown. **`PlanAnalysisService`** Markdown/HTML **Start here** uses numbered lists when steps exist; HTML plan briefing adds **Execution shape** + **Index / shape** lines for parity with Markdown. **Compare Markdown** report (**`RenderCompareMarkdownReport`**) appends **Rewrite readout:** on **Top worsened/improved** pair lines when a verdict exists.
+
+**Frontend:** Types **`InspectFirstStep`**, **`planInspectFirstSteps`**; **Analyze** summary **Start here** renders `<ol>` + optional **Focus in plan**; **Compare** selected pair **Rewrite readout**; suggestion **Bottleneck #N** jump chip.
+
+**Tests:** **`PairRewriteVerdictBuilderTests`**, **`PlanStoryBuilderTests`** **`InspectFirstSteps`** assertions; **`storyPresentation.test`**, **`AnalyzeOptimizationSuggestionsPanel.test`** (bottleneck jump label), **`CompareSelectedPairPanel.test`**.
+
+**Docs:** **`README`**, **`contributing.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-04)**
+
+- **`make test-backend-docker`** — **OK** (**156** unit tests, **.NET SDK 8** container).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**168** Vitest tests, **`npm run build`** / **Vite 8**).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+**Note:** Host-only **`dotnet test`** was not used (machine had **.NET 10** without **.NET 8** runtime); Docker backend run above is the authoritative local check.
+
+## Phase 84 — Clipboard reliability + issue template + compare HTML + suggestion copy (2026-04-04)
+
+**Clipboard:** **`copyToClipboard`** — synchronous **`execCommand('copy')`** on a hidden textarea **first**, then **`navigator.clipboard.writeText`**, avoiding user-gesture loss after **`await`** in Safari / strict Chromium. **`useCopyFeedback`** — **`globalThis.setTimeout`**, clearer failure string, **`aria-live`** on copy status UI across Analyze/Compare surfaces. **`src/test/setup.ts`** **`beforeAll`** polyfills **`document.execCommand`** when missing; integration tests **`spyOn(..., 'execCommand').mockReturnValue(false)`** so **`writeText`** remains assertable.
+
+**E2E:** **`e2eClipboardCapture`** records **`writeText`** and **`execCommand('copy')`** payloads. New smoke: **ordered inspect steps**; Compare continuity test asserts **Rewrite outcome for this pair**.
+
+**Product:** **`suggestionReferenceText`** + **Copy for ticket** on optimization cards; **`data-testid="analyze-suggestion-copy-ticket"`**.
+
+**API:** **`POST /api/compare/report/html`**, **`RenderCompareHtmlReport`**, **`CompareReportHtmlTests`**.
+
+**Issues:** Root **`ISSUE.md`**, **`.github/ISSUE_TEMPLATE/config.yml`**, **`bug_report.md`**. **`README`**, **`contributing.md`**, **`api-and-reports.md`**, workflows docs updated.
+
+**Verified (agent run, 2026-04-04)**
+
+- **`make test-backend-docker`** — **OK** (**157** unit tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**171** Vitest tests + **`npm run build`**, no unhandled timer errors).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 85 — Clipboard verification hardening + E2E Playwright API fix + compare HTML rewrite assertion (2026-04-08)
+
+**Ground truth:** Phase 84 clipboard stack (**`execCommand('copy')`** first, then **`navigator.clipboard.writeText`**, honest **`useCopyFeedback`**) and root **`ISSUE.md`** + **`.github/ISSUE_TEMPLATE/`** were already present; no clipboard core rewrite required.
+
+**Tests / E2E**
+
+- **`CompareReportHtmlTests`**: new test locks **rewrite verdict** text (**`Rewrite readout`**) into HTML compare export when canonical seq→index fixtures place a verdict on a top pair.
+- **`e2e/persisted-flows.spec.ts`**: **`Analyze: Copy for ticket`** (structured **`Family:`** / **`Try next:`** payload) and **`Compare: copy pair reference`** (real stack + clipboard capture). Fixed **`page.getByLabelText`** → **`page.getByLabel`** (Playwright API) so **inspect steps** and **rewrite readout** smoke tests run again.
+- **`CompareSelectedPairPanel`**: **`data-testid`** on **Copy reference** / **Copy link** for stable automation.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**171** Vitest + **`npm run build`**).
+- **`docker … dotnet test`** **`PostgresQueryAutopsyTool.Tests.Unit`** — **OK** (**158** tests).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth smoke) — **OK** (**14** Playwright tests).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+## Phase 86 — Export parity, copy utility, interaction confidence (2026-04-08)
+
+**Backend — reports**
+
+- **`RenderHtmlReport`**: fixed **Headline Findings** heading typo; **Optimization suggestions** HTML now mirrors markdown depth (**suggestion id**, **Why**, **Validate** preview).
+- **`RenderCompareMarkdownReport`**: compare suggestions include **SuggestionFamily** and optional **Why** line.
+- **`RenderCompareHtmlReport`**: **Next steps after this change** section when **`CompareOptimizationSuggestions`** non-empty (markdown parity).
+- **Tests:** **`AnalyzeReportExportTests`**, **`CompareReportHtmlTests.RenderCompareHtmlReport_includes_next_steps_when_compare_suggestions_exist`**.
+
+**Frontend — copy / a11y**
+
+- **`pairReferenceText`**: **`PQAT compare:`** scope, **Pair artifact**, **Plan A/B node** labels; passed from **navigator**, **top changes**, **selected pair**.
+- **`nodeReferenceText`**, **`findingReferenceText`**, **`hotspotReferenceText`**: optional **`PQAT analysis:`** line; Analyze page wires **analysisId** for node / findings / guide hotspots.
+- **`compareDeepLinkClipboardPayload`**, **`analyzeDeepLinkClipboardPayload`**: multi-line **Copy link** / summary share payloads.
+- **`suggestionReferenceText`**: **`SuggestionCopyContext`** (**comparisonId**, **pairArtifactId**, **relatedFindingDiffIds** line); legacy string **`analysisId`** still accepted.
+- **`useCopyFeedback`**: success clear **~2200ms**; copy status regions **`aria-atomic="true"`** where applicable.
+- **Compare summary:** **Copy for ticket** on compare suggestions (**`copyCompareSuggestion`**), **`data-testid="compare-suggestion-copy-ticket"`**.
+
+**E2E**
+
+- **Compare Copy link**; **Analyze suggested EXPLAIN** copy; pair reference asserts **PQAT compare**.
+
+**Docs / issues**
+
+- **`ISSUE.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`api-and-reports.md`**, **`architecture.md`**, **`contributing.md`**, **`README.md`** (Issues row mentions **Feature / enhancement**).
+- **`.github/ISSUE_TEMPLATE/feature_request.md`**: optional **Feature / enhancement** template (paste **`PQAT analysis:`** / **`PQAT compare:`** blocks when relevant).
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**175** Vitest + **`npm run build`**).
+- **`docker … dotnet test`** **`PostgresQueryAutopsyTool.Tests.Unit`** — **OK** (**161** tests).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth smoke) — **OK** (**16** Playwright tests).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**) — re-run after doc/template edits.
+- **Follow-up (same phase):** **`.github/ISSUE_TEMPLATE/feature_request.md`**, **`README.md`** / **`contributing.md`** issues guidance; **`mkdocs build --strict`**, **`verify-frontend-docker`**, **`e2e-playwright-docker`** re-confirmed on continuation run.
+
+## Phase 87 — Workflow polish, export parity, graph-test cleanup (2026-04-08)
+
+**Frontend — Vitest / React Flow**
+
+- **`src/frontend/web/src/test/setup.ts`**: jsdom **`offsetWidth` / `offsetHeight`** shim inside **`.react-flow`**; **`ResizeObserver`** stub invokes callbacks (sync + microtask) so RF updates pane/node dimensions; **Phase 87** briefly used a targeted **`console.error`** filter for one React **NaN-attribute** line (**Phase 88** removed it).
+- **`AnalyzePlanGraphCore`**: **`BackgroundVariant.Lines`** when **`import.meta.env.MODE === 'test'`** (avoids dots **`scaledSize`** path); **`setCenter`** / **Focus** skip non-finite coordinates.
+
+**Compare export terminology**
+
+- **`RenderCompareMarkdownReport`**: section title **Next steps after this change** matches HTML (dropped “**(compare)**” suffix).
+
+**JSON export parity (tests)**
+
+- **`ReportJsonExportParityTests`**: serialize analyze/compare with **`ArtifactPersistenceJson.Options`**; assert **`planStory.inspectFirstSteps`** shape when steps exist; **`compareOptimizationSuggestions`** + **`rewriteVerdictOneLiner`** in **`pairDetails`** when fixtures carry them.
+
+**Backend tests**
+
+- **`CompareReportHtmlTests.RenderCompareMarkdownReport_uses_same_next_steps_heading_as_html_export`**.
+
+**Copy / E2E**
+
+- **`e2e/persisted-flows.spec.ts`**: **Compare: Copy for ticket** on compare suggestion (**`PQAT compare:`**, **Family/Try next**); **Analyze: Copy share link** (**URL** + **`PQAT analysis:`**).
+
+**Reference text**
+
+- Vitest: **`suggestionReferenceText`** stable ordering (**PQAT compare** before title line).
+
+**Docs**
+
+- **`api-and-reports.md`** (JSON + heading notes), **`contributing.md`** (clipboard / copy troubleshooting for tests + support).
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**176** Vitest + **`npm run build`**; graph stderr clean after Phase 87 completion).
+- **`make test-backend-docker`** — **OK** (**164** xUnit tests, **`PostgresQueryAutopsyTool.Tests.Unit`** Release).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**18** Playwright smoke tests; Compare **Copy for ticket** uses **`getByText('Next steps after this change')`** — UI title is a callout strip, not **`role="heading"`**).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+## Phase 88 — Compare decision workflow + export/copy convergence (2026-04-08)
+
+**Compare UX / copy**
+
+- **Selected pair:** continuity before **Rewrite outcome**; **Region continuity** as **`role="region"`**; **Copy reference** includes **`Rewrite outcome:`** when **`rewriteVerdictOneLiner`** is set (**`pairReferenceText`** **`includeRewriteOutcome`**).
+- **Summary column:** **Next steps** title as semantic **`h2`** (styled inline); chips **Same pair as sidebar** / **Other region**; **Copy for ticket** passes **`anchorsSelectedPlanBPair`** so paste can include **`Pair scope: aligns with selected pair (Plan B node …)`**.
+
+**Backend — compare HTML**
+
+- **`RenderCompareHtmlReport`**: **Plan capture (per side)**, **change briefing** with **Story beats** when **`ComparisonStory.ChangeBeats`** non-empty, **Bottleneck posture (A vs B)**, **Narrative**, then top pairs; labels **Rewrite outcome** on top pair lines (markdown-aligned).
+
+**Tests**
+
+- **`CompareReportHtmlTests`**: sections + **Rewrite outcome** / markdown no **Rewrite readout**; **Story beats** when fixture has beats; shared **`TopPairHasVerdict`** helper.
+- **Vitest:** **`compareSuggestionAnchorsSelectedPlanB`**, **`suggestionReferenceText`** pair-scope line; **`pairReferenceText`** rewrite outcome line.
+- **Playwright:** **`persisted-flows`** pair **Copy reference** expects **`Rewrite outcome:`**; **`auth-artifact-access.spec.ts`** — **Copy artifact link** after Analyze (**URL** + **`PQAT analysis:`**).
+
+**Frontend test harness**
+
+- **`setup.ts`**: Phase 87 global **`console.error`** filter removed (**Phase 89** scopes the known React NaN-attribute warning to **`AnalyzePage.interaction.test.tsx`** only).
+- **`useCopyFeedback`**: clear pending status timers on unmount and avoid **`setState`** after teardown (fixes Vitest **unhandled** **`window is not defined`** from success timers in **`ComparePage.ux`** / **`AnalyzePage.interaction`**).
+
+**Docs**
+
+- **`compare-workflow.md`**, **`api-and-reports.md`**, **`architecture.md`**, **`contributing.md`** (auth E2E row): terminology **Rewrite outcome**, Phase 88 notes.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`make test-backend-docker`** — **OK** (**166** xUnit tests, **`PostgresQueryAutopsyTool.Tests.Unit`** Release).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**179** Vitest tests + **`npm run build`**; transient React Flow **NaN** lines may still print to Vitest stderr).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**18** Playwright **`e2e-smoke`** tests; run after **`docker compose … down -v`** if a prior stack leaves container-name conflicts).
+- **`./scripts/e2e-playwright-docker.sh --auth`** — **OK** (**4** Playwright **`e2e-auth-api-key`** tests, includes new clipboard case).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+## Phase 89 — Compare deep-link confidence, graph noise, a11y landmarks (2026-04-08)
+
+**Analyze graph (layout + test noise)**
+
+- **`analyzeGraphAdapter.layoutTopDown`**: coerce **dagre** **`x`/`y`** to **finite** positions (fallback **0**).
+- **`AnalyzePlanGraphCore`**: **`safeNodes`** clamp before **`ReactFlow`**; **`GraphSync`** **`fitView`** after **`requestAnimationFrame`** only when **`getViewport()`** is finite.
+- **`AnalyzePage.interaction.test.tsx`**: **file-scoped** **`console.error`** filter for React’s **`Received NaN for the \`…\` attribute`** messages only (other Vitest files keep full stderr).
+
+**Compare UX / a11y / copy**
+
+- **`CompareSummaryColumn`**: **Next steps** list wrapped in **`section`** **`role="region"`** **`aria-labelledby="compare-next-steps-title"`**; change-briefing subtitle **headline judgment** (avoids stacking “verdict” next to **Rewrite outcome**).
+- **`CompareSelectedPairPanel`**: **`id="compare-selected-pair-heading"`** on **Selected node pair** **`h3`**.
+
+**Browser E2E**
+
+- **`persisted-flows.spec.ts`**: **Compare: deep link from Copy link restores pair param and rewrite outcome**; **Compare: Copy for ticket on same-pair suggestion includes Pair scope line**.
+
+**Vitest**
+
+- **`useCopyFeedback.test.ts`**: unmount-before-timer + late **`copyToClipboard`** resolve.
+- **`analyzeGraphAdapter.test.ts`**: assert **finite** positions.
+- **`ComparePage.ux.test.tsx`**: **`getByRole('region', { name: 'Next steps after this change' })`** (replaces **`aria-label="Compare optimization suggestions"`**).
+
+**Docs**
+
+- **`compare-workflow.md`**, **`api-and-reports.md`**, **`architecture.md`**, **`contributing.md`** (**e2e-smoke** row).
+
+**Verified (agent run, 2026-04-08)**
+
+- **`make test-backend-docker`** — **OK** (**166** xUnit tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**181** Vitest + **`npm run build`**; **Analyze interaction** file filters known NaN-attribute **`console.error`** only).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**20** Playwright **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK** (**`docs/.venv`**).
+
+## Phase 90 — Compare collaboration parity + semantic confidence (2026-04-08)
+
+**Compare UI / a11y**
+
+- **Intro** **`h1`**, **Summary** / **Navigator** / **Findings diff** / **What changed most** / **Selected pair** **`h2`**; **Next steps** suggestion titles **`h3`** + grid layout; **Focus plan B** / **Copy for ticket** before **Pin** in DOM for predictable **Tab** order; **`Pin`** ghost button top-right.
+- **`AnalyzePlanGraphCore`**: **`defaultViewport={{ x: 0, y: 0, zoom: 1 }}`**.
+- **`AnalyzePage.interaction.test.tsx`**: file-local **NaN** **`console.error`** filter retained (comment notes **`defaultViewport`** did not eliminate the jsdom warning); **`Phase 89–90`** note.
+
+**Browser E2E**
+
+- **`persisted-flows.spec.ts`**: **`Compare: suggestion= deep link highlight survives reopen in fresh tab`**.
+- **`jwt-auth-smoke.spec.ts`**: **`JWT: Compare Copy link captures URL + PQAT compare + Pair ref`** (**`installE2eClipboardCapture`**).
+
+**Vitest**
+
+- **`ComparePage.ux.test.tsx`**: next-step row **button order** (**Focus** → **Copy for ticket** → **Pin**).
+
+**Docs**
+
+- **`compare-workflow.md`**, **`architecture.md`**, **`contributing.md`** (JWT row), **`e2e/auth/README.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`make test-backend-docker`** — **OK** (**166** xUnit tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**182** Vitest + **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**21** Playwright **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**4** Playwright **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK** (repo root, **`docs/.venv`**).
 

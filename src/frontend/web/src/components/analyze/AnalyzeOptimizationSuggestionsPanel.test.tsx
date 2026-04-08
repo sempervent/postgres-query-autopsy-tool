@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { AnalyzedPlanNode, OptimizationSuggestion, PlanBottleneckInsight } from '../../api/types'
+import * as copyModule from '../../presentation/copyToClipboard'
 import { AnalyzeOptimizationSuggestionsPanel } from './AnalyzeOptimizationSuggestionsPanel'
 
 vi.mock('../VirtualizedListColumn', () => ({
@@ -118,5 +119,34 @@ describe('AnalyzeOptimizationSuggestionsPanel grouped + virtual rows', () => {
     expect(screen.getByLabelText('Linked bottleneck')).toBeInTheDocument()
     expect(screen.getByText(/Because of bottleneck/i)).toBeInTheDocument()
     expect(screen.getByText(/Heavy sort under root/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Jump to bottleneck rank 1 in plan')).toBeInTheDocument()
+  })
+
+  it('Copy for ticket invokes clipboard helper with structured payload', async () => {
+    const spy = vi.spyOn(copyModule, 'copyToClipboard').mockResolvedValue(undefined)
+    const s = baseSuggestion({
+      suggestionId: 'sg-copy',
+      title: 'Ticket title',
+    })
+    render(
+      <AnalyzeOptimizationSuggestionsPanel
+        sortedOptimizationSuggestions={[s]}
+        expandedOptimizationId={null}
+        setExpandedOptimizationId={() => {}}
+        jumpToNodeId={() => {}}
+        byId={new Map()}
+        nodeLabel={(n) => n.nodeId}
+        analysisId="aid-99"
+      />,
+    )
+    const card = screen.getByText('Ticket title').closest('.pqat-listRow')
+    expect(card).toBeTruthy()
+    fireEvent.click(within(card as HTMLElement).getByTestId('analyze-suggestion-copy-ticket'))
+    expect(spy).toHaveBeenCalledTimes(1)
+    const payload = String(spy.mock.calls[0]?.[0])
+    expect(payload).toContain('PQAT analysis: aid-99')
+    expect(payload).toContain('Ticket title')
+    expect(payload).toContain('[sg-copy]')
+    spy.mockRestore()
   })
 })

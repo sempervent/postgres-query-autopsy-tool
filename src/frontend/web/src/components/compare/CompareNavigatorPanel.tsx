@@ -115,7 +115,9 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
           {pair ? (
             <ReferenceCopyButton
               aria-label="Copy pair reference"
-              onCopy={() => copyNav.copy(pairReferenceText(pair, byIdA, byIdB), 'Copied pair reference')}
+              onCopy={() =>
+                copyNav.copy(pairReferenceText(pair, byIdA, byIdB, { comparisonId: comparison.comparisonId }), 'Copied pair reference')
+              }
             />
           ) : null}
         </div>
@@ -165,7 +167,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
     if (id === 'findingsDiff' && vis.findingsDiff) {
       return (
         <div>
-          <h3 className="pqat-sectionTitle">Findings diff</h3>
+          <h2 className="pqat-sectionTitle">Findings diff</h2>
           <div className="pqat-filterBar pqat-filterBar--tight">
             <select
               className="pqat-select pqat-filterSelect"
@@ -362,7 +364,11 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
               })}
             </div>
           )}
-          {copyFinding.status ? <div className="pqat-copyStatus">{copyFinding.status}</div> : null}
+          {copyFinding.status ? (
+            <div className="pqat-copyStatus" role="status" aria-live="polite" aria-atomic="true">
+              {copyFinding.status}
+            </div>
+          ) : null}
         </div>
       )
     }
@@ -409,7 +415,11 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
 
   return (
     <div className="pqat-panel pqat-panel--detail pqat-panelPad--md" aria-label="Compare navigator">
-      {copyNav.status ? <div className="pqat-hint" style={{ marginBottom: 10 }}>{copyNav.status}</div> : null}
+      {copyNav.status ? (
+        <div className="pqat-hint" role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 10 }}>
+          {copyNav.status}
+        </div>
+      ) : null}
       {showFilterRow ? (
         <div className="pqat-filterBar">
           <input
@@ -432,7 +442,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
       ) : null}
 
       <div className="pqat-eyebrow">Lists</div>
-      <h3 className="pqat-sectionTitle">Navigator</h3>
+      <h2 className="pqat-sectionTitle">Navigator</h2>
       <div className="pqat-navigatorStack">
         {layout.leftStackOrder.map((lid) => (
           <Fragment key={lid}>{stackBlock(lid)}</Fragment>

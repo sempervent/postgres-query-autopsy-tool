@@ -30,7 +30,7 @@ export function pairContinuitySectionTitle(hint: string | null | undefined): str
     h.includes('partial vs finalize') ||
     h.includes('gather-merge')
   )
-    return 'Grouped output · same region'
+    return 'Grouped / bucket output · same region'
 
   return 'Same region · strategy shift'
 }

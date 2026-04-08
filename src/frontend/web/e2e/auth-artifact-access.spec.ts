@@ -10,6 +10,7 @@ import {
   E2E_SHARED_GROUP_ID,
 } from './auth/constants'
 import { installApiKeyRoute } from './auth/installApiKeyRoute'
+import { installE2eClipboardCapture, readE2eCapturedClipboard } from './helpers/e2eClipboardCapture'
 
 function postgresJsonFixture(fileName: string): string {
   return path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', fileName)
@@ -165,4 +166,30 @@ test('Auth API key: owner shares to group via UI; member B can open; outsider C 
   await expect(err).toBeVisible()
   await expect(err).toContainText(/access denied/i)
   await ctxC.close()
+})
+
+test('Auth API key: copy artifact link captures URL plus PQAT analysis id', async ({ browser, baseURL }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+  const ctx = await browser.newContext({
+    baseURL,
+    extraHTTPHeaders: apiKeyHeaders(E2E_KEY_USER_A),
+  })
+  const page = await ctx.newPage()
+  await installApiKeyRoute(page, E2E_KEY_USER_A)
+  await installE2eClipboardCapture(page)
+  await page.goto('/')
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
+
+  const copyBtn = page.getByRole('button', { name: /Copy artifact link/i })
+  await expect(copyBtn).toBeVisible({ timeout: 30_000 })
+  await copyBtn.click()
+
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip.length).toBeGreaterThan(0)
+  expect(clip).toMatch(/^https?:\/\//m)
+  expect(clip).toMatch(/PQAT analysis:/i)
+  await ctx.close()
 })

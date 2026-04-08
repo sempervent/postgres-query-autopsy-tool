@@ -3,14 +3,19 @@ import type { AnalyzedPlanNode, OptimizationSuggestion, PlanBottleneckInsight } 
 import { bottleneckClassShortLabel } from '../../presentation/bottleneckPresentation'
 import {
   flattenGroupedSuggestionsForVirtualList,
-  groupOptimizationSuggestionsForUi,
   normalizeOptimizationSuggestionsForDisplay,
   optimizationCategoryLabel,
+  sortAndGroupSuggestionsForUi,
+  suggestionActionLaneLabel,
   suggestionConfidenceShort,
   suggestionFamilyLabel,
+  suggestionLeverageTier,
   suggestionPriorityShort,
+  suggestionReferenceText,
+  suggestionTryNextDuplicatesSummary,
   suggestionVirtualRowEstimateSize,
 } from '../../presentation/optimizationSuggestionsPresentation'
+import { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { VirtualizedListColumn, VIRTUAL_LIST_THRESHOLD } from '../VirtualizedListColumn'
 
 const SUGGEST_VIRTUAL_THRESHOLD = Math.max(12, VIRTUAL_LIST_THRESHOLD - 24)
@@ -23,60 +28,104 @@ function SuggestionCardBody(props: {
   byId: Map<string, AnalyzedPlanNode>
   nodeLabel: (n: AnalyzedPlanNode) => string
   bottleneckByInsightId: Map<string, PlanBottleneckInsight>
+  isTopLeverageCard: boolean
+  analysisId?: string | null
+  copySuggestion: ReturnType<typeof useCopyFeedback>
 }) {
-  const { s, expanded, setExpandedOptimizationId, jumpToNodeId, byId, nodeLabel, bottleneckByInsightId } = props
+  const {
+    s,
+    expanded,
+    setExpandedOptimizationId,
+    jumpToNodeId,
+    byId,
+    nodeLabel,
+    bottleneckByInsightId,
+    isTopLeverageCard,
+    analysisId,
+    copySuggestion,
+  } = props
+  const linkedBottleneckId = (s.relatedBottleneckInsightIds ?? [])[0]
+  const linkedBottleneck = linkedBottleneckId ? bottleneckByInsightId.get(linkedBottleneckId) : undefined
+  const bottleneckFocusNodeId = linkedBottleneck?.nodeIds?.[0]
   const target = (s.targetNodeIds ?? [])[0]
   const derivedTargetLabel = target && byId.get(target) ? nodeLabel(byId.get(target)!) : target
   const focusLabel = (s.targetDisplayLabel ?? derivedTargetLabel ?? target)?.trim() || 'node'
   const nextAction = s.recommendedNextAction ?? s.summary
   const why = s.whyItMatters ?? s.rationale
+  const tryDup = suggestionTryNextDuplicatesSummary(s.summary, nextAction)
+  const priChipClass =
+    suggestionLeverageTier(s.priority) === 'lead' ? 'pqat-chip pqat-chip--suggestionMeta pqat-chip--leverageLead' : 'pqat-chip pqat-chip--suggestionMeta'
 
   return (
-    <div className="pqat-listRow pqat-listRow--suggestion pqat-workspaceReveal" style={{ padding: 14 }}>
+    <div
+      className={`pqat-listRow pqat-listRow--suggestion pqat-workspaceReveal${isTopLeverageCard ? ' pqat-suggestionCard--topLead' : ''}`}
+      style={{ padding: 14 }}
+    >
       {s.isGroupedCluster ? (
         <div className="pqat-suggestionGroupedBadge" title="Merged from multiple overlapping findings">
           Combined suggestion
         </div>
       ) : null}
+      {isTopLeverageCard ? (
+        <div className="pqat-hint" style={{ fontSize: 11, marginBottom: 8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          Strongest next experiment
+        </div>
+      ) : null}
       <div className="pqat-guidedSuggestion">
         <div style={{ fontWeight: 750, fontSize: '0.9375rem', lineHeight: 1.35, color: 'var(--text-h)' }}>{s.title}</div>
+        <div className="pqat-suggestionFamilyHint" title="Grouped with similar suggestions when the list is long">
+          {suggestionFamilyLabel(s.suggestionFamily)} · {suggestionActionLaneLabel(s.category)}
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, alignItems: 'center' }}>
-          <span className="pqat-chip pqat-chip--suggestionMeta" title="Suggestion family">
-            {suggestionFamilyLabel(s.suggestionFamily)}
+          <span className={priChipClass} title="Leverage vs other cards in this snapshot">
+            {suggestionPriorityShort(s.priority)}
           </span>
-          <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionConfidenceShort(s.confidence)}</span>
-          <span className="pqat-chip pqat-chip--suggestionMeta">{suggestionPriorityShort(s.priority)}</span>
-          <span className="pqat-chip" title="Technical category from engine">
+          <span className="pqat-chip pqat-chip--suggestionMeta" title="Evidence strength">
+            {suggestionConfidenceShort(s.confidence)}
+          </span>
+          <span className="pqat-chip pqat-chip--suggestionMeta" title="Engine category (technical)">
             {optimizationCategoryLabel(s.category)}
           </span>
+          {bottleneckFocusNodeId && linkedBottleneck ? (
+            <button
+              type="button"
+              className="pqat-chip pqat-chip--suggestionMeta"
+              title="Open the ranked bottleneck anchor in the plan graph"
+              aria-label={`Jump to bottleneck rank ${linkedBottleneck.rank} in plan`}
+              onClick={() => jumpToNodeId(bottleneckFocusNodeId)}
+              style={{ cursor: 'pointer' }}
+            >
+              Bottleneck #{linkedBottleneck.rank} · {bottleneckClassShortLabel(linkedBottleneck.bottleneckClass)}
+            </button>
+          ) : null}
         </div>
-        <div style={{ marginTop: 10, fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>{s.summary}</div>
-        <div className="pqat-signalLine">
-          <span className="pqat-signalLine__label">Try next</span>
-          <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
-            {nextAction}
+        {!tryDup ? (
+          <div className="pqat-signalLine pqat-signalLine--tryFirst" style={{ marginTop: 12 }}>
+            <span className="pqat-signalLine__label">Try next</span>
+            <div className="pqat-signalLine__text">{nextAction}</div>
           </div>
-        </div>
+        ) : null}
+        <div style={{ marginTop: tryDup ? 12 : 10, fontSize: '0.875rem', lineHeight: 1.5, color: 'var(--text)' }}>{s.summary}</div>
+        {tryDup ? (
+          <div className="pqat-hint" style={{ marginTop: 6, fontSize: 12 }}>
+            Concrete action matches the summary—expand for validation steps and cautions.
+          </div>
+        ) : null}
         <div className="pqat-signalLine">
           <span className="pqat-signalLine__label">Why it matters</span>
           <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
             {why}
           </div>
         </div>
-        {(() => {
-          const bid = (s.relatedBottleneckInsightIds ?? [])[0]
-          if (!bid) return null
-          const bn = bottleneckByInsightId.get(bid)
-          if (!bn) return null
-          return (
-            <div className="pqat-signalLine" aria-label="Linked bottleneck">
-              <span className="pqat-signalLine__label">Because of bottleneck</span>
-              <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
-                #{bn.rank} · {bottleneckClassShortLabel(bn.bottleneckClass)} — {bn.headline}
-              </div>
+        {linkedBottleneck ? (
+          <div className="pqat-signalLine" aria-label="Linked bottleneck">
+            <span className="pqat-signalLine__label">Because of bottleneck</span>
+            <div className="pqat-signalLine__text" style={{ color: 'var(--text-secondary)' }}>
+              #{linkedBottleneck.rank} · {bottleneckClassShortLabel(linkedBottleneck.bottleneckClass)} —{' '}
+              {linkedBottleneck.headline}
             </div>
-          )
-        })()}
+          </div>
+        ) : null}
       </div>
       {s.validationSteps?.length ? (
         <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -97,6 +146,15 @@ function SuggestionCardBody(props: {
           onClick={() => setExpandedOptimizationId(expanded ? null : s.suggestionId)}
         >
           {expanded ? 'Hide evidence detail' : 'Evidence, cautions, all validation steps'}
+        </button>
+        <button
+          type="button"
+          className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+          data-testid="analyze-suggestion-copy-ticket"
+          aria-label={`Copy suggestion summary for ${s.title}`}
+          onClick={() => void copySuggestion.copy(suggestionReferenceText(s, analysisId), 'Copied suggestion')}
+        >
+          Copy for ticket
         </button>
       </div>
       {expanded ? (
@@ -143,6 +201,8 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
   byId: Map<string, AnalyzedPlanNode>
   nodeLabel: (n: AnalyzedPlanNode) => string
   bottlenecks?: PlanBottleneckInsight[] | null
+  /** Phase 84: included in “Copy for ticket” payload when present. */
+  analysisId?: string | null
 }) {
   const {
     sortedOptimizationSuggestions,
@@ -152,7 +212,10 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
     byId,
     nodeLabel,
     bottlenecks,
+    analysisId,
   } = props
+
+  const copySuggestion = useCopyFeedback()
 
   const bottleneckByInsightId = useMemo(() => {
     const m = new Map<string, PlanBottleneckInsight>()
@@ -164,8 +227,16 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
     () => normalizeOptimizationSuggestionsForDisplay(sortedOptimizationSuggestions),
     [sortedOptimizationSuggestions],
   )
-  const groups = useMemo(() => groupOptimizationSuggestionsForUi(normalized), [normalized])
+  const groups = useMemo(() => sortAndGroupSuggestionsForUi(normalized), [normalized])
   const virtualRows = useMemo(() => flattenGroupedSuggestionsForVirtualList(groups), [groups])
+  const topLeverageId = useMemo(() => {
+    for (const g of groups) {
+      for (const s of g.items) {
+        if (suggestionLeverageTier(s.priority) === 'lead') return s.suggestionId
+      }
+    }
+    return normalized[0]?.suggestionId ?? null
+  }, [groups, normalized])
   const useVirtual = virtualRows.length >= SUGGEST_VIRTUAL_THRESHOLD
 
   if (!sortedOptimizationSuggestions.length) {
@@ -193,6 +264,9 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
         byId={byId}
         nodeLabel={nodeLabel}
         bottleneckByInsightId={bottleneckByInsightId}
+        isTopLeverageCard={topLeverageId !== null && s.suggestionId === topLeverageId}
+        analysisId={analysisId}
+        copySuggestion={copySuggestion}
       />
     )
   }
@@ -201,9 +275,15 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
     <section className="pqat-panel pqat-panel--detail" style={{ marginBottom: 16, padding: '16px 18px' }} aria-label="Optimization suggestions">
       <div className="pqat-eyebrow">Next steps</div>
       <h2 style={{ marginTop: 0 }}>Optimization suggestions</h2>
+      {copySuggestion.status ? (
+        <div className="pqat-hint" role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 8 }}>
+          {copySuggestion.status}
+        </div>
+      ) : null}
       <p className="pqat-hint" style={{ marginBottom: 12 }}>
-        Plain-language next steps backed by findings and operator evidence—not guaranteed fixes. Expand a card for raw rationale and
-        technical detail.
+        Ranked by priority and evidence strength within each section. The highlighted <strong>action line</strong> on each card is what
+        to run or measure first; the paragraph below adds context. Expand a card for rationale, cautions, and validation steps—not
+        guaranteed fixes.
       </p>
       {useVirtual ? (
         <VirtualizedListColumn

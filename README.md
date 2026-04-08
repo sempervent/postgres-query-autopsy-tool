@@ -17,6 +17,7 @@ Forensic analysis for **PostgreSQL** execution plans: paste **`EXPLAIN (ANALYZE,
 |--|--|
 | **Hosted manual** | **[GitHub Pages →](https://sempervent.github.io/postgres-query-autopsy-tool/)** |
 | **Contributor guide** | [`docs/contributing.md`](docs/contributing.md) — [verification tiers](docs/contributing.md#verification-tiers-phase-80), [CI parity commands](docs/contributing.md#ci-parity-verified-commands), [digest / pin playbook](docs/contributing.md#container-image-pins--re-pinning-phase-7981) |
+| **Issues** | **[`ISSUE.md`](ISSUE.md)** checklist + GitHub templates: **Bug report**, **Feature / enhancement** (`.github/ISSUE_TEMPLATE/`) |
 | **Local docs** | `python -m venv .venv-docs && . .venv-docs/bin/activate && pip install -r requirements-docs.txt && mkdocs serve` (or reuse **`docs/.venv`** if present) |
 
 The documentation site home page repeats the **badge row** above so the same trust signals appear on **MkDocs** (see [`docs/index.md`](docs/index.md)).
@@ -36,6 +37,8 @@ Commands run from the **repository root** unless noted.
 | **Lint only** | `make lint-workflows` — actionlint via PATH, digest-pinned Docker, or `ACTIONLINT_BOOTSTRAP=1` (checksum-verified download) |
 
 Details: **`make help`** and **[Contributing](docs/contributing.md)**.
+
+**Phase 83 (Vitest / Rolldown on CI):** **`src/frontend/web/package.json`** declares **`optionalDependencies`** **`@rolldown/binding-*`** (pinned to the same version as the bundled Rolldown stack) so **`npm ci`** on **linux-x64** always installs the native addon. Stay on **Node 20.18.x** per **`engines`** / **`.nvmrc`**; if host Node is outside that range or tooling misbehaves, use **`make repo-health-docker`** / **`make verify-frontend-docker`**.
 
 ---
 

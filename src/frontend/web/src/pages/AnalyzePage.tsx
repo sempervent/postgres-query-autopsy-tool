@@ -18,7 +18,7 @@ import { nodeShortLabel } from '../presentation/nodeLabels'
 import { buildAnalyzeGraph } from '../presentation/analyzeGraphAdapter'
 import { applyGraphView, revealPath } from '../presentation/analyzeGraphState'
 import {
-  compareSuggestionsByPriority,
+  sortSuggestionsForLeverage,
   normalizeOptimizationSuggestionsForDisplay,
 } from '../presentation/optimizationSuggestionsPresentation'
 import { AnalyzeDeepLinkParam, buildAnalyzeDeepLinkSearchParams } from '../presentation/artifactLinks'
@@ -213,14 +213,14 @@ export default function AnalyzePage() {
 
   const sortedOptimizationSuggestions = useMemo(() => {
     const raw = analysis?.optimizationSuggestions ?? []
-    const sorted = [...raw].sort(compareSuggestionsByPriority)
-    return normalizeOptimizationSuggestionsForDisplay(sorted)
+    const norm = normalizeOptimizationSuggestionsForDisplay(raw)
+    return sortSuggestionsForLeverage(norm)
   }, [analysis])
 
   const relatedOptimizationForSelectedNode = useMemo((): OptimizationSuggestion | null => {
     if (!sortedOptimizationSuggestions.length || !selectedNodeId) return null
     const hits = sortedOptimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(selectedNodeId))
-    return [...hits].sort(compareSuggestionsByPriority)[0] ?? null
+    return sortSuggestionsForLeverage(hits)[0] ?? null
   }, [sortedOptimizationSuggestions, selectedNodeId])
 
   const graph = useMemo(() => {
@@ -356,6 +356,7 @@ export default function AnalyzePage() {
           jumpToNodeId={jumpToNodeId}
           byId={byId}
           copyFinding={copyFinding}
+          analysisId={analysis.analysisId}
         />
       )
     }
@@ -369,6 +370,7 @@ export default function AnalyzePage() {
           byId={byId}
           nodeLabel={nodeLabel}
           bottlenecks={analysis.summary.bottlenecks ?? undefined}
+          analysisId={analysis.analysisId}
         />
       )
     }

@@ -208,10 +208,10 @@ public sealed class PlanAnalysisService : IPlanAnalysisService
             : $@"
 ## Plan briefing (structured)
 - **Plan overview:** {analysis.PlanStory.PlanOverview}
-- **Work concentration:** {analysis.PlanStory.WorkConcentration}
-- **Likely expense drivers:** {analysis.PlanStory.LikelyExpenseDrivers}
+- **Where work piles up:** {analysis.PlanStory.WorkConcentration}
+- **What is driving cost:** {analysis.PlanStory.LikelyExpenseDrivers}
 - **Execution shape:** {analysis.PlanStory.ExecutionShape}
-- **Inspect first:** {analysis.PlanStory.InspectFirstPath}
+{FormatInspectFirstMarkdown(analysis.PlanStory)}
 {(analysis.PlanStory.PropagationBeats.Count == 0
     ? ""
     : "- **Flow hints:**\n" + string.Join("\n", analysis.PlanStory.PropagationBeats.Select(x =>
@@ -308,15 +308,21 @@ AnalysisId: {analysis.AnalysisId}
                 return $"<li>{line}{a}</li>";
             })) + "</ul></li>";
 
+        var indexShapeHtml = analysis.PlanStory is null || string.IsNullOrWhiteSpace(analysis.PlanStory.IndexShapeNote)
+            ? ""
+            : $"<li><b>Index / shape angle:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.IndexShapeNote)}</li>";
+
         var planStoryHtml = analysis.PlanStory is null
             ? ""
             : $@"<h2>Plan briefing</h2>
 <p>{System.Net.WebUtility.HtmlEncode(analysis.PlanStory.PlanOverview)}</p>
 <ul>
-<li><b>Work:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.WorkConcentration)}</li>
-<li><b>Drivers:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.LikelyExpenseDrivers)}</li>
-<li><b>Inspect first:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.InspectFirstPath)}</li>
+<li><b>Where work piles up:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.WorkConcentration)}</li>
+<li><b>What is driving cost:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.LikelyExpenseDrivers)}</li>
+<li><b>Execution shape:</b> {System.Net.WebUtility.HtmlEncode(analysis.PlanStory.ExecutionShape)}</li>
+{FormatInspectFirstHtml(analysis.PlanStory)}
 {flowHtml}
+{indexShapeHtml}
 </ul>";
 
         return $@"<!doctype html>
@@ -351,15 +357,29 @@ AnalysisId: {analysis.AnalysisId}
     <p>{System.Net.WebUtility.HtmlEncode(analysis.Narrative.WhatHappened)}</p>
     <h2>Where Time Went</h2>
     <p>{System.Net.WebUtility.HtmlEncode(analysis.Narrative.WhereTimeWent)}</p>
-    <h2>Headine Findings ({analysis.Findings.Count})</h2>
+    <h2>Headline Findings ({analysis.Findings.Count})</h2>
     {findingsHtml}
     <h2>Optimization suggestions</h2>
-    <p style=""opacity:.85"">Investigation-oriented next steps from the Phase 32 engine. Not prescriptions.</p>
+    <p style=""opacity:.85"">Investigation-oriented next steps—same shape as Markdown export. Not prescriptions.</p>
     <ul>
       {(analysis.OptimizationSuggestions.Count == 0
         ? "<li>none for this snapshot</li>"
         : string.Join("", analysis.OptimizationSuggestions.Take(8).Select(s =>
-            $"<li><b>{System.Net.WebUtility.HtmlEncode(s.Title)}</b> <span style=\"opacity:.75\">({s.SuggestionFamily}, priority {s.Priority}, confidence {s.Confidence})</span><br/>{System.Net.WebUtility.HtmlEncode(s.Summary)}<br/><i>Next:</i> {System.Net.WebUtility.HtmlEncode(s.RecommendedNextAction)}</li>")))}
+        {
+            var whyRaw = string.IsNullOrWhiteSpace(s.WhyItMatters) ? s.Rationale : s.WhyItMatters;
+            var why = string.IsNullOrWhiteSpace(whyRaw)
+                ? ""
+                : $"<div style=\"margin-top:.35rem\"><i>Why:</i> {System.Net.WebUtility.HtmlEncode(whyRaw)}</div>";
+            var val = s.ValidationSteps.Count == 0
+                ? ""
+                : string.Join("; ", s.ValidationSteps.Take(2).Select(x => x));
+            var valBlock = string.IsNullOrWhiteSpace(val)
+                ? ""
+                : $"<div style=\"margin-top:.25rem\"><i>Validate:</i> {System.Net.WebUtility.HtmlEncode(val)}</div>";
+            var fam = s.SuggestionFamily.ToString();
+            return
+                $"<li><code style=\"opacity:.9\">{System.Net.WebUtility.HtmlEncode(s.SuggestionId)}</code> <b>{System.Net.WebUtility.HtmlEncode(s.Title)}</b> <span style=\"opacity:.75\">({System.Net.WebUtility.HtmlEncode(fam)}, priority {s.Priority}, confidence {s.Confidence})</span><br/>{System.Net.WebUtility.HtmlEncode(s.Summary)}<br/><i>Next:</i> {System.Net.WebUtility.HtmlEncode(s.RecommendedNextAction)}{why}{valBlock}</li>";
+        })))}
     </ul>
     <h2>Limitations</h2>
     <ul>
@@ -391,7 +411,11 @@ AnalysisId: {analysis.AnalysisId}
                 ? $" `[{pair.PairArtifactId}]`"
                 : "";
 
-            return $"- **{d.NodeTypeA} → {d.NodeTypeB}{rel}**{pairRef} (conf {d.MatchConfidence}, score {d.MatchScore:F2}): time Δ {time}, reads Δ {reads}{ctxHint}";
+            var verdict = pair is { RewriteVerdictOneLiner: { Length: > 0 } rv }
+                ? $" · Rewrite outcome: {rv}"
+                : "";
+
+            return $"- **{d.NodeTypeA} → {d.NodeTypeB}{rel}**{pairRef} (conf {d.MatchConfidence}, score {d.MatchScore:F2}): time Δ {time}, reads Δ {reads}{ctxHint}{verdict}";
         }
 
         var s = comparison.Summary;
@@ -492,11 +516,11 @@ ComparisonId: {comparison.ComparisonId}
     return $"- **Resolved**{idPart} `{i.RuleId}`{ix}: {i.Summary}";
 })))}
 
-## Next steps after this change (compare)
+## Next steps after this change
 {(comparison.CompareOptimizationSuggestions.Count == 0
     ? "- No compare-scoped suggestions (or plans are very similar)."
     : string.Join("\n", comparison.CompareOptimizationSuggestions.Take(6).Select(s =>
-        $"- `[{s.SuggestionId}]` **{s.Title}** (priority {s.Priority}, confidence {s.Confidence})\n  - {s.Summary}\n  - Next: {s.RecommendedNextAction}")))}
+        $"- `[{s.SuggestionId}]` **{s.Title}** ({s.SuggestionFamily}, priority {s.Priority}, confidence {s.Confidence})\n  - {s.Summary}\n  - Next: {s.RecommendedNextAction}{(string.IsNullOrWhiteSpace(s.WhyItMatters) ? "" : $"\n  - Why: {s.WhyItMatters}")}")))}
 {(comparison.CompareOptimizationSuggestions.Count > 0
     ? "\nCompare suggestions emphasize what to try on plan B given the diff—not a repeat of the full analyze list."
     : "")}
@@ -505,6 +529,131 @@ ComparisonId: {comparison.ComparisonId}
 - Node-to-node correspondence is heuristic (greedy matching); treat low-confidence matches as investigative leads.
 - If the plans differ substantially, unmatched nodes may represent real structural changes.
 ";
+    }
+
+    /// <summary>Phase 88: compare HTML export aligned with markdown story sections; top pairs use <b>Rewrite outcome</b> label.</summary>
+    public string RenderCompareHtmlReport(PlanComparisonResultV2 comparison)
+    {
+        string TopPairLi(NodeDelta? d)
+        {
+            if (d is null)
+                return "<li>n/a</li>";
+
+            var rel = d.RelationName is not null ? $" on {d.RelationName}" : "";
+            var time = d.InclusiveTimeMs.Delta is not null ? $"{d.InclusiveTimeMs.Delta.Value:F2}ms" : "n/a";
+            var reads = d.SharedReadBlocks.Delta is not null ? $"{d.SharedReadBlocks.Delta.Value:F0} blocks" : "n/a";
+            var pair = comparison.PairDetails.FirstOrDefault(p =>
+                p.Identity.NodeIdA == d.NodeIdA && p.Identity.NodeIdB == d.NodeIdB);
+
+            var ctx = "";
+            if (pair?.ContextDiff is { Highlights.Count: > 0 })
+                ctx = " (ctx: " + string.Join("; ", pair.ContextDiff.Highlights.Take(2)) + ")";
+
+            var pairRef = pair is not null && !string.IsNullOrEmpty(pair.PairArtifactId)
+                ? $" [{pair.PairArtifactId}]"
+                : "";
+
+            var verdict = pair is { RewriteVerdictOneLiner: { Length: > 0 } rv }
+                ? " · Rewrite outcome: " + rv
+                : "";
+
+            var line =
+                $"{d.NodeTypeA} → {d.NodeTypeB}{rel}{pairRef} (conf {d.MatchConfidence}, score {d.MatchScore:F2}): time Δ {time}, reads Δ {reads}{ctx}{verdict}";
+            return "<li>" + System.Net.WebUtility.HtmlEncode(line) + "</li>";
+        }
+
+        var s = comparison.Summary;
+        var worst = comparison.TopWorsenedNodes.FirstOrDefault();
+        var best = comparison.TopImprovedNodes.FirstOrDefault();
+        var story = comparison.ComparisonStory;
+
+        var beatsSection = "";
+        if (story is { ChangeBeats.Count: > 0 })
+        {
+            beatsSection = "<p><b>Story beats</b></p><ul>" + string.Join("", story.ChangeBeats.Select(b =>
+            {
+                var anchor = string.IsNullOrWhiteSpace(b.PairAnchorLabel)
+                    ? ""
+                    : $" <span style=\"opacity:.85\">(pair: {System.Net.WebUtility.HtmlEncode(b.PairAnchorLabel)})</span>";
+                return "<li>" + System.Net.WebUtility.HtmlEncode(b.Text) + anchor + "</li>";
+            })) + "</ul>";
+        }
+
+        var briefing = story is null
+            ? "<p><i>No structured change story (legacy payload).</i></p>"
+            : $@"<p>{System.Net.WebUtility.HtmlEncode(story.Overview)}</p>
+<p><b>Investigation path:</b> {System.Net.WebUtility.HtmlEncode(story.InvestigationPath)}</p>
+<p><b>Structural read:</b> {System.Net.WebUtility.HtmlEncode(story.StructuralReading)}</p>{beatsSection}";
+
+        var planCaptureHtml =
+            "<h2>Plan capture &amp; EXPLAIN context (per side)</h2>\n" +
+            PlanCaptureMarkdownFormatter.FormatSideHeaderHtml("Plan A (baseline)", comparison.PlanA) +
+            PlanCaptureMarkdownFormatter.FormatSideHeaderHtml("Plan B (changed)", comparison.PlanB);
+
+        var bottleneckHtml = comparison.BottleneckBrief is null || comparison.BottleneckBrief.Lines.Count == 0
+            ? "<p><i>No compact bottleneck delta lines (often both plans lack ranked bottlenecks).</i></p>"
+            : "<ul>" + string.Join("", comparison.BottleneckBrief.Lines.Select(l =>
+                "<li>" + System.Net.WebUtility.HtmlEncode(l) + "</li>")) + "</ul>";
+
+        var narrativeHtml = string.IsNullOrWhiteSpace(comparison.Narrative)
+            ? "<p><i>No narrative line.</i></p>"
+            : "<p>" + System.Net.WebUtility.HtmlEncode(comparison.Narrative) + "</p>";
+
+        string CompareSuggestionLi(OptimizationSuggestion sug)
+        {
+            var fam = sug.SuggestionFamily.ToString();
+            var why = string.IsNullOrWhiteSpace(sug.WhyItMatters)
+                ? ""
+                : "<div style=\"margin-top:.35rem\"><i>Why:</i> " + System.Net.WebUtility.HtmlEncode(sug.WhyItMatters) + "</div>";
+            return "<li><code style=\"opacity:.9\">" + System.Net.WebUtility.HtmlEncode(sug.SuggestionId) + "</code> <b>" +
+                   System.Net.WebUtility.HtmlEncode(sug.Title) + "</b> <span style=\"opacity:.75\">(" +
+                   System.Net.WebUtility.HtmlEncode(fam) + ", priority " + sug.Priority + ", confidence " + sug.Confidence +
+                   ")</span><br/>" + System.Net.WebUtility.HtmlEncode(sug.Summary) + "<br/><i>Next:</i> " +
+                   System.Net.WebUtility.HtmlEncode(sug.RecommendedNextAction) + why + "</li>";
+        }
+
+        var compareSugHtml = comparison.CompareOptimizationSuggestions.Count == 0
+            ? ""
+            : "<h2>Next steps after this change</h2>\n<ul>\n" +
+              string.Join("", comparison.CompareOptimizationSuggestions.Take(6).Select(CompareSuggestionLi)) +
+              "\n</ul>\n<p style=\"opacity:.85;font-size:0.9rem\">Compare suggestions mirror the Markdown export—what to try on plan B given the diff.</p>";
+
+        return $@"<!doctype html>
+<html lang=""en"">
+<head>
+  <meta charset=""utf-8"" />
+  <title>Postgres Query Autopsy — Compare</title>
+  <style>
+    body {{ font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem; line-height: 1.45; }}
+    ul {{ padding-left: 1.25rem; }}
+  </style>
+</head>
+<body>
+  <h1>Postgres Query Autopsy — Compare</h1>
+  <p><b>ComparisonId:</b> {System.Net.WebUtility.HtmlEncode(comparison.ComparisonId)}</p>
+  {planCaptureHtml}
+  <h2>Summary</h2>
+  <ul>
+    <li>Runtime Δ: {(s.RuntimeDeltaMs?.ToString("F2") ?? "n/a")} ms ({(s.RuntimeDeltaPct?.ToString("P1") ?? "n/a")})</li>
+    <li>Shared reads Δ: {s.SharedReadDeltaBlocks} blocks ({(s.SharedReadDeltaPct?.ToString("P1") ?? "n/a")})</li>
+    <li>Node count Δ: {s.NodeCountDelta}</li>
+    <li>Max depth Δ: {s.MaxDepthDelta}</li>
+    <li>Severe findings Δ: {s.SevereFindingsDelta}</li>
+  </ul>
+  <h2>Change briefing</h2>
+  {briefing}
+  <h2>Bottleneck posture (A vs B)</h2>
+  {bottleneckHtml}
+  <h2>Narrative</h2>
+  {narrativeHtml}
+  <h2>Top worsened pair</h2>
+  <ul>{TopPairLi(worst)}</ul>
+  <h2>Top improved pair</h2>
+  <ul>{TopPairLi(best)}</ul>
+  {compareSugHtml}
+  <p style=""opacity:.85;font-size:0.9rem"">Node mapping is heuristic. For full detail use JSON export or the in-app Compare workspace.</p>
+</body>
+</html>";
     }
 
     private static ExplainCaptureMetadata? NormalizeExplainMetadata(ExplainCaptureMetadata? m)
@@ -553,6 +702,31 @@ ComparisonId: {comparison.ComparisonId}
         }
 
         return null;
+    }
+
+    private static string FormatInspectFirstMarkdown(PlanStory s)
+    {
+        if (s.InspectFirstSteps is { Count: > 0 })
+        {
+            var lines = s.InspectFirstSteps.Select(x => $"  {x.StepNumber}. **{x.Title}:** {x.Body}");
+            return "- **Start here (steps):**\n" + string.Join("\n", lines);
+        }
+
+        return $"- **Start here:** {s.InspectFirstPath}";
+    }
+
+    private static string FormatInspectFirstHtml(PlanStory s)
+    {
+        if (s.InspectFirstSteps is { Count: > 0 })
+        {
+            var items = string.Join(
+                "",
+                s.InspectFirstSteps.Select(x =>
+                    $"<li><b>{System.Net.WebUtility.HtmlEncode(x.Title)}</b>: {System.Net.WebUtility.HtmlEncode(x.Body)}</li>"));
+            return $"<li><b>Start here</b><ol style=\"margin:0.25rem 0 0 1.25rem;padding-left:0\">{items}</ol></li>";
+        }
+
+        return $"<li><b>Start here:</b> {System.Net.WebUtility.HtmlEncode(s.InspectFirstPath)}</li>";
     }
 }
 

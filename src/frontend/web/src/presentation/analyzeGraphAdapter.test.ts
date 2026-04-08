@@ -30,6 +30,10 @@ describe('buildAnalyzeGraph', () => {
     const g = buildAnalyzeGraph(analysis)
     expect(g.nodes.length).toBe(2)
     expect(g.edges.length).toBe(1)
+    for (const node of g.nodes) {
+      expect(Number.isFinite(node.position.x), `finite x for ${node.id}`).toBe(true)
+      expect(Number.isFinite(node.position.y), `finite y for ${node.id}`).toBe(true)
+    }
     const n = g.nodes.find((x) => x.id === 'root.0')!
     expect(n.data.label).toBe('Seq Scan on users')
     expect(n.data.refSubtitle).toMatch(/under Hash Join/i)

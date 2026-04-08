@@ -2,11 +2,14 @@ import type { AppConfig, OptimizationSuggestion, PlanComparisonResult } from '..
 import { relatedFindingChangesCue } from '../../presentation/compareIndexLinks'
 import type { CompareIndexSectionModel } from '../../presentation/comparePresentation'
 import {
+  compareSuggestionAnchorsSelectedPlanB,
   optimizationCategoryLabel,
   suggestionConfidenceShort,
   suggestionFamilyLabel,
   suggestionPriorityShort,
+  suggestionReferenceText,
 } from '../../presentation/optimizationSuggestionsPresentation'
+import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { ArtifactDomKind } from '../../presentation/artifactLinks'
 import type { CompareSummarySectionId, CompareWorkspaceLayoutState } from '../../compareWorkspace/compareWorkspaceModel'
 import { ArtifactSharingPanel } from '../ArtifactSharingPanel'
@@ -29,11 +32,16 @@ export type CompareSummaryColumnProps = {
   findingsResolvedCount: number
   highlightIndexInsightDiffId: string | null
   highlightSuggestionId: string | null
+  /** When the pinned suggestion matches the selected pair, include pair artifact id in copy payload. */
+  selectedPairArtifactId: string | null
+  /** Plan B node id of sidebar pair — scopes suggestion chips and copy payloads. */
+  selectedPlanBNodeId: string | null
   setHighlightFindingDiffId: (id: string | null) => void
   setHighlightIndexInsightDiffId: (id: string | null) => void
   setHighlightSuggestionId: (id: string | null) => void
   setSelectedPair: (p: { a: string; b: string }) => void
   copyShareCompare: { copy: (text: string, toast: string) => Promise<void>; status: string | null }
+  copyCompareSuggestion: ReturnType<typeof useCopyFeedback>
   shareCompareUi: { label: string; toast: string }
   onSharingSaved: () => Promise<void>
 }
@@ -58,11 +66,14 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
     findingsResolvedCount,
     highlightIndexInsightDiffId,
     highlightSuggestionId,
+    selectedPairArtifactId,
+    selectedPlanBNodeId,
     setHighlightFindingDiffId,
     setHighlightIndexInsightDiffId,
     setHighlightSuggestionId,
     setSelectedPair,
     copyShareCompare,
+    copyCompareSuggestion,
     shareCompareUi,
     onSharingSaved,
   } = props
@@ -200,72 +211,143 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
       case 'summaryCompareSuggestions':
         if (compareOptimizationTop.length === 0) return null
         return (
-          <div className="pqat-callout pqat-callout--suggestion" aria-label="Compare optimization suggestions">
-            <div className="pqat-callout__title">Next steps after this change</div>
+          <section
+            className="pqat-callout pqat-callout--suggestion"
+            role="region"
+            aria-labelledby="compare-next-steps-title"
+          >
+            <h2
+              id="compare-next-steps-title"
+              className="pqat-callout__title"
+              style={{ margin: 0, fontSize: 'inherit', fontWeight: 'inherit' }}
+            >
+              Next steps after this change
+            </h2>
             <div className="pqat-callout__hint">
-              Compact cues from the compare engine (plan B + diff)—not the full analyze suggestion list.
+              Ranked compare-scoped next steps (Plan B + diff context)—not the full Analyze suggestion list. Chips show whether a row
+              targets the same Plan B node as the selected pair.
             </div>
             <ul className="pqat-bulletList">
-              {compareOptimizationTop.map((s) => (
+              {compareOptimizationTop.map((s) => {
+                const anchorsPair = compareSuggestionAnchorsSelectedPlanB(s, selectedPlanBNodeId)
+                return (
                 <li
                   key={s.suggestionId}
                   data-artifact={ArtifactDomKind.compareSuggestion}
                   data-artifact-id={s.suggestionId}
-                  className={`pqat-suggestionItem${highlightSuggestionId === s.suggestionId ? ' pqat-suggestionItem--highlight' : ''}`}
+                  className={`pqat-suggestionItem pqat-suggestionItem--layout${
+                    highlightSuggestionId === s.suggestionId ? ' pqat-suggestionItem--highlight' : ''
+                  }`}
                 >
-                  <div
+                  <h3
                     className="pqat-suggestionTitle"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setHighlightSuggestionId(s.suggestionId)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setHighlightSuggestionId(s.suggestionId)
-                      }
-                    }}
-                    title="Pin this suggestion for the shared link"
+                    style={{ gridColumn: 1, gridRow: 1, margin: 0 }}
+                    id={`compare-next-step-title-${s.suggestionId}`}
                   >
                     {s.title}
-                  </div>
-                  <div className="pqat-suggestionMeta pqat-suggestionMeta--readable">
-                    <span>{suggestionFamilyLabel(s.suggestionFamily)}</span>
-                    <span>{suggestionConfidenceShort(s.confidence)}</span>
-                    <span>{suggestionPriorityShort(s.priority)}</span>
-                    <span className="pqat-mutedSpan">{optimizationCategoryLabel(s.category)}</span>
-                  </div>
-                  <div className="pqat-hint" style={{ marginTop: 4, marginBottom: 0, color: 'var(--text)' }}>
-                    {s.summary}
-                  </div>
-                  {s.recommendedNextAction ? (
-                    <div className="pqat-hint" style={{ marginTop: 6, marginBottom: 0, color: 'var(--text)' }}>
-                      <span style={{ fontWeight: 650 }}>Next · </span>
-                      {s.recommendedNextAction}
+                  </h3>
+                  <div style={{ gridColumn: '1 / -1', gridRow: 2 }}>
+                    <div className="pqat-suggestionMeta pqat-suggestionMeta--readable">
+                      <span>{suggestionFamilyLabel(s.suggestionFamily)}</span>
+                      <span>{suggestionConfidenceShort(s.confidence)}</span>
+                      <span>{suggestionPriorityShort(s.priority)}</span>
+                      <span className="pqat-mutedSpan">{optimizationCategoryLabel(s.category)}</span>
                     </div>
-                  ) : null}
-                  {(s.targetNodeIds ?? [])[0] ? (
-                    <button
-                      type="button"
-                      className="pqat-btn pqat-btn--sm pqat-btn--ghost"
-                      style={{ marginTop: 6 }}
-                      onMouseEnter={prefetchCompareSelectedPairHeavySections}
-                      onFocus={prefetchCompareSelectedPairHeavySections}
-                      onClick={() => {
-                        const targetB = (s.targetNodeIds ?? [])[0]
-                        const m = comparison.matches.find((x) => x.nodeIdB === targetB)
-                        if (m) setSelectedPair({ a: m.nodeIdA, b: m.nodeIdB })
-                        setHighlightSuggestionId(s.suggestionId)
-                      }}
-                    >
-                      Focus plan B ·{' '}
-                      {s.targetDisplayLabel?.trim() ||
-                        humanNodeAnchorFromPlan((s.targetNodeIds ?? [])[0], comparison.planB)}
-                    </button>
-                  ) : null}
+                    {selectedPlanBNodeId ? (
+                      <div className="pqat-suggestionMeta" style={{ marginTop: 4 }}>
+                        {anchorsPair ? (
+                          <span
+                            className="pqat-chip pqat-chip--suggestionMeta"
+                            aria-label="Suggestion focuses the Plan B node in the selected sidebar pair"
+                          >
+                            Same pair as sidebar
+                          </span>
+                        ) : (
+                          <span
+                            className="pqat-chip pqat-chip--suggestionMeta"
+                            style={{ opacity: 0.88 }}
+                            aria-label="Suggestion focuses a different Plan B region than the selected pair"
+                          >
+                            Other region
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+                    <div className="pqat-hint" style={{ marginTop: 4, marginBottom: 0, color: 'var(--text)' }}>
+                      {s.summary}
+                    </div>
+                    {s.recommendedNextAction ? (
+                      <div className="pqat-hint" style={{ marginTop: 6, marginBottom: 0, color: 'var(--text)' }}>
+                        <span style={{ fontWeight: 650 }}>Next · </span>
+                        {s.recommendedNextAction}
+                      </div>
+                    ) : null}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                      {(s.targetNodeIds ?? [])[0] ? (
+                        <button
+                          type="button"
+                          className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                          onMouseEnter={prefetchCompareSelectedPairHeavySections}
+                          onFocus={prefetchCompareSelectedPairHeavySections}
+                          onClick={() => {
+                            const targetB = (s.targetNodeIds ?? [])[0]
+                            const m = comparison.matches.find((x) => x.nodeIdB === targetB)
+                            if (m) setSelectedPair({ a: m.nodeIdA, b: m.nodeIdB })
+                            setHighlightSuggestionId(s.suggestionId)
+                          }}
+                        >
+                          Focus plan B ·{' '}
+                          {s.targetDisplayLabel?.trim() ||
+                            humanNodeAnchorFromPlan((s.targetNodeIds ?? [])[0], comparison.planB)}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                        data-testid="compare-suggestion-copy-ticket"
+                        aria-label={`Copy compare suggestion for ${s.title}`}
+                        onClick={() =>
+                          void copyCompareSuggestion.copy(
+                            suggestionReferenceText(s, {
+                              comparisonId: comparison.comparisonId,
+                              pairArtifactId:
+                                highlightSuggestionId === s.suggestionId ? selectedPairArtifactId : null,
+                              anchorsSelectedPlanBPair: anchorsPair,
+                            }),
+                            'Copied suggestion',
+                          )
+                        }
+                      >
+                        Copy for ticket
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="pqat-btn pqat-btn--sm pqat-btn--ghost pqat-suggestionPinBtn"
+                    style={{ gridColumn: 2, gridRow: 1, justifySelf: 'end' }}
+                    onClick={() => setHighlightSuggestionId(s.suggestionId)}
+                    aria-label={`Pin “${s.title}” for the shared link`}
+                    title="Pin this suggestion for the shared link"
+                  >
+                    Pin
+                  </button>
                 </li>
-              ))}
+                )
+              })}
             </ul>
-          </div>
+            {copyCompareSuggestion.status ? (
+              <div
+                className="pqat-hint"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                style={{ marginTop: 10, marginBottom: 0 }}
+              >
+                {copyCompareSuggestion.status}
+              </div>
+            ) : null}
+          </section>
         )
       case 'summaryMeta':
         return (
@@ -273,6 +355,10 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
             {comparison.comparisonStory?.overview?.trim() ? (
               <div className="pqat-callout pqat-callout--accent" style={{ marginBottom: 12 }} aria-label="Change briefing">
                 <div className="pqat-callout__title">{comparisonStorySectionLabels().deck}</div>
+                <p className="pqat-callout__subtitle">
+                  Lead line is wall-clock posture; beats below explain where pressure moved. A faster root can still hide a worse subtree,
+                  and a slower root can still show localized wins—treat both as signals, not a single headline judgment.
+                </p>
                 {continuitySummaryCue?.trim() ? (
                   <div
                     className="pqat-continuitySummaryCue"
@@ -371,16 +457,22 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
   if (!hasAny) return null
 
   return (
-    <div className="pqat-summaryShell pqat-workspaceReveal" aria-label="Compare summary">
+    <div className="pqat-summaryShell pqat-workspaceReveal" aria-labelledby="compare-summary-heading">
       <div className="pqat-summaryHeader">
-        <h3 className="pqat-sectionHeadline">Summary</h3>
+        <h2 id="compare-summary-heading" className="pqat-sectionHeadline">
+          Summary
+        </h2>
         {vis.summaryCards ? (
           <div className="pqat-shareRow">
             {coverage ? <div className="pqat-monoMuted">{coverage}</div> : null}
             <button type="button" className="pqat-btn pqat-btn--sm" onClick={() => void copyShareCompare.copy(window.location.href, shareCompareUi.toast)}>
               {shareCompareUi.label}
             </button>
-            {copyShareCompare.status ? <span className="pqat-mutedSpan">{copyShareCompare.status}</span> : null}
+            {copyShareCompare.status ? (
+              <span className="pqat-mutedSpan" role="status" aria-live="polite" aria-atomic="true">
+                {copyShareCompare.status}
+              </span>
+            ) : null}
           </div>
         ) : (
           <span className="pqat-mutedSpan">Metric cards hidden — restore via Customize workspace.</span>

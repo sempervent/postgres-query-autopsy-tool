@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Net;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Domain;
 
@@ -96,5 +97,41 @@ public static class PlanCaptureMarkdownFormatter
 {normLine}
 
 {FormatCaptureSectionMarkdown(plan)}";
+    }
+
+    /// <summary>Phase 88: per-side plan capture block for compare HTML export (parity with markdown headers).</summary>
+    public static string FormatSideHeaderHtml(string sideLabel, PlanAnalysisResult plan)
+    {
+        var norm = plan.PlanInputNormalization;
+        var normText = norm is null
+            ? "(legacy JSON body or not recorded)"
+            : $"{WebUtility.HtmlEncode(norm.Kind.ToString())}{(string.IsNullOrWhiteSpace(norm.Detail) ? "" : $" — {WebUtility.HtmlEncode(norm.Detail)}")}";
+        var qt = string.IsNullOrWhiteSpace(plan.QueryText) ? "not provided" : "provided";
+        var parts = new List<string>
+        {
+            $"<li><b>Source query:</b> {qt}</li>",
+            $"<li><b>Input normalization:</b> {normText}</li>",
+            $"<li><b>Planner costs (detected from JSON):</b> {WebUtility.HtmlEncode(PlannerCostsShortLabel(plan.Summary.PlannerCosts))}</li>"
+        };
+
+        var em = plan.ExplainMetadata;
+        if (em is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(em.SourceExplainCommand))
+            {
+                parts.Add(
+                    "<li><b>Recorded EXPLAIN command</b><pre style=\"white-space:pre-wrap;margin:0.35rem 0 0\">" +
+                    WebUtility.HtmlEncode(em.SourceExplainCommand.Trim()) + "</pre></li>");
+            }
+
+            if (em.Options is not null)
+            {
+                var dl = FormatDeclaredExplainOptionsLine(em.Options);
+                if (dl.Length > 0)
+                    parts.Add($"<li><b>Declared options (client):</b> {WebUtility.HtmlEncode(dl)}</li>");
+            }
+        }
+
+        return $"<div style=\"margin-bottom:1.25rem\"><h3>{WebUtility.HtmlEncode(sideLabel)}</h3><ul style=\"margin:0.25rem 0 0 1rem;padding-left:0.5rem\">{string.Join("", parts)}</ul></div>";
     }
 }

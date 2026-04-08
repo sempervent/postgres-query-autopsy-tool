@@ -469,6 +469,24 @@ app.MapPost("/api/compare/report/markdown", async (
     return Results.Ok(new { comparisonId = comparison!.ComparisonId, markdown });
 }).WithOpenApi();
 
+app.MapPost("/api/compare/report/html", async (
+    HttpRequest httpRequest,
+    CompareRequestDto request,
+    IPlanAnalysisService analysisService,
+    CancellationToken ct) =>
+{
+    var diagnostics = httpRequest.Query.TryGetValue("diagnostics", out var v) &&
+                      (string.Equals(v.ToString(), "1", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(v.ToString(), "true", StringComparison.OrdinalIgnoreCase));
+
+    var (err, comparison) = await CompareExecution.RunAsync(request, diagnostics, analysisService, ct);
+    if (err is not null)
+        return err;
+
+    var html = analysisService.RenderCompareHtmlReport(comparison!);
+    return Results.Ok(new { comparisonId = comparison!.ComparisonId, html });
+}).WithOpenApi();
+
 app.MapPost("/api/compare/report/json", async (
     HttpRequest httpRequest,
     CompareRequestDto request,

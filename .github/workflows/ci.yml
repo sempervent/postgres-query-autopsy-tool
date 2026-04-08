@@ -1,4 +1,5 @@
 # Phase 80–81: frontend uses Node 20.18.0 (Volta / .nvmrc); npm cache speeds npm ci (Phase 81).
+# Phase 83: root optionalDependencies hoist @rolldown/binding-* so Vitest/Vite 8 native bindings install on ubuntu-latest (npm optional-dep quirk).
 # Phase 73: Unquoted `run:` scalars are fragile:
 # - `#` starts a YAML comment (truncates the line).
 # - A substring like `Local: ./path` contains `: ` which YAML can parse as a nested mapping.

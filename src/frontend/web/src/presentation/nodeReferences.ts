@@ -1,6 +1,18 @@
 import type { AnalyzedPlanNode, NodePairDetail } from '../api/types'
 import { joinLabelAndSubtitle, nodeShortLabel, pairShortLabel } from './nodeLabels'
 
+/** Optional first line for ticket paste (Analyze scope). */
+export type NodeReferenceCopyContext = {
+  analysisId?: string | null
+}
+
+/** Optional first line(s) for ticket paste (Compare scope). */
+export type PairReferenceCopyContext = {
+  comparisonId?: string | null
+  /** Phase 88: append measured rewrite one-liner when present on the pair. */
+  includeRewriteOutcome?: boolean
+}
+
 export function nearestMeaningfulAncestorSubtitle(nodeId: string, byId: Map<string, AnalyzedPlanNode>): string | null {
   const n = byId.get(nodeId)
   if (!n) return null
@@ -43,22 +55,38 @@ export function nearestMeaningfulAncestorSubtitle(nodeId: string, byId: Map<stri
   return d ? `depth ${d}` : null
 }
 
-export function nodeReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>): string {
+export function nodeReferenceText(
+  nodeId: string,
+  byId: Map<string, AnalyzedPlanNode>,
+  ctx?: NodeReferenceCopyContext | null,
+): string {
   const n = byId.get(nodeId)
   if (!n) return `Unknown operator · node ${nodeId}`
   const label = nodeShortLabel(n, byId)
   const sub = nearestMeaningfulAncestorSubtitle(nodeId, byId)
   const head = sub ? `${label} — ${sub}` : label
-  return `${head} · node ${nodeId}`
+  const body = `${head} · node ${nodeId}`
+  const aid = ctx?.analysisId?.trim()
+  return aid ? `PQAT analysis: ${aid}\n${body}` : body
 }
 
-export function hotspotReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>, kind?: string | null): string {
-  const base = nodeReferenceText(nodeId, byId)
+export function hotspotReferenceText(
+  nodeId: string,
+  byId: Map<string, AnalyzedPlanNode>,
+  kind?: string | null,
+  ctx?: NodeReferenceCopyContext | null,
+): string {
+  const base = nodeReferenceText(nodeId, byId, ctx)
   return kind ? `${base} — ${kind}` : base
 }
 
-export function findingReferenceText(nodeId: string, byId: Map<string, AnalyzedPlanNode>, findingTitle?: string | null): string {
-  const base = nodeReferenceText(nodeId, byId)
+export function findingReferenceText(
+  nodeId: string,
+  byId: Map<string, AnalyzedPlanNode>,
+  findingTitle?: string | null,
+  ctx?: NodeReferenceCopyContext | null,
+): string {
+  const base = nodeReferenceText(nodeId, byId, ctx)
   return findingTitle ? `${base} — ${findingTitle}` : base
 }
 
@@ -69,12 +97,27 @@ export function joinSubtitleForNode(nodeId: string, byId: Map<string, AnalyzedPl
   return js?.subtitle ?? null
 }
 
-export function pairReferenceText(pair: NodePairDetail, byIdA: Map<string, AnalyzedPlanNode>, byIdB: Map<string, AnalyzedPlanNode>): string {
+export function pairReferenceText(
+  pair: NodePairDetail,
+  byIdA: Map<string, AnalyzedPlanNode>,
+  byIdB: Map<string, AnalyzedPlanNode>,
+  ctx?: PairReferenceCopyContext | null,
+): string {
   const label = pairShortLabel(pair, byIdA, byIdB)
   const aSub = joinSubtitleForNode(pair.identity.nodeIdA, byIdA)
   const bSub = joinSubtitleForNode(pair.identity.nodeIdB, byIdB)
   const sub = bSub ?? aSub
   const head = sub ? `${label} — ${sub}` : label
-  return `${head} · A:${pair.identity.nodeIdA} B:${pair.identity.nodeIdB}`
+  const pairArt = pair.pairArtifactId?.trim()
+  const tail = pairArt
+    ? `${head} · Pair artifact: ${pairArt} · Plan A node: ${pair.identity.nodeIdA} · Plan B node: ${pair.identity.nodeIdB}`
+    : `${head} · Plan A node: ${pair.identity.nodeIdA} · Plan B node: ${pair.identity.nodeIdB}`
+  const cid = ctx?.comparisonId?.trim()
+  const base = cid ? `PQAT compare: ${cid}\n${tail}` : tail
+  const rv = pair.rewriteVerdictOneLiner?.trim()
+  if (ctx?.includeRewriteOutcome && rv) {
+    return `${base}\nRewrite outcome: ${rv}`
+  }
+  return base
 }
 

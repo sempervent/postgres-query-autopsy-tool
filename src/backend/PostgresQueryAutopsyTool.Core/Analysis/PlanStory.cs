@@ -15,8 +15,10 @@ public sealed record PlanStory(
     string LikelyExpenseDrivers,
     /// <summary>Same lineage as <see cref="OperatorNarrativeHelper.ExecutionShapeSummary"/>.</summary>
     string ExecutionShape,
-    /// <summary>Ordered investigation path (numbered clauses in one string for compact UI).</summary>
+    /// <summary>Legacy single string (same content as joining <see cref="InspectFirstSteps"/>; kept for older clients and grep).</summary>
     string InspectFirstPath,
+    /// <summary>Phase 83: ordered inspect steps for UI/report lists (null on older persisted payloads).</summary>
+    IReadOnlyList<InspectFirstStep>? InspectFirstSteps,
     /// <summary>Short “because → likely” beats tied to ranked bottlenecks (max ~4 in builder). Phase 61: anchored for UI focus.</summary>
     [property: JsonConverter(typeof(StoryPropagationBeatListJsonConverter))]
     IReadOnlyList<StoryPropagationBeat> PropagationBeats,

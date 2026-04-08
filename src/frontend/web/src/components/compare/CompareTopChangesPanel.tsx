@@ -16,15 +16,16 @@ export type CompareTopChangesPanelProps = {
   pairSelected: (nodeIdA: string, nodeIdB: string) => boolean
   setSelectedPair: (p: { a: string; b: string }) => void
   copyNav: { copy: (text: string, ok: string) => Promise<void> }
+  comparisonId: string
 }
 
 export function CompareTopChangesPanel(props: CompareTopChangesPanelProps) {
-  const { worsened, improved, byIdA, byIdB, pairForDelta, pairSelected, setSelectedPair, copyNav } = props
+  const { worsened, improved, byIdA, byIdB, pairForDelta, pairSelected, setSelectedPair, copyNav, comparisonId } = props
   const whatChangedMost = compareWhatChangedMostCopy()
 
   return (
     <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)' }}>
-      <h3 style={{ marginTop: 0 }}>{whatChangedMost.title}</h3>
+      <h2 style={{ marginTop: 0, fontSize: 'inherit', fontWeight: 700 }}>{whatChangedMost.title}</h2>
       <div style={{ marginTop: -6, opacity: 0.85 }}>{whatChangedMost.subtitle}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8, marginTop: 10 }}>
         {worsened[0] ? (
@@ -62,7 +63,9 @@ export function CompareTopChangesPanel(props: CompareTopChangesPanelProps) {
                   {p0 ? (
                     <ReferenceCopyButton
                       aria-label="Copy pair reference for top worsened"
-                      onCopy={() => copyNav.copy(pairReferenceText(p0, byIdA, byIdB), 'Copied pair reference')}
+                      onCopy={() =>
+                        copyNav.copy(pairReferenceText(p0, byIdA, byIdB, { comparisonId }), 'Copied pair reference')
+                      }
                     />
                   ) : null}
                 </div>
@@ -105,7 +108,9 @@ export function CompareTopChangesPanel(props: CompareTopChangesPanelProps) {
                   {p0 ? (
                     <ReferenceCopyButton
                       aria-label="Copy pair reference for top improved"
-                      onCopy={() => copyNav.copy(pairReferenceText(p0, byIdA, byIdB), 'Copied pair reference')}
+                      onCopy={() =>
+                        copyNav.copy(pairReferenceText(p0, byIdA, byIdB, { comparisonId }), 'Copied pair reference')
+                      }
                     />
                   ) : null}
                 </div>

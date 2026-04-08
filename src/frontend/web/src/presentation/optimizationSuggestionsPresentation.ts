@@ -201,3 +201,117 @@ const priorityRank: Record<string, number> = {
 export function compareSuggestionsByPriority(a: { priority?: string }, b: { priority?: string }): number {
   return (priorityRank[b.priority ?? ''] ?? 0) - (priorityRank[a.priority ?? ''] ?? 0)
 }
+
+const confidenceRank: Record<string, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+}
+
+/** Sort by leverage: priority, then confidence, then stable title (Phase 82). */
+export function sortSuggestionsForLeverage(suggestions: OptimizationSuggestion[]): OptimizationSuggestion[] {
+  return [...suggestions].sort((a, b) => {
+    const pr = compareSuggestionsByPriority(a, b)
+    if (pr !== 0) return pr
+    const cr = (confidenceRank[b.confidence ?? ''] ?? 0) - (confidenceRank[a.confidence ?? ''] ?? 0)
+    if (cr !== 0) return cr
+    return (a.title ?? '').localeCompare(b.title ?? '', undefined, { sensitivity: 'base' })
+  })
+}
+
+/** High-level lane for scanning cards without raw enum noise (Phase 82). */
+export function suggestionActionLaneLabel(category: string | undefined): string {
+  const c = category ?? ''
+  if (c === 'index_experiment' || c === 'schema_change' || c === 'partitioning_chunking') return 'Experiment'
+  if (c === 'statistics_maintenance' || c === 'observe_before_change' || c === 'timescaledb_workload') return 'Validate / observe'
+  if (c === 'query_rewrite' || c === 'sort_ordering' || c === 'join_strategy') return 'Shape / rewrite'
+  if (c === 'parallelism') return 'Tune parallelism'
+  return 'Next step'
+}
+
+/** True when the suggestion's first target id is the selected Plan B node (compare sidebar pair). */
+export function compareSuggestionAnchorsSelectedPlanB(
+  s: OptimizationSuggestion,
+  selectedPlanBNodeId: string | null | undefined,
+): boolean {
+  const id = selectedPlanBNodeId?.trim()
+  if (!id) return false
+  return (s.targetNodeIds ?? []).some((t) => String(t).trim() === id)
+}
+
+export function sortAndGroupSuggestionsForUi(suggestions: OptimizationSuggestion[]): OptimizationSuggestionGroup[] {
+  const sorted = sortSuggestionsForLeverage(suggestions)
+  const groups = groupOptimizationSuggestionsForUi(sorted)
+  return groups.map((g) => ({ ...g, items: sortSuggestionsForLeverage(g.items) }))
+}
+
+/** Phase 86: optional scope for copy-for-ticket (Analyze vs Compare vs pinned pair). */
+export type SuggestionCopyContext = {
+  analysisId?: string | null
+  comparisonId?: string | null
+  /** When user pinned a mapped pair, include stable pair artifact id in the paste block. */
+  pairArtifactId?: string | null
+  /** Phase 88: suggestion's Plan B focus matches sidebar selected pair. */
+  anchorsSelectedPlanBPair?: boolean
+}
+
+function normalizeSuggestionCopyContext(
+  ctx?: string | SuggestionCopyContext | null,
+): SuggestionCopyContext | null {
+  if (ctx == null) return null
+  if (typeof ctx === 'string') {
+    const aid = ctx.trim()
+    return aid ? { analysisId: aid } : null
+  }
+  return ctx
+}
+
+/** Compact multi-line text for tickets/chat (copy button). Pass legacy analysis id string or a {@link SuggestionCopyContext}. */
+export function suggestionReferenceText(
+  s: OptimizationSuggestion,
+  ctx?: string | SuggestionCopyContext | null,
+): string {
+  const scope = normalizeSuggestionCopyContext(ctx)
+  const lines: string[] = []
+  const aid = scope?.analysisId?.trim()
+  const cid = scope?.comparisonId?.trim()
+  if (aid) lines.push(`PQAT analysis: ${aid}`)
+  else if (cid) lines.push(`PQAT compare: ${cid}`)
+  if (scope?.anchorsSelectedPlanBPair) {
+    const tid = (s.targetNodeIds ?? []).map((x) => String(x).trim()).find((x) => x.length > 0)
+    if (tid) lines.push(`Pair scope: aligns with selected pair (Plan B node ${tid})`)
+  }
+  lines.push(`${s.title} [${s.suggestionId}]`)
+  lines.push(
+    `Family: ${s.suggestionFamily?.trim() || inferSuggestionFamilyFromCategory(s.category)} · Priority: ${s.priority} · Confidence: ${s.confidence}`,
+  )
+  const next = s.recommendedNextAction?.trim() || s.summary?.trim()
+  if (next) lines.push(`Try next: ${next}`)
+  const why = s.whyItMatters?.trim() || s.rationale?.trim()
+  if (why && why !== next) {
+    const clipped = why.length > 400 ? `${why.slice(0, 397)}…` : why
+    lines.push(`Why: ${clipped}`)
+  }
+  const tid = (s.targetNodeIds ?? []).map((x) => String(x).trim()).find((x) => x.length > 0)
+  if (tid) lines.push(`Focus node id: ${tid}`)
+  const bn = s.relatedBottleneckInsightIds?.[0]?.trim()
+  if (bn) lines.push(`Linked bottleneck insight: ${bn}`)
+  const pr = scope?.pairArtifactId?.trim()
+  if (pr) lines.push(`Pinned pair ref: ${pr}`)
+  const fd = (s.relatedFindingDiffIds ?? []).map((x) => String(x).trim()).find((x) => x.length > 0)
+  if (fd) lines.push(`Related finding diff: ${fd}`)
+  return lines.join('\n')
+}
+
+/** True when “Try next” would repeat the summary line verbatim (Phase 82 dedup). */
+export function suggestionTryNextDuplicatesSummary(summary: string | undefined, tryNext: string | undefined): boolean {
+  const a = summary?.trim().toLowerCase() ?? ''
+  const b = tryNext?.trim().toLowerCase() ?? ''
+  return a.length > 0 && a === b
+}
+
+/** Primary meta chips first so leverage scans before family noise (Phase 82). */
+export function suggestionLeverageTier(priority: string | undefined): 'lead' | 'normal' {
+  const p = priority ?? ''
+  return p === 'critical' || p === 'high' ? 'lead' : 'normal'
+}

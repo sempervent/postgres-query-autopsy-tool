@@ -10,8 +10,13 @@ import {
   shareArtifactLinkLabel,
   copyArtifactShareToast,
 } from '../../presentation/artifactLinks'
-import { appUrlForPath } from '../../presentation/shareAppUrl'
-import { planStoryDeckTitle, planStoryHasContent, planStorySectionLabels } from '../../presentation/storyPresentation'
+import { analyzeDeepLinkClipboardPayload, appUrlForPath } from '../../presentation/shareAppUrl'
+import {
+  planInspectFirstSteps,
+  planStoryDeckTitle,
+  planStoryHasContent,
+  planStorySectionLabels,
+} from '../../presentation/storyPresentation'
 import { normalizeStoryPropagationBeat } from '../../presentation/planReferencePresentation'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 
@@ -63,6 +68,10 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
           aria-label="Structured plan briefing"
         >
           <div className="pqat-callout__title">{planStoryDeckTitle()}</div>
+          <p className="pqat-planBriefingHint">
+            Read top-to-bottom once, then use the Plan guide: bottlenecks for triage, suggestions for ranked experiments—each surface
+            has a different job so you are not stuck re-reading the same sentence.
+          </p>
           {(() => {
             const L = planStorySectionLabels()
             return (
@@ -81,7 +90,36 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
                 </div>
                 <div className="pqat-storyLane pqat-storyLane--action" style={{ marginTop: 8 }}>
                   <div className="pqat-storyLane__eyebrow">{L.startHere}</div>
-                  <div className="pqat-storyLane__body">{analysis.planStory!.inspectFirstPath}</div>
+                  {(() => {
+                    const steps = planInspectFirstSteps(analysis.planStory)
+                    if (!steps.length) {
+                      return <div className="pqat-storyLane__body">{analysis.planStory!.inspectFirstPath}</div>
+                    }
+                    return (
+                      <ol
+                        className="pqat-inspectFirstSteps"
+                        style={{ margin: '6px 0 0', paddingLeft: 20, lineHeight: 1.5 }}
+                        aria-label="Ordered inspect steps"
+                      >
+                        {steps.map((st) => (
+                          <li key={st.stepNumber} style={{ marginBottom: 10 }}>
+                            <div style={{ fontWeight: 650, color: 'var(--text-h)' }}>{st.title}</div>
+                            <div style={{ marginTop: 4 }}>{st.body}</div>
+                            {st.focusNodeId?.trim() && jumpToNodeId ? (
+                              <button
+                                type="button"
+                                className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                                style={{ marginTop: 8 }}
+                                onClick={() => jumpToNodeId(st.focusNodeId!)}
+                              >
+                                Focus in plan
+                              </button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    )
+                  })()}
                 </div>
               </>
             )
@@ -140,12 +178,19 @@ export function AnalyzeSummaryCard(props: AnalyzeSummaryCardProps) {
                 nodeId: selectedNodeId,
               }),
             )
-            await copyShareLink.copy(appUrlForPath(path), shareLinkUi.toast)
+            await copyShareLink.copy(
+              analyzeDeepLinkClipboardPayload(appUrlForPath(path), analysis.analysisId, selectedNodeId),
+              shareLinkUi.toast,
+            )
           }}
         >
           {shareLinkUi.label}
         </button>
-        {copyShareLink.status ? <span className="pqat-hint" style={{ margin: 0 }}>{copyShareLink.status}</span> : null}
+        {copyShareLink.status ? (
+          <span className="pqat-hint" role="status" aria-live="polite" aria-atomic="true" style={{ margin: 0 }}>
+            {copyShareLink.status}
+          </span>
+        ) : null}
       </div>
       <div className="pqat-hint" style={{ marginTop: 10, fontFamily: 'var(--mono)', fontSize: 11 }}>
         Snapshots persist in server SQLite; share links survive API restart if the database file is kept.

@@ -4,7 +4,7 @@ import { joinLabelAndSubtitle } from '../../presentation/nodeLabels'
 import { getWorkersFromPlanNode, workerSummaryCue } from '../../presentation/workerPresentation'
 import { formatAccessPathSummaryLine, indexInsightsForNodeId } from '../../presentation/indexInsightPresentation'
 import { nodeReferenceText } from '../../presentation/nodeReferences'
-import { appUrlForPath } from '../../presentation/shareAppUrl'
+import { analyzeDeepLinkClipboardPayload, appUrlForPath } from '../../presentation/shareAppUrl'
 import {
   analyzeDeepLinkPath,
   buildAnalyzeDeepLinkSearchParams,
@@ -15,6 +15,7 @@ import type { AppConfig } from '../../api/types'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { TechnicalIdCollapsible } from '../TechnicalIdCollapsible'
 import { operatorBriefingLine } from '../../presentation/briefingReadoutPresentation'
+import { bottleneckClassShortLabel } from '../../presentation/bottleneckPresentation'
 
 const AnalyzeSelectedNodeHeavySections = lazy(() =>
   import('./AnalyzeSelectedNodeHeavySections').then((m) => ({ default: m.AnalyzeSelectedNodeHeavySections })),
@@ -68,6 +69,26 @@ export function AnalyzeSelectedNodePanel(props: {
                 {br}
               </div>
             ) : null
+          })()}
+          {(() => {
+            const hits = (analysis.summary.bottlenecks ?? []).filter((b) => (b.nodeIds ?? []).includes(selectedNode.nodeId))
+            if (!hits.length) return null
+            const primary = hits.reduce((a, b) => (a.rank <= b.rank ? a : b))
+            const cls = bottleneckClassShortLabel(primary.bottleneckClass)
+            const kicker = primary.rank === 1 ? 'Bottleneck posture · primary target' : `Bottleneck posture · #${primary.rank} in stack`
+            return (
+              <div style={{ marginTop: 12 }} aria-label="How this operator ranks in bottleneck triage">
+                <div style={{ fontSize: 10, opacity: 0.72, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                  {kicker}
+                </div>
+                <div style={{ fontSize: 13, lineHeight: 1.45 }}>
+                  <span className="pqat-chip pqat-chip--suggestionMeta" title="Heuristic bottleneck class">
+                    {cls}
+                  </span>{' '}
+                  {primary.headline}
+                </div>
+              </div>
+            )
           })()}
           {(() => {
             const js = joinLabelAndSubtitle(selectedNode, byId)
@@ -146,7 +167,7 @@ export function AnalyzeSelectedNodePanel(props: {
               onClick={async (e) => {
                 e.stopPropagation()
                 if (!selectedNodeId) return
-                const text = nodeReferenceText(selectedNodeId, byId)
+                const text = nodeReferenceText(selectedNodeId, byId, { analysisId: analysis.analysisId })
                 await copyNode.copy(text, 'Copied node reference')
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
@@ -165,14 +186,25 @@ export function AnalyzeSelectedNodePanel(props: {
                     nodeId: selectedNodeId,
                   }),
                 )
-                await copyShareLink.copy(appUrlForPath(path), shareLinkUi.toast)
+                await copyShareLink.copy(
+                  analyzeDeepLinkClipboardPayload(appUrlForPath(path), analysis.analysisId, selectedNodeId),
+                  shareLinkUi.toast,
+                )
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
             >
               {shareLinkUi.label}
             </button>
-            {copyNode.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyNode.status}</div> : null}
-            {copyShareLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyShareLink.status}</div> : null}
+            {copyNode.status ? (
+              <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
+                {copyNode.status}
+              </div>
+            ) : null}
+            {copyShareLink.status ? (
+              <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
+                {copyShareLink.status}
+              </div>
+            ) : null}
           </div>
           <Suspense
             fallback={

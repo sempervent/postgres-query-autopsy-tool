@@ -303,6 +303,8 @@ vi.mock('../api/client', async (importOriginal) => {
 
 const clipboardWrite = vi.fn().mockResolvedValue(undefined)
 
+let compareExecCmdSpy: ReturnType<typeof vi.spyOn> | undefined
+
 beforeEach(() => {
   prefetchPairHeavyMock.mockClear()
   compareWithPlanTextsMock.mockImplementation(async () => mockComparisonPayload())
@@ -310,6 +312,11 @@ beforeEach(() => {
     ...mockComparisonPayload(),
     comparisonId: id,
   }))
+  compareExecCmdSpy?.mockRestore()
+  compareExecCmdSpy = vi.spyOn(
+    document as Document & { execCommand: (commandId: string) => boolean },
+    'execCommand',
+  ).mockReturnValue(false)
   clipboardWrite.mockClear()
   try {
     localStorage.removeItem(COMPARE_WORKSPACE_LOCAL_STORAGE_KEY)
@@ -322,6 +329,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  compareExecCmdSpy?.mockRestore()
   cleanup()
 })
 
@@ -467,16 +475,37 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(screen.getByText(/1 related index delta/)).toBeInTheDocument()
   expect(screen.getByText(/Supported by 1 finding change/)).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Finding ↔ index corroboration' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Compare optimization suggestions')).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Next steps after this change' })).toBeInTheDocument()
   expect(screen.getByText('Next steps after this change')).toBeInTheDocument()
   expect(screen.getAllByText(/Compare next step mock title/).length).toBeGreaterThanOrEqual(1)
-  const sug = screen.getByLabelText('Compare optimization suggestions')
+  const sug = screen.getByRole('region', { name: 'Next steps after this change' })
   expect(within(sug).getByText(/Operational tuning & validation/i)).toBeInTheDocument()
   expect(within(sug).getByText(/Next ·/)).toBeInTheDocument()
   expect(within(sug).queryByText(/Priority: high/i)).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
   expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+})
+
+test('compare next-step row puts Focus plan B and Copy for ticket before Pin in DOM (tab order)', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan A/i)[0], { target: { value: '[]' } })
+  fireEvent.change(screen.getAllByPlaceholderText(/Plan B/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Compare' })[0])
+
+  const sug = await screen.findByRole('region', { name: 'Next steps after this change' })
+  const row = sug.querySelector('[data-artifact="compare-suggestion"]')
+  expect(row).toBeTruthy()
+  const buttons = within(row as HTMLElement).getAllByRole('button')
+  expect(buttons[0].textContent).toMatch(/^Focus plan B ·/)
+  expect(buttons[1].textContent?.trim()).toBe('Copy for ticket')
+  expect(buttons[2].textContent?.trim()).toBe('Pin')
 })
 
 test(
@@ -647,7 +676,7 @@ test('?comparison= suggestion= legacy alias in alsoKnownAs highlights canonical 
   )
   await waitForCompareAppReady()
 
-  await screen.findByLabelText('Compare optimization suggestions')
+  await screen.findByRole('region', { name: 'Next steps after this change' })
   const row = document.querySelector(
     '[data-artifact="compare-suggestion"][data-artifact-id="sg_canonical"]',
   )

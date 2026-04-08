@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import ReactFlow, { Background, Controls, type NodeTypes, useReactFlow } from 'reactflow'
+import ReactFlow, { Background, BackgroundVariant, Controls, type NodeTypes, useReactFlow } from 'reactflow'
 import type { AnalyzeGraphNodeData } from '../presentation/analyzeGraphAdapter'
 
 import 'reactflow/dist/style.css'
@@ -27,12 +27,23 @@ export function AnalyzePlanGraphCore({
   const nodeTypes: NodeTypes = useMemo(() => ({ analyzePlanNode: AnalyzePlanNode }), [])
   const decoratedNodes = useMemo(() => nodes.map((n) => ({ ...n, data: { ...n.data, onToggleCollapse } })), [nodes, onToggleCollapse])
 
+  const safeNodes = useMemo(
+    () =>
+      decoratedNodes.map((n) => {
+        const x = Number.isFinite(n.position.x) ? n.position.x : 0
+        const y = Number.isFinite(n.position.y) ? n.position.y : 0
+        return { ...n, position: { x, y } }
+      }),
+    [decoratedNodes],
+  )
+
   return (
     <div className="pqat-graphFrame" style={{ height: graphHeight, minHeight: 320 }}>
       <ReactFlow
-        nodes={decoratedNodes as any}
+        nodes={safeNodes as any}
         edges={edges as any}
         nodeTypes={nodeTypes}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         onNodeClick={(_, n) => onSelectNodeId(String(n.id))}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -41,7 +52,11 @@ export function AnalyzePlanGraphCore({
       >
         <GraphToolbar selectedNodeId={selectedNodeId} />
         <GraphSync selectedNodeId={selectedNodeId} reframeToken={reframeToken} />
-        <Background gap={22} size={1} />
+        <Background
+          gap={22}
+          size={1}
+          variant={import.meta.env.MODE === 'test' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
+        />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
@@ -54,12 +69,24 @@ function GraphSync({ selectedNodeId, reframeToken }: { selectedNodeId: string | 
     if (!selectedNodeId) return
     const n = rf.getNode(selectedNodeId)
     if (!n) return
-    rf.setCenter(n.position.x + 130, n.position.y + 37, { zoom: 1.05, duration: 250 })
+    const cx = n.position.x + 130
+    const cy = n.position.y + 37
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return
+    rf.setCenter(cx, cy, { zoom: 1.05, duration: 250 })
   }, [selectedNodeId, rf])
 
   useEffect(() => {
     if (reframeToken <= 0) return
-    rf.fitView({ padding: 0.12, duration: 250 })
+    const id = requestAnimationFrame(() => {
+      try {
+        const vp = rf.getViewport()
+        if (!Number.isFinite(vp.x) || !Number.isFinite(vp.y) || !Number.isFinite(vp.zoom)) return
+        rf.fitView({ padding: 0.12, duration: 250 })
+      } catch {
+        /* ignore: RF viewport not ready in some jsdom frames */
+      }
+    })
+    return () => cancelAnimationFrame(id)
   }, [reframeToken, rf])
   return null
 }
@@ -75,7 +102,10 @@ function GraphToolbar({ selectedNodeId }: { selectedNodeId: string | null }) {
     if (!selectedNodeId) return
     const n = rf.getNode(selectedNodeId)
     if (!n) return
-    rf.setCenter(n.position.x + 130, n.position.y + 37, { zoom: Math.max(rf.getZoom(), 1.05), duration: 250 })
+    const cx = n.position.x + 130
+    const cy = n.position.y + 37
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return
+    rf.setCenter(cx, cy, { zoom: Math.max(rf.getZoom(), 1.05), duration: 250 })
   }
 
   function reset() {

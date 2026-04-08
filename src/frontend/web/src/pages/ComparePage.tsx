@@ -103,6 +103,7 @@ export default function ComparePage() {
   const copyNav = useCopyFeedback()
   const copyDeepLink = useCopyFeedback()
   const copyShareCompare = useCopyFeedback()
+  const copyCompareSuggestion = useCopyFeedback()
   const lastSyncedCompareQs = useRef<string | null>(null)
   const hydratedCompareHighlightFor = useRef<string | null>(null)
   const loadPersistedCompareSeqRef = useRef(0)
@@ -636,11 +637,14 @@ export default function ComparePage() {
                   findingsResolvedCount={findingsResolvedCount}
                   highlightIndexInsightDiffId={highlightIndexInsightDiffId}
                   highlightSuggestionId={highlightSuggestionId}
+                  selectedPairArtifactId={selectedDetail?.pairArtifactId ?? null}
+                  selectedPlanBNodeId={effectivePair?.b ?? null}
                   setHighlightFindingDiffId={setHighlightFindingDiffId}
                   setHighlightIndexInsightDiffId={setHighlightIndexInsightDiffId}
                   setHighlightSuggestionId={setHighlightSuggestionId}
                   setSelectedPair={setSelectedPair}
                   copyShareCompare={copyShareCompare}
+                  copyCompareSuggestion={copyCompareSuggestion}
                   shareCompareUi={shareCompareUi}
                   onSharingSaved={async () => {
                     try {
@@ -662,6 +666,7 @@ export default function ComparePage() {
                   pairSelected={pairSelected}
                   setSelectedPair={setSelectedPair}
                   copyNav={copyNav}
+                  comparisonId={comparison.comparisonId}
                 />
               ) : null}
             </div>

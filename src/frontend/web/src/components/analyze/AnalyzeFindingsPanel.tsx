@@ -29,6 +29,7 @@ export function AnalyzeFindingsPanel(props: {
   jumpToNodeId: (id: string) => void
   byId: Map<string, AnalyzedPlanNode>
   copyFinding: ReturnType<typeof useCopyFeedback>
+  analysisId?: string | null
 }) {
   const {
     findingSearch,
@@ -40,6 +41,7 @@ export function AnalyzeFindingsPanel(props: {
     jumpToNodeId,
     byId,
     copyFinding,
+    analysisId,
   } = props
 
   const useVirtual = filteredFindings.length >= VIRTUAL_LIST_THRESHOLD
@@ -70,7 +72,10 @@ export function AnalyzeFindingsPanel(props: {
             aria-label="Copy finding reference"
             onCopy={() => {
               if (!anchorId) return
-              copyFinding.copy(findingReferenceText(anchorId, byId, f.title), 'Copied finding reference')
+              copyFinding.copy(
+                findingReferenceText(anchorId, byId, f.title, analysisId ? { analysisId } : undefined),
+                'Copied finding reference',
+              )
             }}
           />
         </div>
@@ -149,7 +154,11 @@ export function AnalyzeFindingsPanel(props: {
           Showing {filteredFindings.length} findings in a scrollable window for responsiveness.
         </p>
       ) : null}
-      {copyFinding.status ? <div className="pqat-hint" style={{ marginTop: 10 }}>{copyFinding.status}</div> : null}
+      {copyFinding.status ? (
+        <div className="pqat-hint" role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 10 }}>
+          {copyFinding.status}
+        </div>
+      ) : null}
     </div>
   )
 }

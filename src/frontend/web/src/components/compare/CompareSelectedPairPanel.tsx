@@ -3,7 +3,7 @@ import type { AnalyzedPlanNode, NodePairDetail, OptimizationSuggestion, PlanComp
 import { buildCompareDeepLinkSearchParams, compareDeepLinkPath } from '../../presentation/artifactLinks'
 import { joinLabelAndSubtitle, pairShortLabel } from '../../presentation/nodeLabels'
 import { pairReferenceText } from '../../presentation/nodeReferences'
-import { appUrlForPath } from '../../presentation/shareAppUrl'
+import { appUrlForPath, compareDeepLinkClipboardPayload } from '../../presentation/shareAppUrl'
 import { TechnicalPairIdsCollapsible } from '../TechnicalIdCollapsible'
 import { pairBriefingLines } from '../../presentation/briefingReadoutPresentation'
 import { pairContinuitySectionTitle } from '../../presentation/compareContinuityPresentation'
@@ -64,17 +64,35 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
 
   return (
     <>
-      <h3 style={{ marginTop: 0, color: 'var(--text-h)' }}>Selected node pair</h3>
+      <h2 id="compare-selected-pair-heading" style={{ marginTop: 0, color: 'var(--text-h)', fontSize: '1.05rem', fontWeight: 700 }}>
+        Selected node pair
+      </h2>
       {selectedDetail ? (
         <div className="pqat-readoutShell" style={{ marginTop: 4 }} aria-label="Pair readout">
           <div className="pqat-readoutKicker">Matched operators</div>
           <div className="pqat-readoutTitle">{pairShortLabel(selectedDetail, byIdA, byIdB)}</div>
           {selectedDetail.regionContinuityHint ? (
-            <div className="pqat-readoutShell pqat-regionContinuity" style={{ marginTop: 8, padding: '8px 10px' }}>
+            <div
+              className="pqat-readoutShell pqat-regionContinuity"
+              style={{ marginTop: 8, padding: '8px 10px' }}
+              role="region"
+              aria-label="Region continuity for this pair"
+            >
               <div className="pqat-readoutKicker">{pairContinuitySectionTitle(selectedDetail.regionContinuityHint)}</div>
               <div className="pqat-hint" style={{ marginTop: 4, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
                 {selectedDetail.regionContinuityHint}
               </div>
+            </div>
+          ) : null}
+          {selectedDetail.rewriteVerdictOneLiner?.trim() ? (
+            <div
+              className="pqat-readoutShell pqat-pairRewriteVerdict"
+              style={{ marginTop: 8, padding: '8px 10px' }}
+              role="region"
+              aria-label="Rewrite outcome for this pair"
+            >
+              <div className="pqat-readoutKicker">Rewrite outcome</div>
+              <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.45 }}>{selectedDetail.rewriteVerdictOneLiner}</div>
             </div>
           ) : null}
           {(() => {
@@ -122,8 +140,12 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
+              data-testid="compare-copy-pair-reference"
               onClick={async () => {
-                const text = pairReferenceText(selectedDetail, byIdA, byIdB)
+                const text = pairReferenceText(selectedDetail, byIdA, byIdB, {
+                  comparisonId: comparison.comparisonId,
+                  includeRewriteOutcome: true,
+                })
                 await copyPair.copy(text, 'Copied pair reference')
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
@@ -132,6 +154,7 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
             </button>
             <button
               type="button"
+              data-testid="compare-copy-deep-link"
               onClick={async () => {
                 const params = buildCompareDeepLinkSearchParams({
                   comparisonId: comparison.comparisonId,
@@ -141,14 +164,29 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
                   suggestionId: highlightSuggestionId,
                 })
                 const path = compareDeepLinkPath(pathname, params)
-                await copyDeepLink.copy(appUrlForPath(path), 'Copied deep link')
+                await copyDeepLink.copy(
+                  compareDeepLinkClipboardPayload(
+                    appUrlForPath(path),
+                    comparison.comparisonId,
+                    selectedDetail.pairArtifactId,
+                  ),
+                  'Copied deep link',
+                )
               }}
               style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer' }}
             >
               Copy link
             </button>
-            {copyPair.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyPair.status}</div> : null}
-            {copyDeepLink.status ? <div style={{ fontSize: 12, opacity: 0.85 }}>{copyDeepLink.status}</div> : null}
+            {copyPair.status ? (
+              <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
+                {copyPair.status}
+              </div>
+            ) : null}
+            {copyDeepLink.status ? (
+              <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
+                {copyDeepLink.status}
+              </div>
+            ) : null}
           </div>
           {pairSubtitle(selectedDetail) ? (
             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>

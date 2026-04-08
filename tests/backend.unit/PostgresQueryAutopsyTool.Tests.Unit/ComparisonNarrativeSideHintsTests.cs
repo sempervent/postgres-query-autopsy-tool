@@ -138,7 +138,8 @@ public sealed class ComparisonNarrativeSideHintsTests
             CorroborationCues: Array.Empty<string>(),
             RegionContinuityHint: null,
             RegionContinuitySummaryCue: null,
-            ContinuityKindKey: null);
+            ContinuityKindKey: null,
+            RewriteVerdictOneLiner: null);
 
         var m = typeof(ComparisonEngine).GetMethod("FormatPairEvidence", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(m);

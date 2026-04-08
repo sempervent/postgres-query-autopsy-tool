@@ -119,6 +119,14 @@ export type StoryPropagationBeat = {
   anchorLabel: string
 }
 
+/** Phase 83: one row in the Start-here inspect path (camelCase JSON). */
+export type InspectFirstStep = {
+  stepNumber: number
+  title: string
+  body: string
+  focusNodeId?: string | null
+}
+
 /** Phase 60: structured plan story (camelCase JSON). */
 export type PlanStory = {
   planOverview: string
@@ -126,6 +134,8 @@ export type PlanStory = {
   likelyExpenseDrivers: string
   executionShape: string
   inspectFirstPath: string
+  /** Phase 83: ordered steps; absent on older artifacts — fall back to inspectFirstPath. */
+  inspectFirstSteps?: InspectFirstStep[] | null
   propagationBeats: (string | StoryPropagationBeat)[]
   indexShapeNote: string
 }
@@ -456,6 +466,8 @@ export type NodePairDetail = {
   regionContinuitySummaryCue?: string | null
   /** Phase 70: stable continuity kind (e.g. access.narrower) when structured continuity was inferred. */
   continuityKindKey?: string | null
+  /** Phase 83: evidence-bound one-liner on rewrite effect for this mapped pair. */
+  rewriteVerdictOneLiner?: string | null
 }
 
 export type EvidenceChangeDirection =

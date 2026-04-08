@@ -88,6 +88,12 @@ public static class ComparisonStoryBuilder
             var dir = d > 0 ? "slower" : "faster";
             var pctPart = pct is { } x ? $" (~{x:F0}% of A)" : "";
             overview = $"Plan B is ~{Math.Abs(d):F1}ms {dir} than A at root inclusive time{pctPart}.";
+            if (d < 0 && topWorsened.Count > 0)
+                overview +=
+                    " Net win at the root does not erase every hotspot—scan change beats for a regression pair that may still carry pressure.";
+            else if (d > 0 && topImproved.Count > 0)
+                overview +=
+                    " Wall time worsened overall, but check improved pairs below—localized wins can coexist with a worse root (pain may have moved, not vanished).";
         }
         else
             overview = "Root runtime delta needs ANALYZE timing on both sides to read clearly.";
@@ -210,6 +216,6 @@ public static class ComparisonStoryBuilder
             !h.Contains("partial vs finalize", StringComparison.OrdinalIgnoreCase) &&
             !h.Contains("gather-merge", StringComparison.OrdinalIgnoreCase))
             return "";
-        return " If wall time improved, scans or joins feeding the group may still dominate—compare subtree timing, not only the aggregate hop.";
+        return " If wall time improved, scans or joins feeding buckets or partial aggregates may still dominate—compare subtree timing and shared reads, not only the grouped-output hop.";
     }
 }

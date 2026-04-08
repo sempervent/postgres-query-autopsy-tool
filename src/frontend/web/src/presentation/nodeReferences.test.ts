@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { findingReferenceText, hotspotReferenceText, nearestMeaningfulAncestorSubtitle, nodeReferenceText, pairReferenceText } from './nodeReferences'
+import {
+  findingReferenceText,
+  hotspotReferenceText,
+  nearestMeaningfulAncestorSubtitle,
+  nodeReferenceText,
+  pairReferenceText,
+} from './nodeReferences'
 
 describe('nodeReferences', () => {
   test('nearestMeaningfulAncestorSubtitle prefers join ancestor', () => {
@@ -17,13 +23,41 @@ describe('nodeReferences', () => {
     expect(nodeReferenceText('x', byId as any)).not.toMatch(/root\./)
   })
 
-  test('pairReferenceText uses readable pair label', () => {
+  test('pairReferenceText uses readable pair label and optional comparison scope', () => {
     const byIdA = new Map<string, any>()
     const byIdB = new Map<string, any>()
     byIdA.set('a', { nodeId: 'a', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
     byIdB.set('b', { nodeId: 'b', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
-    const pair: any = { identity: { nodeIdA: 'a', nodeIdB: 'b' } }
+    const pair: any = { identity: { nodeIdA: 'a', nodeIdB: 'b' }, pairArtifactId: 'pair_x' }
     expect(pairReferenceText(pair, byIdA as any, byIdB as any)).toMatch(/Seq Scan on users/)
+    expect(pairReferenceText(pair, byIdA as any, byIdB as any)).toMatch(/Pair artifact: pair_x/)
+    expect(pairReferenceText(pair, byIdA as any, byIdB as any)).toMatch(/Plan A node: a/)
+    const scoped = pairReferenceText(pair, byIdA as any, byIdB as any, { comparisonId: 'cmp-9' })
+    expect(scoped.startsWith('PQAT compare: cmp-9')).toBe(true)
+  })
+
+  test('pairReferenceText appends rewrite outcome line when requested and verdict present', () => {
+    const byIdA = new Map<string, any>()
+    const byIdB = new Map<string, any>()
+    byIdA.set('a', { nodeId: 'a', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
+    byIdB.set('b', { nodeId: 'b', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Index Scan', relationName: 'users' }, metrics: {} })
+    const pair: any = {
+      identity: { nodeIdA: 'a', nodeIdB: 'b' },
+      pairArtifactId: 'pair_x',
+      rewriteVerdictOneLiner: 'Index scan reduced heap reads vs seq.',
+    }
+    const text = pairReferenceText(pair, byIdA as any, byIdB as any, {
+      comparisonId: 'cmp-88',
+      includeRewriteOutcome: true,
+    })
+    expect(text).toContain('PQAT compare: cmp-88')
+    expect(text).toMatch(/Rewrite outcome: Index scan reduced heap reads/i)
+  })
+
+  test('nodeReferenceText prepends analysis scope when provided', () => {
+    const byId = new Map<string, any>()
+    byId.set('x', { nodeId: 'x', parentNodeId: null, childNodeIds: [], node: { nodeType: 'Seq Scan', relationName: 'users' }, metrics: {} })
+    expect(nodeReferenceText('x', byId as any, { analysisId: 'an-1' })).toContain('PQAT analysis: an-1')
   })
 
   test('hotspotReferenceText and findingReferenceText avoid raw ids', () => {
@@ -34,6 +68,7 @@ describe('nodeReferences', () => {
     expect(findingReferenceText('x', byId as any, 'severe misestimation')).toBe(
       'Seq Scan on users · node x — severe misestimation',
     )
+    expect(findingReferenceText('x', byId as any, 'severe misestimation', { analysisId: 'z' })).toContain('PQAT analysis: z')
   })
 })
 

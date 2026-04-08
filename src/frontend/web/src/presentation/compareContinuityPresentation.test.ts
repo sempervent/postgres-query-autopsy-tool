@@ -30,7 +30,7 @@ describe('pairContinuitySectionTitle', () => {
   it('classifies grouped-output continuity titles', () => {
     expect(
       pairContinuitySectionTitle('Same grouped-output region: plan A uses a gather-merge stack'),
-    ).toBe('Grouped output · same region')
+    ).toBe('Grouped / bucket output · same region')
   })
 })
 

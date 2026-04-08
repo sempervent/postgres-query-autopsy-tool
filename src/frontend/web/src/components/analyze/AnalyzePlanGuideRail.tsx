@@ -225,9 +225,10 @@ export function AnalyzePlanGuideRail(props: {
       <>
         <h3 style={{ fontSize: 13, margin: '14px 0 8px', color: 'var(--text-h)' }}>Where to inspect next</h3>
         {analysis.planStory?.inspectFirstPath?.trim() ? (
-          <div className="pqat-storyLane pqat-storyLane--action" style={{ marginBottom: 10 }}>
-            <div className="pqat-storyLane__eyebrow">{storyLbl.startHere}</div>
-            <div className="pqat-storyLane__body">{analysis.planStory.inspectFirstPath}</div>
+          <div className="pqat-hint" style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.45 }} aria-label="Investigation path pointer">
+            <span className="pqat-inlineMeta">{storyLbl.startHere} · </span>
+            The numbered steps live in <strong>Snapshot → Plan briefing</strong> above—use the hotspots below to jump straight into the
+            tree without duplicating that block here.
           </div>
         ) : null}
         {(() => {
@@ -277,6 +278,7 @@ export function AnalyzePlanGuideRail(props: {
                               : h.kind === 'subtreeTime'
                                 ? 'subtree runtime hotspot'
                                 : 'shared reads hotspot',
+                            { analysisId: analysis.analysisId },
                           ),
                           'Copied hotspot reference',
                         )
@@ -292,7 +294,11 @@ export function AnalyzePlanGuideRail(props: {
             </div>
           )
         })()}
-        {copyHotspot.status ? <div style={{ marginTop: 8, fontSize: 11, opacity: 0.85 }}>{copyHotspot.status}</div> : null}
+        {copyHotspot.status ? (
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 8, fontSize: 11, opacity: 0.85 }}>
+            {copyHotspot.status}
+          </div>
+        ) : null}
       </>
     ),
     topFindings: (
@@ -331,6 +337,9 @@ export function AnalyzePlanGuideRail(props: {
       sortedOptimizationSuggestions.length > 0 ? (
         <>
           <h3 style={{ fontSize: 13, margin: '14px 0 8px' }}>Next steps (preview)</h3>
+          <div className="pqat-hint" style={{ fontSize: 11, margin: '-4px 0 8px', lineHeight: 1.4 }}>
+            Full ranked cards are in the lower workspace—this is a fast skim of the top experiments.
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {sortedOptimizationSuggestions.slice(0, 2).map((s) => {
               const target = (s.targetNodeIds ?? [])[0]

@@ -143,7 +143,7 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
                 Copy suggested EXPLAIN
               </button>
               {copySuggestedExplain.status ? (
-                <span className="pqat-hint" style={{ marginLeft: 8, marginBottom: 0 }}>
+                <span className="pqat-hint" role="status" aria-live="polite" aria-atomic="true" style={{ marginLeft: 8, marginBottom: 0 }}>
                   {copySuggestedExplain.status}
                 </span>
               ) : null}

@@ -27,5 +27,6 @@ public interface IPlanAnalysisService
     string RenderMarkdownReport(PlanAnalysisResult analysis);
     string RenderHtmlReport(PlanAnalysisResult analysis);
     string RenderCompareMarkdownReport(PlanComparisonResultV2 comparison);
+    string RenderCompareHtmlReport(PlanComparisonResultV2 comparison);
 }
 

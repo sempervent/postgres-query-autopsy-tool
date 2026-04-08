@@ -7,6 +7,14 @@
 - `tests/backend.unit/` xUnit tests + fixtures
 - `docs/` documentation source (MkDocs)
 
+## Issues (Phase 84)
+
+Use **[`ISSUE.md`](https://github.com/sempervent/postgres-query-autopsy-tool/blob/main/ISSUE.md)** (file also at the repository root) for a structured bug report (Analyze / Compare / clipboard / CI / docs). On GitHub, **New issue → Bug report** points at the same expectations. For ideas and workflow improvements, **New issue → Feature / enhancement** (`.github/ISSUE_TEMPLATE/feature_request.md`) is available; paste **`PQAT analysis:`** / **`PQAT compare:`** reference blocks when the request ties to a specific snapshot.
+
+### Clipboard / copy (Phase 87)
+
+The UI tries **synchronous `document.execCommand('copy')` first**, then **`navigator.clipboard.writeText`**, and shows honest success/failure. **Vitest** often stubs **`execCommand`** so tests assert **`clipboard.writeText`**. Some browsers block clipboard APIs without a secure context or user gesture—when reporting copy bugs, paste the full **PQAT** reference block from the app into **`ISSUE.md`**-style repro steps.
+
 ## Status badges (Phase 81)
 
 README (**repository root**) and **`docs/index.md`** (MkDocs home) share the **same shield row** (CI, workflow lint, docs, license, .NET, Node). When you add or change a badge, update **both** files so GitHub and GitHub Pages stay aligned. Prefer **repository workflow badges** (`…/actions/workflows/<file>/badge.svg`) and **shields.io** static badges over brittle third-party “live” counters.
@@ -79,7 +87,9 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 
 **Workflow lint:** [**actionlint**](https://github.com/rhysd/actionlint) via **`./scripts/lint-workflows.sh`**. Config: **`.actionlint.yaml`**. **`.github/workflows/workflow-lint.yml`** runs this script (path-scoped); do **not** use **`uses: rhysd/actionlint@v1`**. **Without Docker:** install **actionlint** on **PATH**, or **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** (checksum-verified download to **`.cache/pqat-actionlint/`**). Clear the cache after changing **`ACTIONLINT_VERSION_BOOTSTRAP`**.
 
-**Host Vitest / optional native bindings (Phase 76 + 79):** If **`npm test`** fails with **rolldown** / **“Cannot find native binding”** / missing **`@rolldown/binding-*`**, run **`make verify-frontend-docker`** (or **`./scripts/verify-frontend-docker.sh`**) — same steps as CI **`frontend`** job, without relying on host Node. **Alternatively:** from **`src/frontend/web`**, clean **`node_modules`** / lockfile and reinstall on **20.x** (**`engines`** / **`.nvmrc`**). Avoid **Node 25+** for local dev until the stack officially supports it.
+**Host Vitest / optional native bindings (Phase 76 + 79 + 83):** **`src/frontend/web/package.json`** **`optionalDependencies`** explicitly lists **`@rolldown/binding-darwin-*`**, **`linux-x64-gnu`**, and **`win32-x64-msvc`** at the same version as Vitest/Vite’s Rolldown stack so **`npm ci`** on **ubuntu-latest** (and fresh contributor checkouts) does not depend on nested optional-dep luck. If **`npm test`** still fails with **“Cannot find native binding”**, run **`make verify-frontend-docker`** (or **`./scripts/verify-frontend-docker.sh`**) — same steps as CI **`frontend`** job, without relying on host Node. **Alternatively:** from **`src/frontend/web`**, clean **`node_modules`** and reinstall on **20.18.x** (**`engines`** / **`.nvmrc`** / **`volta`**). Avoid **Node 25+** for local dev until the stack officially supports it (**`engines`** caps **&lt;25**).
+
+**Clipboard tests (Phase 84 + 86):** Unit tests **`spyOn(document, 'execCommand').mockReturnValue(false)`** so **`navigator.clipboard.writeText`** is exercised (jsdom often lacks a real copy implementation). **`src/test/setup.ts`** defines a no-op **`execCommand`** when absent. Playwright **`installE2eClipboardCapture`** wraps both **`writeText`** and **`execCommand('copy')`** so E2E asserts match production order (**sync exec first**). **Phase 86** extends **`persisted-flows.spec.ts`** with **Compare Copy link** (URL + **`PQAT compare:`**) and **Analyze suggested EXPLAIN** copy; use **`page.getByLabel`** (not **`getByLabelText`**) for Playwright locators.
 
 **Make shortcuts** (run from repo root; **`make help`** lists all):
 
@@ -137,9 +147,9 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 | Project | Spec | Env file | What it proves |
 |--------|------|----------|----------------|
-| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare alias; **Phase 66** DOM theme switching + reload persistence (no screenshots) |
-| **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing |
-| **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial |
+| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare deep-link + **Pair scope** copy checks, **Phase 66** theme (no screenshots) |
+| **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing + **Copy artifact link** clipboard payload (**URL** + **`PQAT analysis:`**, Phase 88) |
+| **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial, **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) |
 | **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial |
 | **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** tests, **region-targeted** PNGs (**Phase 75**): Analyze/Compare happy paths use labeled story surfaces (summary, workspace/navigator/pair, findings) — not full-page height; error cases capture **`analyze-page-error`** only; **Phase 65:** dark theme lock; see **`e2e/visual/README.md`** |
 

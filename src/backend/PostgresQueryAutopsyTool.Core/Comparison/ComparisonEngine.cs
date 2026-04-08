@@ -213,6 +213,7 @@ public sealed class ComparisonEngine
             planB.QueryText);
         var regionHint = continuity?.Hint;
         var continuityCue = CompareContinuitySummaryCue.FromContinuity(continuity);
+        var rewriteVerdict = PairRewriteVerdictBuilder.Build(metrics, regionHint, continuityCue, match.Confidence);
 
         return new NodePairDetail(
             PairArtifactId: CompareArtifactIds.PairId(comparisonId, a.NodeId, b.NodeId),
@@ -227,7 +228,8 @@ public sealed class ComparisonEngine
             CorroborationCues: corroboration,
             RegionContinuityHint: regionHint,
             RegionContinuitySummaryCue: continuityCue,
-            ContinuityKindKey: continuity?.KindKey);
+            ContinuityKindKey: continuity?.KindKey,
+            RewriteVerdictOneLiner: rewriteVerdict);
     }
 
     private static MetricDeltaDetail Metric(string key, double? a, double? b, bool? betterWhenLower)

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using PostgresQueryAutopsyTool.Core.Domain;
 using PostgresQueryAutopsyTool.Core.Findings;
@@ -66,46 +67,56 @@ public static class PlanStoryBuilder
 
         string likelyExpense;
         if (driverParts.Count > 0)
-            likelyExpense = "Likely cost emphasis: " + string.Join("; ", driverParts) + ".";
+            likelyExpense = "Primary pressure types: " + string.Join("; ", driverParts) + ".";
         else if (!string.IsNullOrWhiteSpace(narrative.WhereTimeWent))
             likelyExpense = "Hotspot orientation: " + TrimSentence(narrative.WhereTimeWent, 220);
         else
             likelyExpense = "No strong automated expense headline—inspect timings and findings together when present.";
 
-        var inspectParts = new List<string>();
+        var inspectSteps = new List<InspectFirstStep>();
         if (summary.Bottlenecks.Count > 0)
         {
             var b = summary.Bottlenecks[0];
             var nid = b.NodeIds.FirstOrDefault();
-            var brief = "";
-            if (nid is not null)
-            {
-                var bn = nodes.FirstOrDefault(x => x.NodeId == nid);
-                if (!string.IsNullOrWhiteSpace(bn?.OperatorBriefingLine))
-                    brief = " " + TrimSentence(bn.OperatorBriefingLine!.Trim(), 180);
-            }
+            var body1 =
+                $"Bottleneck #{b.Rank} ({ClassPhrase(b.BottleneckClass)}): {b.Headline}. Operator briefing lives on the bottleneck card when present.";
+            inspectSteps.Add(new InspectFirstStep(0, "Anchor on the ranked bottleneck", body1, nid));
 
-            inspectParts.Add(
-                $"1) Anchor on bottleneck #{b.Rank} ({ClassPhrase(b.BottleneckClass)}): {b.Headline}.{brief}");
-            inspectParts.Add(
-                b.CauseHint == BottleneckCauseHint.DownstreamSymptom
-                    ? "2) Walk upstream: join order, semi/anti shape, and row multiplication often explain inner-side or sort symptoms."
-                    : "2) If subtree time dominates, drill children before assuming this node is the sole culprit.");
+            var body2 = b.CauseHint == BottleneckCauseHint.DownstreamSymptom
+                ? "Join order, semi/anti shape, and row multiplication often explain inner-side or sort symptoms."
+                : "If subtree time dominates, drill children before assuming this node is the sole culprit.";
+            inspectSteps.Add(new InspectFirstStep(0, "Trace how work arrives here", body2, null));
         }
         else
         {
-            inspectParts.Add("1) When timing exists, start from exclusive-time and shared-read hotspots in the guide.");
+            inspectSteps.Add(
+                new InspectFirstStep(
+                    0,
+                    "Find timing anchors",
+                    "When timing exists, start from exclusive-time and shared-read hotspots in the guide.",
+                    null));
         }
 
-        inspectParts.Add("3) Cross-check findings for corroboration—automated rules should echo what timings show.");
+        inspectSteps.Add(
+            new InspectFirstStep(
+                0,
+                "Cross-check findings",
+                "Automated rules should echo what timings show—use findings as corroboration, not a second story.",
+                null));
         if (suggestions.Count > 0)
         {
-            var s0 = suggestions[0];
-            var next = string.IsNullOrWhiteSpace(s0.RecommendedNextAction) ? s0.Summary : s0.RecommendedNextAction!;
-            inspectParts.Add($"4) Run next: {s0.Title} — {next}");
+            inspectSteps.Add(
+                new InspectFirstStep(
+                    0,
+                    "Open ranked suggestions",
+                    "Optimization suggestions in the Plan guide are ordered by leverage—start with the top card instead of repeating the same text here.",
+                    null));
         }
 
-        var inspectFirst = string.Join(" ", inspectParts);
+        RenumberSteps(inspectSteps);
+        var inspectFirst = string.Join(
+            " ",
+            inspectSteps.Select(s => $"{s.StepNumber}) {s.Title}: {s.Body}"));
 
         var propagation = new List<StoryPropagationBeat>();
         foreach (var b in summary.Bottlenecks)
@@ -124,6 +135,7 @@ public static class PlanStoryBuilder
         }
 
         var indexNote = IndexShapeNote(indexOverview, indexInsights, ctx, queryText);
+        var indexWithTimeBucket = AppendTimeBucketAnalyticalHint(indexNote, queryText);
 
         return new PlanStory(
             PlanOverview: planOverview,
@@ -131,8 +143,35 @@ public static class PlanStoryBuilder
             LikelyExpenseDrivers: likelyExpense,
             ExecutionShape: shape,
             InspectFirstPath: inspectFirst,
+            InspectFirstSteps: inspectSteps,
             PropagationBeats: propagation,
-            IndexShapeNote: indexNote);
+            IndexShapeNote: indexWithTimeBucket);
+    }
+
+    private static void RenumberSteps(List<InspectFirstStep> steps)
+    {
+        for (var i = 0; i < steps.Count; i++)
+        {
+            var s = steps[i];
+            steps[i] = s with { StepNumber = i + 1 };
+        }
+    }
+
+    /// <summary>Phase 82: bounded hint when SQL suggests time bucketing—does not deep-parse; keeps index note honest.</summary>
+    private static string AppendTimeBucketAnalyticalHint(string indexNote, string? queryText)
+    {
+        if (string.IsNullOrWhiteSpace(queryText) ||
+            queryText.IndexOf("time_bucket", StringComparison.OrdinalIgnoreCase) < 0)
+            return indexNote;
+
+        const string hint =
+            "Time-bucketed / analytical shape: wall time often concentrates in scans or joins feeding the bucket or partial aggregate, not only the finalize hop—pair timings upstream of the grouped output.";
+        if (string.IsNullOrWhiteSpace(indexNote))
+            return hint;
+        if (indexNote.Contains("time_bucket", StringComparison.OrdinalIgnoreCase) ||
+            indexNote.Contains("bucket", StringComparison.OrdinalIgnoreCase))
+            return indexNote;
+        return $"{indexNote.TrimEnd()} {hint}";
     }
 
     private static string IndexShapeNote(

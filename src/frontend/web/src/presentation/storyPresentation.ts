@@ -1,4 +1,4 @@
-import type { ComparisonStory, PlanStory } from '../api/types'
+import type { ComparisonStory, InspectFirstStep, PlanStory } from '../api/types'
 
 /** Primary deck title — narrative-first analyze surface (Phase 62). */
 export function planStoryDeckTitle(): string {
@@ -7,10 +7,10 @@ export function planStoryDeckTitle(): string {
 
 export function planStorySectionLabels() {
   return {
-    orientation: 'Orientation',
-    work: 'Work concentration',
-    drivers: 'Pressure & cost drivers',
-    startHere: 'Inspect first',
+    orientation: 'What this plan is doing',
+    work: 'Where work piles up',
+    drivers: 'What is driving cost',
+    startHere: 'Start here',
     flow: 'Propagation & flow',
     indexShape: 'Index / shape angle',
   } as const
@@ -19,15 +19,21 @@ export function planStorySectionLabels() {
 export function comparisonStorySectionLabels() {
   return {
     deck: 'Change briefing',
-    runtime: 'Runtime & I/O posture',
-    structure: 'Structural deltas',
-    walkthrough: 'Walk the diff',
-    readout: 'Planner read',
+    runtime: 'Wall-clock & rewrite result',
+    structure: 'What moved in the plan',
+    walkthrough: 'How to read this comparison',
+    readout: 'Planner-shaped read',
   } as const
 }
 
 export function planStoryHasContent(s: PlanStory | null | undefined): boolean {
   return Boolean(s?.planOverview?.trim())
+}
+
+/** Phase 83: prefer structured inspect steps when the API provides them. */
+export function planInspectFirstSteps(story: PlanStory | null | undefined): InspectFirstStep[] {
+  const steps = story?.inspectFirstSteps
+  return steps?.length ? steps : []
 }
 
 export function comparisonStoryHasContent(s: ComparisonStory | null | undefined): boolean {

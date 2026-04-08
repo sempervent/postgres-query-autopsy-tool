@@ -86,12 +86,13 @@
 ### Reports
 
 - `POST /api/report/markdown` / `POST /api/report/html` / `POST /api/report/json`
-- `POST /api/compare/report/markdown` / `POST /api/compare/report/json` — compare report endpoints use the **same compare request body** as `POST /api/compare` (including **`planAText`** / **`planBText`** and per-side metadata).
+- `POST /api/compare/report/markdown` / `POST /api/compare/report/html` / `POST /api/compare/report/json` — compare report endpoints use the **same compare request body** as `POST /api/compare` (including **`planAText`** / **`planBText`** and per-side metadata). HTML includes **Top worsened/improved** lines with **Rewrite outcome** when a pair verdict exists, plus **Plan capture (per side)**, **change briefing** (with **Story beats** when the story has beats), **bottleneck posture**, **narrative**, and a **Next steps after this change** block when compare-scoped suggestions exist (**Phase 88** tightens markdown/HTML alignment).
 
 ### Markdown report notes
 
 - Uses human-readable node labels in key places.
 - Includes a `Source Query` section when `queryText` is present in the analysis.
 - Adds **Plan capture & EXPLAIN context** with detected planner-cost presence and any **declared** `explainMetadata` (options line + optional recorded command).
-- **Compare** markdown adds a **Plan capture & EXPLAIN context (per side)** section summarizing Plan A and Plan B (query present/absent, input normalization kind, planner costs, declared options, recorded command).
-- Analyze markdown/HTML include an **Optimization suggestions** section when the engine produced items. Compare markdown adds **Next steps after this change (compare)** when `compareOptimizationSuggestions` is non-empty, with **`[fd_*]`** / **`[ii_*]`** / **`[pair_*]`** style references where possible.
+- **Compare** markdown adds a **Plan capture & EXPLAIN context (per side)** section summarizing Plan A and Plan B (query present/absent, input normalization kind, planner costs, declared options, recorded command). The SPA lists **Next steps after this change** inside a **`section`** landmark (**`role="region"`**, **`aria-labelledby`** the **`h2`**) for clearer navigation (**Phase 89**).
+- Analyze markdown/HTML include an **Optimization suggestions** section when the engine produced items; **Phase 86** HTML aligns with markdown on **suggestion id**, **Why**, and short **Validate** lines where present. Compare markdown adds **Next steps after this change** when `compareOptimizationSuggestions` is non-empty (**family** + optional **Why** line); compare HTML mirrors that block when suggestions exist (**Phase 87** aligned the markdown heading with HTML).
+- **`POST /api/report/json`** and **`POST /api/compare/report/json`** return the same persisted shapes as **`GET`** artifacts (camelCase, **`ArtifactPersistenceJson`** options): analyze JSON includes **`planStory.inspectFirstSteps`** when the builder produced steps; compare JSON includes **`compareOptimizationSuggestions`** and per-pair **`rewriteVerdictOneLiner`** when present (**Phase 87** tests lock the wiring).

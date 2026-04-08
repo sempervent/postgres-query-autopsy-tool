@@ -5,7 +5,7 @@ export function CompareIntroPanel() {
   return (
     <div className="pqat-panel pqat-panel--capture pqat-panelPad--lg pqat-introBanner pqat-workspaceReveal">
       <div className="pqat-eyebrow">Overview</div>
-      <h2 className="pqat-captureTitle">{intro.title}</h2>
+      <h1 className="pqat-captureTitle">{intro.title}</h1>
       <p className="pqat-hint pqat-hint--tight">{intro.subtitle}</p>
       <div className="pqat-introGrid">
         <div className="pqat-metricTile pqat-metricTile--accentWash">

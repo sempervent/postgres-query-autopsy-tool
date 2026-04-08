@@ -74,6 +74,7 @@
   gap: 16px;
 }
 
+.pqat-captureStack > div > h1.pqat-captureTitle,
 .pqat-captureStack > div > h2.pqat-captureTitle,
 .pqat-captureTitle {
   font-family: var(--heading);
@@ -645,6 +646,14 @@
   outline-offset: 2px;
 }
 
+/* Next steps: title + pin share row 1; primary actions last in DOM for sensible Tab order (Focus / Copy before Pin). */
+.pqat-suggestionItem--layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  align-items: start;
+}
+
 .pqat-suggestionItem--highlight {
   outline: 2px solid var(--accent-border);
 }
@@ -677,6 +686,27 @@
   cursor: pointer;
   font-size: 0.875rem;
   color: var(--text-h);
+}
+
+h3.pqat-suggestionTitle {
+  cursor: default;
+  line-height: 1.35;
+}
+
+button.pqat-suggestionTitle {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.pqat-suggestionPinBtn {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .pqat-suggestionMeta {
@@ -1359,6 +1389,40 @@ html[data-theme='dark'] .pqat-storyLane {
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--text);
+}
+
+.pqat-planBriefingHint {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  max-width: 62ch;
+}
+
+.pqat-callout__subtitle {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  max-width: 68ch;
+}
+
+.pqat-suggestionCard--topLead {
+  border-radius: var(--pqat-radius-control, 11px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-border) 45%, transparent);
+}
+
+.pqat-chip--leverageLead {
+  font-weight: 750;
+  border-color: color-mix(in srgb, var(--accent-border) 50%, var(--border-subtle));
+}
+
+.pqat-suggestionFamilyHint {
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-top: 6px;
 }
 
 .pqat-storyBeatRow {
