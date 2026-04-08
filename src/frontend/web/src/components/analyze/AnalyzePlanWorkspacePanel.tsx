@@ -236,7 +236,7 @@ export function AnalyzePlanWorkspacePanel(props: {
         </div>
       ) : rootId ? (
         pairedWithGuide ? (
-          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <div className="pqat-planTextTreeBand">
             <AnalyzePlanTextTree
               rootId={rootId}
               byId={byId}

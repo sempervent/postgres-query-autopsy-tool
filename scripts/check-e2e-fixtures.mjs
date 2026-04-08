@@ -13,6 +13,10 @@ const files = [
   'simple_seq_scan.json',
   'compare_before_seq_scan.json',
   'compare_after_index_scan.json',
+  'rewrite_sort_seq_shipments.json',
+  'rewrite_index_ordered_shipments.json',
+  'rewrite_access_idx_shipments.json',
+  'rewrite_access_bitmap_shipments.json',
 ]
 
 function sha256(filePath) {

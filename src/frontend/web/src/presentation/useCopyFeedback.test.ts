@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import * as clip from './copyToClipboard'
-import { useCopyFeedback } from './useCopyFeedback'
+import { COPY_FEEDBACK_SUCCESS_CLEAR_MS, useCopyFeedback } from './useCopyFeedback'
 
 describe('useCopyFeedback', () => {
   afterEach(() => {
@@ -18,7 +18,7 @@ describe('useCopyFeedback', () => {
     })
     expect(result.current.status).toBe('Copied OK')
     await act(async () => {
-      vi.advanceTimersByTime(2300)
+      vi.advanceTimersByTime(COPY_FEEDBACK_SUCCESS_CLEAR_MS + 50)
     })
     expect(result.current.status).toBeNull()
   })

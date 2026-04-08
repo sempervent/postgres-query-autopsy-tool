@@ -30,6 +30,26 @@
   align-self: stretch;
 }
 
+/* Analyze: text tree participates in the shared paired row like the graph band (Phase 99). */
+.pqat-planTextTreeBand {
+  flex: 1 1 0;
+  min-height: clamp(220px, 34vh, 400px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--pqat-radius-panel, 14px);
+  background: var(--surface-list);
+  padding: 10px 12px;
+  overflow: auto;
+}
+
+/* Analyze Plan guide: keep Focused operator above the scrollable companion body (beside workspace, Phase 98). */
+.pqat-planGuideRail__stickyBand {
+  flex-shrink: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-rail);
+  box-shadow: 0 8px 16px -12px color-mix(in srgb, var(--text-h) 18%, transparent);
+}
+
 .pqat-mainSplit {
   display: grid;
   gap: 16px;
@@ -672,12 +692,12 @@
   outline: 2px solid var(--accent-border);
 }
 
-.pqat-suggestionItem--highlight:focus-within {
+.pqat-suggestionItem:focus-within:not(.pqat-suggestionItem--highlight) {
   outline: 2px solid var(--accent-border);
   outline-offset: 2px;
 }
 
-.pqat-artifactOutline--active:focus-within {
+.pqat-artifactOutline:focus-within:not(.pqat-artifactOutline--active) {
   outline: 2px solid var(--accent-border);
   outline-offset: 2px;
 }
@@ -698,6 +718,11 @@
 }
 
 .pqat-indexInsightItem--interactive:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.pqat-indexInsightItem--interactive:focus-within:not(.pqat-indexInsightItem--active) {
   outline: 2px solid var(--accent-border);
   outline-offset: 2px;
 }

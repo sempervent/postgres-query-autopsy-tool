@@ -2167,3 +2167,87 @@ Verified (agent run, 2026-04-04):
 
 **Backend:** unchanged this phase (no **`dotnet test`** run).
 
+## Phase 98 — Pin-state accessibility + companion refinement (2026-04-08)
+
+**Frontend**
+
+- **`comparePinLiveAnnouncement.ts`**: **`comparePinLiveFingerprint`**, **`comparePinAnnouncementForFingerprint`**; **`ComparePage`** **`useEffect`** + **`role="status"`** **`aria-live="polite"`** region (**`data-testid="compare-pin-live"`**, **`pqat-srOnly`**) announces pin transitions after load (skips first fingerprint per **`comparisonId`**).
+- **`AnalyzePlanGuideRail`**: **`pqat-planGuideRail__stickyBand`** — **Focused operator** / selection snapshot above scroll body when **`besideWorkspace`** and **`selection`** is in **`guideSectionOrder`**.
+- **`workstation-patterns.css`**: sticky band styling; **`focus-within`** outlines for **`pqat-artifactOutline`**, **`pqat-suggestionItem`**, **`pqat-indexInsightItem--interactive`**.
+
+**Tests**
+
+- Vitest: **`comparePinLiveAnnouncement.test.ts`**.
+- Playwright **`persisted-flows.spec.ts`**: **Compare: keyboard navigates Index changes and Enter pins row**; **Compare: Next steps Pin Home and End move keyboard focus**.
+
+**Docs**
+
+- **`analyze-workflow.md`**, **`compare-workflow.md`** (Phase 98 keyboard + live region + copy), **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**194** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**30** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**8** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+**Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 99 — Pinning completeness, paired text polish, announcement coherence (2026-04-08)
+
+**Frontend**
+
+- **`comparePinLiveAnnouncement.ts`**: **`COMPARE_WORKSPACE_KEYBOARD_HINTS_ID`**, **`COMPARE_WORKSPACE_KEYBOARD_HINTS_TEXT`**, **`comparePinHydrateAnnouncementForFingerprint`** (deep-link open) vs existing transition strings.
+- **`ComparePage`**: seed **`compare-pin-live`** from URL-validated fingerprint in **`useLayoutEffect`** (per comparison first hydrate); transition announcements deferred **`PIN_LIVE_ANNOUNCE_DEFER_MS`**; sr-only keyboard hints node.
+- **`useCopyFeedback.ts`**: exports **`COPY_FEEDBACK_SUCCESS_CLEAR_MS`**, **`PIN_LIVE_ANNOUNCE_DEFER_MS`** (documented relationship to pin live timing).
+- **`CompareIndexInsightRows`** / **`CompareNextStepsList`**: **`aria-describedby`** keyboard hints; **`preventScroll: true`** on roving / **Pin** chain focus.
+- **`workstation-patterns.css`**: **`focus-within`** avoids doubling when row is already **active** / **highlight**; **`pqat-planTextTreeBand`** for paired text workspace.
+- **`AnalyzePlanWorkspacePanel`**, **`AnalyzePlanGuideRail`**: text band + guide body **`aria-label`**.
+
+**Tests / fixtures**
+
+- **`scripts/sync-e2e-fixtures.sh`**, **`check-e2e-fixtures.mjs`**: **`rewrite_sort_seq_shipments.json`**, **`rewrite_index_ordered_shipments.json`**.
+- Playwright **`persisted-flows`**: **Compare: keyboard roves Index changes (2+ rows) and Enter pins row** (always **ArrowDown** between rows).
+- Vitest: **`comparePinLiveAnnouncement.test.ts`** hydrate cases; **`CompareIndexInsightRows.test.tsx`** **ArrowDown** **`preventScroll`**; **`useCopyFeedback.test`** uses exported clear interval.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**: Phase 99 pinning, keyboard hints, paired text, copy vs pin timing.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`node scripts/check-e2e-fixtures.mjs`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**195** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**30** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**8** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** **`dotnet test`** (**.NET SDK 8.0** Docker image on **`linux-arm64`**) — **OK** (**168** tests). Host-only **`dotnet test`** was not used (local install lacked **net8.0** runtime).
+
+## Phase 100 — Deep-link resync and pin-lifecycle coherence (2026-04-08)
+
+**Frontend**
+
+- **`compareDeepLinkSync.ts`**: **`parseCompareUrlPinAndPairState`** — URL-driven **finding** / **indexDiff** / **suggestion** / **`pair=`** with one-primary-pin precedence.
+- **`ComparePage`**: **`useLayoutEffect`** reapplies **`parseCompareUrlPinAndPairState`** on every **`location.search`** change; **hydrate** “Opened with …” only when **`comparisonId`** changes; **`useEffect`** clears hydrate copy after **`COMPARE_PIN_HYDRATE_CLEAR_MS`**; **`suppressNextPinTransitionForFpRef`**; transition path unchanged aside from hydrate coordination.
+- **`comparePinLiveAnnouncement.ts`**: **`COMPARE_PIN_HYDRATE_CLEAR_MS`** export.
+- **`workstation-patterns.css`**: **`pqat-planTextTreeBand`** uses **`flex: 1 1 0`** for paired text sizing.
+
+**Tests / fixtures**
+
+- Vitest: **`compareDeepLinkSync.test.ts`**, **`comparePinLiveAnnouncement.test.ts`** (clear window bounds).
+- Playwright **`persisted-flows`**: hydrate announcement + post-clear empty live region; same-**`comparison`** **`indexDiff=`** swap; **Space** pins index row.
+- **`check-e2e-fixtures.mjs`** / **`sync-e2e-fixtures.sh`**: **`rewrite_access_idx_shipments.json`**, **`rewrite_access_bitmap_shipments.json`**.
+
+**Docs**
+
+- **`compare-workflow.md`**, **`analyze-workflow.md`**, **`architecture.md`**: Phase 100 lifecycle + resync.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`node scripts/check-e2e-fixtures.mjs`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**198** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**33** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**8** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged (no **`dotnet test`** this phase).
+

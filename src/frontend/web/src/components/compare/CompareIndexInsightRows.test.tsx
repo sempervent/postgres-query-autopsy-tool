@@ -22,6 +22,7 @@ function row(
 
 describe('CompareIndexInsightRows', () => {
   it('ArrowDown moves roving focus and Enter pins the focused insight', async () => {
+    const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {})
     const setHighlightIndexInsightDiffId = vi.fn()
     const setHighlightFindingDiffId = vi.fn()
     const setHighlightSuggestionId = vi.fn()
@@ -57,11 +58,20 @@ describe('CompareIndexInsightRows', () => {
 
     fireEvent.keyDown(first, { key: 'ArrowDown' })
     await waitFor(() => expect(second).toHaveAttribute('tabIndex', '0'))
+    await waitFor(() => {
+      expect(
+        focusSpy.mock.calls.some((args) => {
+          const o = args[0] as FocusOptions | undefined
+          return !!o && o.preventScroll === true
+        }),
+      ).toBe(true)
+    })
 
     fireEvent.keyDown(second, { key: 'Enter' })
     expect(setHighlightIndexInsightDiffId).toHaveBeenCalledWith('ii_second')
     expect(setHighlightFindingDiffId).toHaveBeenCalledWith(null)
     expect(setHighlightSuggestionId).toHaveBeenCalledWith(null)
+    focusSpy.mockRestore()
   })
 
   it('when highlightIndexInsightDiffId updates from the URL, roving tabIndex follows and focus uses preventScroll', async () => {

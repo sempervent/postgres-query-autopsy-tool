@@ -401,6 +401,10 @@ export function AnalyzePlanGuideRail(props: {
 
   const surface = companionRailSurfaceStyle(railLayout)
   const beside = railLayout === 'besideWorkspace'
+  const selectionPinnedBeside = beside && guideSectionOrder.includes('selection')
+  const bodySectionOrder = selectionPinnedBeside
+    ? guideSectionOrder.filter((sid) => sid !== 'selection')
+    : guideSectionOrder
 
   return (
     <aside
@@ -423,15 +427,19 @@ export function AnalyzePlanGuideRail(props: {
           Plan guide
         </div>
       </div>
+      {selectionPinnedBeside ? (
+        <div className="pqat-planGuideRail__stickyBand">{sections.selection}</div>
+      ) : null}
       <div
         className="pqat-planGuideRail__body"
+        aria-label={beside ? 'Plan guide — scrollable sections' : undefined}
         style={
           beside
-            ? { flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 12 }
+            ? { flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: selectionPinnedBeside ? 8 : 12 }
             : { paddingTop: 0 }
         }
       >
-        {guideSectionOrder.map((sid) => {
+        {bodySectionOrder.map((sid) => {
           const el = sections[sid]
           return el ? <div key={sid}>{el}</div> : null
         })}

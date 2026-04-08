@@ -34,8 +34,17 @@ import {
   scrollArtifactIntoView,
   shareArtifactLinkLabel,
 } from '../presentation/artifactLinks'
+import { parseCompareUrlPinAndPairState } from '../presentation/compareDeepLinkSync'
+import {
+  COMPARE_PIN_HYDRATE_CLEAR_MS,
+  COMPARE_WORKSPACE_KEYBOARD_HINTS_ID,
+  COMPARE_WORKSPACE_KEYBOARD_HINTS_TEXT,
+  comparePinAnnouncementForFingerprint,
+  comparePinHydrateAnnouncementForFingerprint,
+  comparePinLiveFingerprint,
+} from '../presentation/comparePinLiveAnnouncement'
 import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
-import { useCopyFeedback } from '../presentation/useCopyFeedback'
+import { PIN_LIVE_ANNOUNCE_DEFER_MS, useCopyFeedback } from '../presentation/useCopyFeedback'
 import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useCompareWorkspaceLayout } from '../compareWorkspace/useCompareWorkspaceLayout'
 import { CompareCapturePanel } from '../components/compare/CompareCapturePanel'
@@ -98,6 +107,9 @@ export default function ComparePage() {
   const [highlightFindingDiffId, setHighlightFindingDiffId] = useState<string | null>(null)
   const [highlightIndexInsightDiffId, setHighlightIndexInsightDiffId] = useState<string | null>(null)
   const [highlightSuggestionId, setHighlightSuggestionId] = useState<string | null>(null)
+  const [comparePinLiveMessage, setComparePinLiveMessage] = useState('')
+  const comparePinLiveRef = useRef<{ comparisonId: string; fingerprint: string } | null>(null)
+  const pinLiveTransitionTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
   const copyPair = useCopyFeedback()
   const copyFinding = useCopyFeedback()
   const copyNav = useCopyFeedback()
@@ -106,7 +118,9 @@ export default function ComparePage() {
   const copyShareCompare = useCopyFeedback()
   const copyCompareSuggestion = useCopyFeedback()
   const lastSyncedCompareQs = useRef<string | null>(null)
-  const hydratedCompareHighlightFor = useRef<string | null>(null)
+  const comparePinLastLayoutCidRef = useRef<string | null>(null)
+  /** Skips one redundant transition announcement right after hydrate seeds the same fingerprint (strict mount / batching). */
+  const suppressNextPinTransitionForFpRef = useRef<string | null>(null)
   const loadPersistedCompareSeqRef = useRef(0)
   const urlComparisonId = searchParams.get(CompareDeepLinkParam.comparison)?.trim() ?? ''
   const layoutTier = useWorkspaceLayoutTier()
@@ -282,26 +296,54 @@ export default function ComparePage() {
 
   useLayoutEffect(() => {
     if (!comparison) {
-      hydratedCompareHighlightFor.current = null
+      comparePinLastLayoutCidRef.current = null
+      suppressNextPinTransitionForFpRef.current = null
+      comparePinLiveRef.current = null
+      setComparePinLiveMessage('')
       return
     }
-    if (hydratedCompareHighlightFor.current === comparison.comparisonId) return
-    hydratedCompareHighlightFor.current = comparison.comparisonId
 
-    const finding = new URLSearchParams(location.search).get('finding')
-    const indexDiff = new URLSearchParams(location.search).get('indexDiff')
-    const suggestion = new URLSearchParams(location.search).get('suggestion')
-    if (finding && comparison.findingsDiff.items.some((x) => x.diffId === finding)) setHighlightFindingDiffId(finding)
-    else setHighlightFindingDiffId(null)
-    const insightDiffs = comparison.indexComparison?.insightDiffs ?? []
-    if (indexDiff && insightDiffs.some((x) => x.insightDiffId === indexDiff)) {
-      setHighlightIndexInsightDiffId(indexDiff)
-    } else setHighlightIndexInsightDiffId(null)
-    const sugList = comparison.compareOptimizationSuggestions ?? []
-    const canonicalSug = resolveCompareSuggestionParamToCanonicalId(sugList, suggestion)
-    if (canonicalSug) setHighlightSuggestionId(canonicalSug)
-    else setHighlightSuggestionId(null)
+    const parsed = parseCompareUrlPinAndPairState(comparison, location.search)
+    if (parsed.pairSelection) {
+      setSelectedPair((prev) =>
+        prev?.a === parsed.pairSelection!.a && prev?.b === parsed.pairSelection!.b
+          ? prev
+          : parsed.pairSelection!,
+      )
+    }
+
+    setHighlightFindingDiffId(parsed.findingDiffId)
+    setHighlightIndexInsightDiffId(parsed.indexInsightDiffId)
+    setHighlightSuggestionId(parsed.suggestionId)
+
+    const cid = comparison.comparisonId
+    const urlFp = comparePinLiveFingerprint(
+      parsed.findingDiffId,
+      parsed.indexInsightDiffId,
+      parsed.suggestionId,
+    )
+
+    const cidChanged = comparePinLastLayoutCidRef.current !== cid
+    comparePinLastLayoutCidRef.current = cid
+
+    if (cidChanged) {
+      comparePinLiveRef.current = { comparisonId: cid, fingerprint: urlFp }
+      const hydrateLine = comparePinHydrateAnnouncementForFingerprint(urlFp)
+      setComparePinLiveMessage(hydrateLine)
+      if (hydrateLine) {
+        suppressNextPinTransitionForFpRef.current = urlFp
+      }
+    }
   }, [comparison, location.search])
+
+  useEffect(() => {
+    const line = comparePinLiveMessage
+    if (!line || !/^opened with /i.test(line)) return
+    const t = globalThis.setTimeout(() => {
+      setComparePinLiveMessage((m) => (m === line ? '' : m))
+    }, COMPARE_PIN_HYDRATE_CLEAR_MS)
+    return () => globalThis.clearTimeout(t)
+  }, [comparePinLiveMessage])
 
   useEffect(() => {
     lastSyncedCompareQs.current = null
@@ -401,6 +443,53 @@ export default function ComparePage() {
     )
     return () => window.clearTimeout(t)
   }, [highlightSuggestionId, comparison?.comparisonId])
+
+  useEffect(() => {
+    if (!comparison?.comparisonId) {
+      suppressNextPinTransitionForFpRef.current = null
+      if (pinLiveTransitionTimerRef.current != null) {
+        globalThis.clearTimeout(pinLiveTransitionTimerRef.current)
+        pinLiveTransitionTimerRef.current = null
+      }
+      comparePinLiveRef.current = null
+      setComparePinLiveMessage('')
+      return
+    }
+    const cid = comparison.comparisonId
+    const fp = comparePinLiveFingerprint(
+      highlightFindingDiffId,
+      highlightIndexInsightDiffId,
+      highlightSuggestionId,
+    )
+    const prev = comparePinLiveRef.current
+    if (!prev || prev.comparisonId !== cid) return
+    if (prev.fingerprint === fp) return
+    if (suppressNextPinTransitionForFpRef.current === fp) {
+      suppressNextPinTransitionForFpRef.current = null
+      comparePinLiveRef.current = { comparisonId: cid, fingerprint: fp }
+      return
+    }
+    comparePinLiveRef.current = { comparisonId: cid, fingerprint: fp }
+    if (pinLiveTransitionTimerRef.current != null) {
+      globalThis.clearTimeout(pinLiveTransitionTimerRef.current)
+      pinLiveTransitionTimerRef.current = null
+    }
+    pinLiveTransitionTimerRef.current = globalThis.setTimeout(() => {
+      pinLiveTransitionTimerRef.current = null
+      setComparePinLiveMessage(comparePinAnnouncementForFingerprint(fp))
+    }, PIN_LIVE_ANNOUNCE_DEFER_MS)
+    return () => {
+      if (pinLiveTransitionTimerRef.current != null) {
+        globalThis.clearTimeout(pinLiveTransitionTimerRef.current)
+        pinLiveTransitionTimerRef.current = null
+      }
+    }
+  }, [
+    comparison?.comparisonId,
+    highlightFindingDiffId,
+    highlightIndexInsightDiffId,
+    highlightSuggestionId,
+  ])
 
   async function onCompare() {
     setError(null)
@@ -624,6 +713,18 @@ export default function ComparePage() {
 
       {comparison ? (
         <section className="pqat-sectionStack">
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="pqat-srOnly"
+            data-testid="compare-pin-live"
+          >
+            {comparePinLiveMessage}
+          </div>
+          <div id={COMPARE_WORKSPACE_KEYBOARD_HINTS_ID} className="pqat-srOnly">
+            {COMPARE_WORKSPACE_KEYBOARD_HINTS_TEXT}
+          </div>
           {hasSummaryColumn || showTopChanges ? (
             <div className={summaryTopSplitClassName}>
               {hasSummaryColumn ? (

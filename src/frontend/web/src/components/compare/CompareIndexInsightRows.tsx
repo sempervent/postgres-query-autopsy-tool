@@ -3,6 +3,7 @@ import type { PlanComparisonResult } from '../../api/types'
 import { relatedFindingChangesCue } from '../../presentation/compareIndexLinks'
 import type { CompareIndexSectionModel } from '../../presentation/comparePresentation'
 import { ArtifactDomKind } from '../../presentation/artifactLinks'
+import { COMPARE_WORKSPACE_KEYBOARD_HINTS_ID } from '../../presentation/comparePinLiveAnnouncement'
 import { nextRovingOrdinal } from '../../presentation/comparePinning'
 
 export type CompareIndexInsightRowsProps = {
@@ -57,13 +58,14 @@ export function CompareIndexInsightRows(props: CompareIndexInsightRowsProps) {
     if (n <= 0) return
     const next = nextRovingOrdinal(focusOrdinal, delta, n)
     setFocusOrdinal(next)
-    requestAnimationFrame(() => liRefs.current[next]?.focus())
+    requestAnimationFrame(() => liRefs.current[next]?.focus({ preventScroll: true }))
   }
 
   return (
     <ul
       className="pqat-bulletList pqat-indexInsightRovingList"
-      aria-label="Index insight diffs — Arrow Up or Down moves between rows; Enter or Space pins the row for Copy link."
+      aria-label="Index insight diffs"
+      aria-describedby={COMPARE_WORKSPACE_KEYBOARD_HINTS_ID}
     >
       {rows.map((row, i) => {
         const rowHighlighted = highlightIndexInsightDiffId === row.insightDiffId

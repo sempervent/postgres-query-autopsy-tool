@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { copyToClipboard } from './copyToClipboard'
 
 /** Long enough for screen readers to pick up success politely without feeling sticky. */
-const COPY_SUCCESS_CLEAR_MS = 2200
+export const COPY_FEEDBACK_SUCCESS_CLEAR_MS = 2200
+
+/**
+ * Brief defer before Compare pin `aria-live` transitions so a just-fired copy success line
+ * can finish first (same polite region timing family as copy feedback).
+ */
+export const PIN_LIVE_ANNOUNCE_DEFER_MS = 120
 
 export function useCopyFeedback() {
   const [status, setStatus] = useState<string | null>(null)
@@ -32,7 +38,7 @@ export function useCopyFeedback() {
       clearTimerRef.current = globalThis.setTimeout(() => {
         clearTimerRef.current = null
         if (mountedRef.current) setStatus(null)
-      }, COPY_SUCCESS_CLEAR_MS)
+      }, COPY_FEEDBACK_SUCCESS_CLEAR_MS)
     } catch {
       if (!mountedRef.current) return
       setStatus(

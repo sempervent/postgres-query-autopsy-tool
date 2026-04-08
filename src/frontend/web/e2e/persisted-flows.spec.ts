@@ -518,6 +518,80 @@ test('Compare: indexDiff= deep link highlight survives reopen in fresh tab', asy
   await reopen.close()
 })
 
+test('Compare: deep link shows hydrate pin announcement then clears', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const firstInsight = indexCallout.locator('[data-artifact="index-insight-diff"][data-artifact-id]').first()
+  await expect(firstInsight).toBeVisible({ timeout: 30_000 })
+  const insightId = await firstInsight.getAttribute('data-artifact-id')
+  expect(insightId).toBeTruthy()
+
+  const cmp = new URL(page.url()).searchParams.get('comparison')
+  expect(cmp).toBeTruthy()
+  const deepUrl = `/compare?comparison=${encodeURIComponent(cmp!)}&indexDiff=${encodeURIComponent(insightId!)}`
+
+  await page.goto(deepUrl)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+
+  const live = page.getByTestId('compare-pin-live')
+  await expect(live).toContainText(/opened with.*index insight/i, { timeout: 15_000 })
+  // Hydrate copy auto-clears (COMPARE_PIN_HYDRATE_CLEAR_MS + buffer) so the region is not sticky status.
+  await expect(live).toHaveText('', { timeout: 9_000 })
+})
+
+test('Compare: same snapshot resyncs index pin when indexDiff= changes in URL', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('rewrite_sort_seq_shipments.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('rewrite_index_ordered_shipments.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+
+  const list = page
+    .getByTestId('compare-index-changes-callout')
+    .getByRole('list', { name: /Index insight diffs/i })
+  const items = list.getByRole('listitem')
+  await expect(items.first()).toBeVisible({ timeout: 30_000 })
+  const id0 = await items.nth(0).getAttribute('data-artifact-id')
+  const id1 = await items.nth(1).getAttribute('data-artifact-id')
+  expect(id0).toBeTruthy()
+  expect(id1).toBeTruthy()
+
+  const cmp = new URL(page.url()).searchParams.get('comparison')
+  expect(cmp).toBeTruthy()
+
+  await page.goto(`/compare?comparison=${encodeURIComponent(cmp!)}&indexDiff=${encodeURIComponent(id0!)}`)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(
+    page.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${id0}"]`).first(),
+  ).toHaveClass(/pqat-indexInsightItem--active/)
+
+  await page.goto(`/compare?comparison=${encodeURIComponent(cmp!)}&indexDiff=${encodeURIComponent(id1!)}`)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(
+    page.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${id1}"]`).first(),
+  ).toHaveClass(/pqat-indexInsightItem--active/)
+})
+
 test('Compare: clicking Index changes row pins insight and updates URL', async ({ page }) => {
   const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
   const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
@@ -543,6 +617,106 @@ test('Compare: clicking Index changes row pins insight and updates URL', async (
   await expect(page).toHaveURL(new RegExp(`[?&]indexDiff=${encodeURIComponent(insightId!)}`), { timeout: 15_000 })
   await expect(firstInsight).toHaveClass(/pqat-indexInsightItem--active/)
   await expect(page.getByTestId('compare-pinned-summary')).toContainText(/index insight/)
+})
+
+test('Compare: keyboard roves Index changes (2+ rows) and Enter pins row', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('rewrite_sort_seq_shipments.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('rewrite_index_ordered_shipments.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const list = indexCallout.getByRole('list', { name: /Index insight diffs/i })
+  const items = list.getByRole('listitem')
+  await expect(items.first()).toBeVisible({ timeout: 30_000 })
+  const count = await items.count()
+  expect(count).toBeGreaterThanOrEqual(2)
+
+  const first = items.nth(0)
+  await first.focus()
+  await expect(first).toBeFocused()
+
+  await page.keyboard.press('ArrowDown')
+  const second = items.nth(1)
+  await expect(second).toBeFocused()
+
+  const targetId = await second.getAttribute('data-artifact-id')
+  expect(targetId).toBeTruthy()
+
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(`[?&]indexDiff=${encodeURIComponent(targetId!)}`), { timeout: 15_000 })
+  await expect(second).toHaveClass(/pqat-indexInsightItem--active/)
+  await expect(page.getByTestId('compare-pin-live')).toContainText(/index insight pinned/i)
+})
+
+test('Compare: Space pins focused Index changes row like Enter', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('rewrite_sort_seq_shipments.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('rewrite_index_ordered_shipments.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const list = indexCallout.getByRole('list', { name: /Index insight diffs/i })
+  const items = list.getByRole('listitem')
+  await expect(items.first()).toBeVisible({ timeout: 30_000 })
+  await items.first().focus()
+  await expect(items.first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  const second = items.nth(1)
+  await expect(second).toBeFocused()
+
+  const targetId = await second.getAttribute('data-artifact-id')
+  expect(targetId).toBeTruthy()
+
+  await page.keyboard.press('Space')
+  await expect(page).toHaveURL(new RegExp(`[?&]indexDiff=${encodeURIComponent(targetId!)}`), { timeout: 15_000 })
+  await expect(second).toHaveClass(/pqat-indexInsightItem--active/)
+})
+
+test('Compare: Next steps Pin Home and End move keyboard focus', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const nextSteps = page.getByRole('heading', { name: 'Next steps after this change' })
+  await expect(nextSteps).toBeVisible({ timeout: 45_000 })
+  await nextSteps.scrollIntoViewIfNeeded()
+
+  const pins = page.locator('.pqat-nextStepsPinList .pqat-suggestionPinBtn')
+  await expect(pins.first()).toBeVisible({ timeout: 30_000 })
+  const n = await pins.count()
+  expect(n).toBeGreaterThanOrEqual(2)
+
+  await pins.nth(1).focus()
+  await expect(pins.nth(1)).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(pins.nth(0)).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(pins.nth(n - 1)).toBeFocused()
 })
 
 test('Compare: Copy link with pinned finding includes ticket lines', async ({ page }) => {

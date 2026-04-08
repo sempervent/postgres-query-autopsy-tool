@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import type { OptimizationSuggestion, PlanComparisonResult } from '../../api/types'
 import { ArtifactDomKind } from '../../presentation/artifactLinks'
+import { COMPARE_WORKSPACE_KEYBOARD_HINTS_ID } from '../../presentation/comparePinLiveAnnouncement'
 import {
   compareSuggestionAnchorsSelectedPlanB,
   optimizationCategoryLabel,
@@ -51,25 +52,25 @@ export function CompareNextStepsList(props: CompareNextStepsListProps) {
       const next = pinRefs.current[index + 1]
       if (next) {
         e.preventDefault()
-        next.focus()
+        next.focus({ preventScroll: true })
       }
     } else if (e.key === 'ArrowUp') {
       const prev = pinRefs.current[index - 1]
       if (prev) {
         e.preventDefault()
-        prev.focus()
+        prev.focus({ preventScroll: true })
       }
     } else if (e.key === 'Home') {
       const first = pinRefs.current[0]
       if (first && index !== 0) {
         e.preventDefault()
-        first.focus()
+        first.focus({ preventScroll: true })
       }
     } else if (e.key === 'End') {
       const last = pinRefs.current[n - 1]
       if (last && index !== n - 1) {
         e.preventDefault()
-        last.focus()
+        last.focus({ preventScroll: true })
       }
     }
   }
@@ -78,7 +79,8 @@ export function CompareNextStepsList(props: CompareNextStepsListProps) {
     <>
       <ul
         className="pqat-bulletList pqat-nextStepsPinList"
-        aria-label="Next steps — Pin sets one primary highlight for Copy link; Arrow Up or Down, Home, or End moves between Pin controls."
+        aria-label="Next steps — Pin sets one primary highlight for Copy link"
+        aria-describedby={COMPARE_WORKSPACE_KEYBOARD_HINTS_ID}
       >
         {compareOptimizationTop.map((s, i) => {
           const anchorsPair = compareSuggestionAnchorsSelectedPlanB(s, selectedPlanBNodeId)

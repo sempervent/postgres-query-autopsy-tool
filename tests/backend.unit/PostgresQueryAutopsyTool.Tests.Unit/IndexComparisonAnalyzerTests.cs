@@ -44,6 +44,17 @@ public sealed class IndexComparisonAnalyzerTests
     }
 
     [Fact]
+    public void Rewrite_sort_seq_vs_index_ordered_yields_at_least_two_non_unchanged_insight_diffs_for_compare_ui()
+    {
+        var a = AnalyzePostgresJson("rewrite_sort_seq_shipments.json");
+        var b = AnalyzePostgresJson("rewrite_index_ordered_shipments.json");
+        var cmp = new ComparisonEngine().Compare(a, b);
+        Assert.NotNull(cmp.IndexComparison);
+        var nonUnchanged = cmp.IndexComparison.InsightDiffs.Count(d => d.Kind != IndexInsightDiffKind.Unchanged);
+        Assert.True(nonUnchanged >= 2, $"expected >= 2 non-unchanged index insight diffs for E2E roving, got {nonUnchanged}");
+    }
+
+    [Fact]
     public void Compare_narrative_includes_index_aware_phrasing_when_insights_differ()
     {
         var a = AnalyzePostgresJson("compare_before_seq_scan.json");
