@@ -468,7 +468,7 @@ ComparisonId: {comparison.ComparisonId}
 ## Narrative
 {comparison.Narrative}
 
-## Index comparison (posture + bounded insights)
+## Index changes
 {(comparison.IndexComparison.OverviewLines.Count == 0 ? "- No plan-level index posture deltas surfaced." : string.Join("\n", comparison.IndexComparison.OverviewLines.Select(l => $"- {l}")))}
 {(comparison.IndexComparison.InsightDiffs.Count == 0 ? "\n- No index insight diffs (lists may be empty or unchanged)." : string.Join("", comparison.IndexComparison.InsightDiffs.Take(12).Select(d =>
 {
@@ -599,6 +599,8 @@ ComparisonId: {comparison.ComparisonId}
             ? "<p><i>No narrative line.</i></p>"
             : "<p>" + System.Net.WebUtility.HtmlEncode(comparison.Narrative) + "</p>";
 
+        var indexChangesHtml = FormatCompareIndexChangesHtml(comparison.IndexComparison);
+
         string CompareSuggestionLi(OptimizationSuggestion sug)
         {
             var fam = sug.SuggestionFamily.ToString();
@@ -646,6 +648,8 @@ ComparisonId: {comparison.ComparisonId}
   {bottleneckHtml}
   <h2>Narrative</h2>
   {narrativeHtml}
+  <h2>Index changes</h2>
+  {indexChangesHtml}
   <h2>Top worsened pair</h2>
   <ul>{TopPairLi(worst)}</ul>
   <h2>Top improved pair</h2>
@@ -654,6 +658,50 @@ ComparisonId: {comparison.ComparisonId}
   <p style=""opacity:.85;font-size:0.9rem"">Node mapping is heuristic. For full detail use JSON export or the in-app Compare workspace.</p>
 </body>
 </html>";
+    }
+
+    /// <summary>Phase 94: HTML parity with markdown — index posture + insight diffs (same content as “Index changes” in the app).</summary>
+    private static string FormatCompareIndexChangesHtml(IndexComparisonSummary ix)
+    {
+        if (ix.OverviewLines.Count == 0 && ix.InsightDiffs.Count == 0)
+            return "<p><i>No plan-level index posture deltas surfaced.</i></p>";
+
+        var overview = ix.OverviewLines.Count == 0
+            ? ""
+            : "<ul>" + string.Join("", ix.OverviewLines.Select(l =>
+                "<li>" + System.Net.WebUtility.HtmlEncode(l) + "</li>")) + "</ul>";
+
+        string insights;
+        if (ix.InsightDiffs.Count == 0)
+        {
+            insights = "<p><i>No index insight diffs (lists may be empty or unchanged).</i></p>";
+        }
+        else
+        {
+            insights = "<ul>" + string.Join("", ix.InsightDiffs.Take(12).Select(d =>
+            {
+                var byId = d.RelatedFindingDiffIds is { Count: > 0 }
+                    ? string.Join(", ", d.RelatedFindingDiffIds.Select(id => $"[{id}]"))
+                    : d.RelatedFindingDiffIndexes.Count > 0
+                        ? string.Join(", ", d.RelatedFindingDiffIndexes.Select(i => $"#{i}"))
+                        : "";
+                var link = byId.Length > 0
+                    ? " <span style=\"opacity:.85\"><i>(related findings: " + System.Net.WebUtility.HtmlEncode(byId) +
+                      ")</i></span>"
+                    : "";
+                var idPart = string.IsNullOrEmpty(d.InsightDiffId)
+                    ? ""
+                    : " <code style=\"opacity:.9\">" + System.Net.WebUtility.HtmlEncode(d.InsightDiffId) + "</code>";
+                return "<li><b>" + System.Net.WebUtility.HtmlEncode(d.Kind.ToString()) + "</b>" + idPart + link + ": " +
+                       System.Net.WebUtility.HtmlEncode(d.Summary) + "</li>";
+            })) + "</ul>";
+        }
+
+        var note = ix.EitherPlanSuggestsChunkedBitmapWorkload
+            ? "<p style=\"opacity:.85;font-size:0.9rem\">Note: at least one plan matches the chunked Append+bitmap-heuristic; treat heavy I/O as potentially a pruning/shape problem, not only missing indexes.</p>"
+            : "";
+
+        return overview + insights + note;
     }
 
     private static ExplainCaptureMetadata? NormalizeExplainMetadata(ExplainCaptureMetadata? m)

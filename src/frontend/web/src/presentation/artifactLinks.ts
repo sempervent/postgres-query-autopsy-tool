@@ -80,6 +80,23 @@ export function compareDeepLinkPath(pathname: string, params: URLSearchParams): 
   return q ? `${pathname}?${q}` : pathname
 }
 
+/** One-line readout for UI: what will be included on Copy link (Phase 95). */
+export function formatComparePinnedSummaryLine(parts: {
+  findingDiffId?: string | null
+  indexInsightDiffId?: string | null
+  suggestionId?: string | null
+}): string | null {
+  const bits: string[] = []
+  const f = parts.findingDiffId?.trim()
+  const ix = parts.indexInsightDiffId?.trim()
+  const s = parts.suggestionId?.trim()
+  if (f) bits.push(`finding ${f}`)
+  if (ix) bits.push(`index insight ${ix}`)
+  if (s) bits.push(`next step ${s}`)
+  if (bits.length === 0) return null
+  return `Pinned for link: ${bits.join(' · ')}`
+}
+
 /** Same as {@link compareDeepLinkPath}; alias for analyze routes. */
 export const analyzeDeepLinkPath = compareDeepLinkPath
 

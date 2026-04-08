@@ -10,11 +10,18 @@ export function prefetchAnalyzePlanGraph() {
   void import('./AnalyzePlanGraphCore')
 }
 
-export function PlanGraphSkeleton({ graphHeight = 'clamp(360px, 48vh, 620px)' }: { graphHeight?: string }) {
+export function PlanGraphSkeleton({
+  graphHeight = 'clamp(360px, 48vh, 620px)',
+  graphFillColumn = false,
+}: {
+  graphHeight?: string
+  graphFillColumn?: boolean
+}) {
+  const skelStyle = graphFillColumn ? { flex: 1, minHeight: 280, width: '100%' as const } : { height: graphHeight, minHeight: 320 }
   return (
     <div
       className="pqat-graphFrame pqat-graphSkeleton"
-      style={{ height: graphHeight, minHeight: 320 }}
+      style={skelStyle}
       role="status"
       aria-live="polite"
       aria-busy="true"
@@ -39,7 +46,13 @@ export function PlanGraphSkeleton({ graphHeight = 'clamp(360px, 48vh, 620px)' }:
 export function AnalyzePlanGraphLazy(props: AnalyzePlanGraphCoreProps & { fallback?: ReactNode }) {
   const { fallback, ...rest } = props
   return (
-    <Suspense fallback={fallback ?? <PlanGraphSkeleton graphHeight={rest.graphHeight} />}>
+    <Suspense
+      fallback={
+        fallback ?? (
+          <PlanGraphSkeleton graphHeight={rest.graphHeight} graphFillColumn={rest.graphFillColumn} />
+        )
+      }
+    >
       <AnalyzePlanGraphCore {...rest} />
     </Suspense>
   )

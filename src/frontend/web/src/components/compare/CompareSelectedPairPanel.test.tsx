@@ -94,6 +94,7 @@ describe('CompareSelectedPairPanel', () => {
         byIdB={new Map()}
         copyPair={{ copy: async () => {}, status: null }}
         copyDeepLink={{ copy: async () => {}, status: null }}
+        copyPinContext={{ copy: async () => {}, status: null }}
         highlightFindingDiffId={null}
         highlightIndexInsightDiffId={null}
         highlightSuggestionId={null}
@@ -105,5 +106,48 @@ describe('CompareSelectedPairPanel', () => {
     expect(screen.getByLabelText('Rewrite outcome for this pair')).toBeInTheDocument()
     expect(screen.getByText('Rewrite outcome')).toBeInTheDocument()
     expect(screen.getByText(/Pair inclusive time improved here/i)).toBeInTheDocument()
+  })
+
+  it('shows compare-pinned-summary when a highlight pin is active', () => {
+    const selectedDetail: NodePairDetail = {
+      pairArtifactId: 'pair_1',
+      identity: {
+        nodeIdA: 'a',
+        nodeIdB: 'b',
+        nodeTypeA: 'Seq Scan',
+        nodeTypeB: 'Seq Scan',
+        depthA: 0,
+        depthB: 0,
+        matchConfidence: 'High',
+        matchScore: 1,
+        scoreBreakdown: {},
+      },
+      rawFields: {},
+      metrics: [],
+      findings: { findingsA: [], findingsB: [], relatedDiffItems: [] },
+      indexDeltaCues: [],
+      corroborationCues: [],
+    }
+
+    render(
+      <CompareSelectedPairPanel
+        comparison={minimalComparison()}
+        pathname="/compare"
+        selectedDetail={selectedDetail}
+        byIdA={new Map()}
+        byIdB={new Map()}
+        copyPair={{ copy: async () => {}, status: null }}
+        copyDeepLink={{ copy: async () => {}, status: null }}
+        copyPinContext={{ copy: async () => {}, status: null }}
+        highlightFindingDiffId="fd_x"
+        highlightIndexInsightDiffId={null}
+        highlightSuggestionId={null}
+        compareOptForPair={null}
+        pairSubtitle={() => null}
+      />,
+    )
+
+    expect(screen.getByTestId('compare-pinned-summary')).toHaveTextContent(/Pinned for link: finding fd_x/)
+    expect(screen.getByTestId('compare-copy-pin-context')).toBeInTheDocument()
   })
 })

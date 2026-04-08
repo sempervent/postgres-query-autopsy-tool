@@ -10,6 +10,8 @@ import { AnalyzeWorkspaceCustomizer } from './AnalyzeWorkspaceCustomizer'
 
 export function AnalyzePlanWorkspacePanel(props: {
   layoutApi: AnalyzeWorkspaceLayoutApi
+  /** Plan guide sits beside this panel in the same grid row (medium/wide). */
+  pairedWithGuide?: boolean
   analysis: import('../../api/types').PlanAnalysisResult
   treeMode: 'graph' | 'text'
   setTreeMode: (m: 'graph' | 'text') => void
@@ -36,6 +38,7 @@ export function AnalyzePlanWorkspacePanel(props: {
 }) {
   const {
     layoutApi,
+    pairedWithGuide = false,
     treeMode,
     setTreeMode,
     nodeSearch,
@@ -74,8 +77,22 @@ export function AnalyzePlanWorkspacePanel(props: {
     }
   }, [treeMode, graph])
 
+  const investigationBandStyle = pairedWithGuide
+    ? { flex: 1, minHeight: 0, display: 'flex' as const, flexDirection: 'column' as const }
+    : undefined
+
   return (
-    <div className="pqat-panel pqat-panel--workspace" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 20px' }}>
+    <div
+      className={`pqat-panel pqat-panel--workspace${pairedWithGuide ? ' pqat-planWorkspaceShell' : ''}`}
+      style={{
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        padding: '18px 20px',
+        ...(pairedWithGuide ? { height: '100%', minHeight: 0 } : {}),
+      }}
+    >
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <div className="pqat-eyebrow">Investigation</div>
@@ -120,7 +137,7 @@ export function AnalyzePlanWorkspacePanel(props: {
         />
       </div>
       {treeMode === 'graph' && graph ? (
-        <>
+        <div style={investigationBandStyle}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
             <input
               className="pqat-input"
@@ -191,6 +208,7 @@ export function AnalyzePlanWorkspacePanel(props: {
             </div>
           ) : null}
           <AnalyzePlanGraphLazy
+            graphFillColumn={pairedWithGuide}
             nodes={(graphView?.nodes ?? graph.nodes).map((n) => ({
               ...n,
               data: { ...n.data, hasChildren: (childrenById.get(n.id)?.length ?? 0) > 0 },
@@ -215,17 +233,31 @@ export function AnalyzePlanWorkspacePanel(props: {
             Legend: <span style={{ fontFamily: 'var(--mono)' }}>hot ex</span> = exclusive runtime hotspot,{' '}
             <span style={{ fontFamily: 'var(--mono)' }}>hot reads</span> = shared-read hotspot.
           </p>
-        </>
+        </div>
       ) : rootId ? (
-        <AnalyzePlanTextTree
-          rootId={rootId}
-          byId={byId}
-          childrenById={childrenById}
-          selectedNodeId={selectedNodeId}
-          setSelectedNodeId={setSelectedNodeId}
-          nodeSearch={nodeSearch}
-          nodeLabel={nodeLabel}
-        />
+        pairedWithGuide ? (
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <AnalyzePlanTextTree
+              rootId={rootId}
+              byId={byId}
+              childrenById={childrenById}
+              selectedNodeId={selectedNodeId}
+              setSelectedNodeId={setSelectedNodeId}
+              nodeSearch={nodeSearch}
+              nodeLabel={nodeLabel}
+            />
+          </div>
+        ) : (
+          <AnalyzePlanTextTree
+            rootId={rootId}
+            byId={byId}
+            childrenById={childrenById}
+            selectedNodeId={selectedNodeId}
+            setSelectedNodeId={setSelectedNodeId}
+            nodeSearch={nodeSearch}
+            nodeLabel={nodeLabel}
+          />
+        )
       ) : null}
     </div>
   )

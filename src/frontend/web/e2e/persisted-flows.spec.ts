@@ -391,6 +391,7 @@ test('Compare: legacy suggestion= id resolves to canonical row (alsoKnownAs)', a
 
   const row = page.locator(`[data-artifact="compare-suggestion"][data-artifact-id="${body.canonicalSuggestionId}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toBeInViewport()
   await expect(row).toHaveClass(/pqat-suggestionItem--highlight/)
 })
 
@@ -412,6 +413,7 @@ test('Compare: suggestion= deep link highlight survives reopen in fresh tab', as
   expect(new URL(page.url()).searchParams.get('comparison')).toBe(body.comparisonId)
   const row = page.locator(`[data-artifact="compare-suggestion"][data-artifact-id="${body.canonicalSuggestionId}"]`)
   await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toBeInViewport()
   await expect(row).toHaveClass(/pqat-suggestionItem--highlight/)
 
   const reopen = await context.newPage()
@@ -421,6 +423,7 @@ test('Compare: suggestion= deep link highlight survives reopen in fresh tab', as
   expect(new URL(reopen.url()).searchParams.get('comparison')).toBe(body.comparisonId)
   const row2 = reopen.locator(`[data-artifact="compare-suggestion"][data-artifact-id="${body.canonicalSuggestionId}"]`)
   await expect(row2).toBeVisible({ timeout: 30_000 })
+  await expect(row2).toBeInViewport()
   await expect(row2).toHaveClass(/pqat-suggestionItem--highlight/)
   await reopen.close()
 })
@@ -454,6 +457,7 @@ test('Compare: finding= deep link highlight survives reopen in fresh tab', async
   expect(new URL(page.url()).searchParams.get('comparison')).toBe(cmp)
   const row = page.locator(`[data-artifact="finding-diff"][data-artifact-id="${diffId}"]`).first()
   await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toBeInViewport()
   await expect(row).toHaveClass(/pqat-artifactOutline--active/)
 
   const reopen = await context.newPage()
@@ -497,7 +501,9 @@ test('Compare: indexDiff= deep link highlight survives reopen in fresh tab', asy
   await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
   expect(new URL(page.url()).searchParams.get('indexDiff')).toBe(insightId)
   expect(new URL(page.url()).searchParams.get('comparison')).toBe(cmp)
-  const row = indexCallout.locator(`[data-artifact-id="${insightId}"]`).first()
+  const calloutPinned = page.getByTestId('compare-index-changes-callout')
+  await expect(calloutPinned).toBeInViewport()
+  const row = calloutPinned.locator(`[data-artifact-id="${insightId}"]`).first()
   await expect(row).toBeVisible({ timeout: 30_000 })
   await expect(row).toHaveClass(/pqat-indexInsightItem--active/)
 
@@ -509,5 +515,169 @@ test('Compare: indexDiff= deep link highlight survives reopen in fresh tab', asy
   const row2 = reopen.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${insightId}"]`).first()
   await expect(row2).toBeVisible({ timeout: 30_000 })
   await expect(row2).toHaveClass(/pqat-indexInsightItem--active/)
+  await reopen.close()
+})
+
+test('Compare: clicking Index changes row pins insight and updates URL', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const firstInsight = indexCallout.locator('[data-artifact="index-insight-diff"][data-artifact-id]').first()
+  await expect(firstInsight).toBeVisible({ timeout: 30_000 })
+  await firstInsight.scrollIntoViewIfNeeded()
+  const insightId = await firstInsight.getAttribute('data-artifact-id')
+  expect(insightId).toBeTruthy()
+
+  await firstInsight.click()
+  await expect(page).toHaveURL(new RegExp(`[?&]indexDiff=${encodeURIComponent(insightId!)}`), { timeout: 15_000 })
+  await expect(firstInsight).toHaveClass(/pqat-indexInsightItem--active/)
+  await expect(page.getByTestId('compare-pinned-summary')).toContainText(/index insight/)
+})
+
+test('Compare: Copy link with pinned finding includes ticket lines', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const firstFinding = page.locator('[data-artifact="finding-diff"][data-artifact-id]').first()
+  await expect(firstFinding).toBeVisible({ timeout: 45_000 })
+  const diffId = await firstFinding.getAttribute('data-artifact-id')
+  expect(diffId).toBeTruthy()
+
+  await firstFinding.getByRole('button', { name: /Finding diff:/ }).click()
+  await expect(page).toHaveURL(new RegExp(`[?&]finding=${encodeURIComponent(diffId!)}`), { timeout: 15_000 })
+
+  await page.getByTestId('compare-copy-deep-link').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toContain('PQAT compare:')
+  expect(clip).toMatch(/Pair ref:\s*pair_/i)
+  expect(clip).toContain(`Pinned finding: ${diffId}`)
+})
+
+test('Compare: Copy pin context omits URL and includes pinned lines', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const firstFinding = page.locator('[data-artifact="finding-diff"][data-artifact-id]').first()
+  await expect(firstFinding).toBeVisible({ timeout: 45_000 })
+  await firstFinding.getByRole('button', { name: /Finding diff:/ }).click()
+
+  await page.getByTestId('compare-copy-pin-context').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).not.toMatch(/^https?:\/\//m)
+  expect(clip).toContain('PQAT compare:')
+  expect(clip).toMatch(/Pair ref:\s*pair_/i)
+  expect(clip).toMatch(/Pinned for link:.*finding/i)
+})
+
+test('Compare: Copy link with pinned suggestion includes ticket lines', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const nextSteps = page.getByRole('heading', { name: 'Next steps after this change' })
+  await expect(nextSteps).toBeVisible({ timeout: 45_000 })
+  await nextSteps.scrollIntoViewIfNeeded()
+
+  const pinBtn = page.locator('.pqat-suggestionPinBtn').first()
+  await expect(pinBtn).toBeVisible({ timeout: 30_000 })
+  const describedBy = await pinBtn.getAttribute('aria-describedby')
+  expect(describedBy).toMatch(/^compare-next-step-title-/)
+  const suggestionId = describedBy!.replace('compare-next-step-title-', '')
+
+  await pinBtn.click()
+  await expect(page).toHaveURL(new RegExp(`[?&]suggestion=${encodeURIComponent(suggestionId)}`), { timeout: 15_000 })
+
+  await page.getByTestId('compare-copy-deep-link').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toContain('PQAT compare:')
+  expect(clip).toMatch(/Pair ref:\s*pair_/i)
+  expect(clip).toContain(`Pinned suggestion: ${suggestionId}`)
+})
+
+test('Compare: Copy link with pinned index insight includes ticket lines and round-trips URL', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  const indexCallout = page.getByTestId('compare-index-changes-callout')
+  await expect(indexCallout).toBeVisible({ timeout: 45_000 })
+  const firstInsight = indexCallout.locator('[data-artifact="index-insight-diff"][data-artifact-id]').first()
+  await expect(firstInsight).toBeVisible({ timeout: 30_000 })
+  const insightId = await firstInsight.getAttribute('data-artifact-id')
+  expect(insightId).toBeTruthy()
+  expect(insightId).toMatch(/^ii_/)
+
+  const cmp = new URL(page.url()).searchParams.get('comparison')
+  expect(cmp).toBeTruthy()
+  await page.goto(`/compare?comparison=${encodeURIComponent(cmp!)}&indexDiff=${encodeURIComponent(insightId!)}`)
+  await expect(page.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(page.getByTestId('compare-index-changes-callout')).toBeInViewport()
+
+  await page.getByTestId('compare-copy-deep-link').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toMatch(/^https?:\/\//m)
+  expect(clip).toContain('PQAT compare:')
+  expect(clip).toContain(`Pinned index insight: ${insightId}`)
+  expect(clip).toMatch(/Pair ref:\s*pair_/i)
+  const urlLine = clip
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => /^https?:\/\//.test(l))
+  expect(urlLine, 'clipboard should include an absolute URL line').toBeTruthy()
+  expect(urlLine).toContain('indexDiff=')
+  expect(urlLine).toContain(insightId!)
+
+  const reopen = await context.newPage()
+  await reopen.goto(urlLine!)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  expect(new URL(reopen.url()).searchParams.get('indexDiff')).toBe(insightId)
+  await expect(
+    reopen.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${insightId}"]`).first(),
+  ).toHaveClass(/pqat-indexInsightItem--active/)
   await reopen.close()
 })

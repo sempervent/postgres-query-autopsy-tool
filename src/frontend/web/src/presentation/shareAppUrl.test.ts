@@ -1,5 +1,10 @@
 import { describe, expect, test, vi } from 'vitest'
-import { analyzeDeepLinkClipboardPayload, appUrlForPath, compareDeepLinkClipboardPayload } from './shareAppUrl'
+import {
+  analyzeDeepLinkClipboardPayload,
+  appUrlForPath,
+  compareCompactPinContextPayload,
+  compareDeepLinkClipboardPayload,
+} from './shareAppUrl'
 
 describe('shareAppUrl', () => {
   test('appUrlForPath prefixes origin', () => {
@@ -31,6 +36,21 @@ describe('shareAppUrl', () => {
       'Pinned index insight: ii_x',
       'Pinned suggestion: sg_y',
     ])
+  })
+
+  test('compareCompactPinContextPayload omits URL and stacks ids + pinned summary line', () => {
+    const block = compareCompactPinContextPayload(
+      'c1',
+      'pair_9',
+      { indexInsightDiffId: 'ii_x' },
+      { rewriteOutcomeOneLiner: 'Faster here.' },
+    )
+    expect(block).not.toContain('http')
+    expect(block).toContain('PQAT compare: c1')
+    expect(block).toContain('Pair ref: pair_9')
+    expect(block).toContain('Pinned for link:')
+    expect(block).toContain('index insight ii_x')
+    expect(block).toContain('Rewrite outcome: Faster here.')
   })
 
   test('analyzeDeepLinkClipboardPayload stacks URL, analysis id, optional node', () => {

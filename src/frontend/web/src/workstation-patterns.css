@@ -16,6 +16,20 @@
   gap: 18px;
 }
 
+/* Analyze: Plan workspace + Plan guide share one grid row height (Phase 97). */
+.pqat-analyzeWorkspaceRow--paired {
+  align-items: stretch;
+  min-height: 0;
+}
+
+.pqat-analyzeWorkspaceRow--paired > * {
+  min-height: 0;
+}
+
+.pqat-analyzeWorkspaceRow--paired > .pqat-planWorkspaceShell {
+  align-self: stretch;
+}
+
 .pqat-mainSplit {
   display: grid;
   gap: 16px;
@@ -658,6 +672,16 @@
   outline: 2px solid var(--accent-border);
 }
 
+.pqat-suggestionItem--highlight:focus-within {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.pqat-artifactOutline--active:focus-within {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
 .pqat-indexInsightItem {
   margin-bottom: 6px;
   padding: 4px 0;
@@ -667,6 +691,15 @@
 
 .pqat-indexInsightItem--active {
   outline: 2px solid var(--accent-border);
+}
+
+.pqat-indexInsightItem--interactive {
+  cursor: pointer;
+}
+
+.pqat-indexInsightItem--interactive:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
 }
 
 .pqat-navigatorStack {

@@ -102,6 +102,7 @@ export default function ComparePage() {
   const copyFinding = useCopyFeedback()
   const copyNav = useCopyFeedback()
   const copyDeepLink = useCopyFeedback()
+  const copyPinContext = useCopyFeedback()
   const copyShareCompare = useCopyFeedback()
   const copyCompareSuggestion = useCopyFeedback()
   const lastSyncedCompareQs = useRef<string | null>(null)
@@ -516,6 +517,7 @@ export default function ComparePage() {
         highlightFindingDiffId={highlightFindingDiffId}
         setHighlightFindingDiffId={setHighlightFindingDiffId}
         setHighlightIndexInsightDiffId={setHighlightIndexInsightDiffId}
+        setHighlightSuggestionId={setHighlightSuggestionId}
         copyNav={copyNav}
         copyFinding={copyFinding}
       />
@@ -539,6 +541,7 @@ export default function ComparePage() {
           byIdB,
           copyPair,
           copyDeepLink,
+          copyPinContext,
           highlightFindingDiffId,
           highlightIndexInsightDiffId,
           highlightSuggestionId,

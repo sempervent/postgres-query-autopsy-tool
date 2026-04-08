@@ -1,9 +1,13 @@
 import { lazy, Suspense } from 'react'
 import type { AnalyzedPlanNode, NodePairDetail, OptimizationSuggestion, PlanComparisonResult } from '../../api/types'
-import { buildCompareDeepLinkSearchParams, compareDeepLinkPath } from '../../presentation/artifactLinks'
+import {
+  buildCompareDeepLinkSearchParams,
+  compareDeepLinkPath,
+  formatComparePinnedSummaryLine,
+} from '../../presentation/artifactLinks'
 import { joinLabelAndSubtitle, pairShortLabel } from '../../presentation/nodeLabels'
 import { pairReferenceText } from '../../presentation/nodeReferences'
-import { appUrlForPath, compareDeepLinkClipboardPayload } from '../../presentation/shareAppUrl'
+import { appUrlForPath, compareCompactPinContextPayload, compareDeepLinkClipboardPayload } from '../../presentation/shareAppUrl'
 import { TechnicalPairIdsCollapsible } from '../TechnicalIdCollapsible'
 import { pairBriefingLines } from '../../presentation/briefingReadoutPresentation'
 import { pairContinuitySectionTitle } from '../../presentation/compareContinuityPresentation'
@@ -20,6 +24,8 @@ export type CompareSelectedPairPanelProps = {
   byIdB: Map<string, AnalyzedPlanNode>
   copyPair: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
   copyDeepLink: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
+  /** Short chat paste: PQAT line + pair ref + pinned summary (no URL). Phase 96. */
+  copyPinContext: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
   highlightFindingDiffId: string | null
   highlightIndexInsightDiffId: string | null
   highlightSuggestionId: string | null
@@ -55,12 +61,19 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
     byIdB,
     copyPair,
     copyDeepLink,
+    copyPinContext,
     highlightFindingDiffId,
     highlightIndexInsightDiffId,
     highlightSuggestionId,
     compareOptForPair,
     pairSubtitle,
   } = props
+
+  const pinnedSummaryLine = formatComparePinnedSummaryLine({
+    findingDiffId: highlightFindingDiffId,
+    indexInsightDiffId: highlightIndexInsightDiffId,
+    suggestionId: highlightSuggestionId,
+  })
 
   return (
     <>
@@ -137,6 +150,46 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
       )}
       {selectedDetail ? (
         <>
+          {pinnedSummaryLine ? (
+            <div
+              className="pqat-hint"
+              data-testid="compare-pinned-summary"
+              style={{ marginTop: 8, marginBottom: 0, fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}
+              aria-live="polite"
+            >
+              {pinnedSummaryLine}
+            </div>
+          ) : null}
+          {pinnedSummaryLine ? (
+            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                data-testid="compare-copy-pin-context"
+                className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                title="Copies a short block (no URL): PQAT compare id, Pair ref when present, pinned line, optional rewrite outcome."
+                onClick={async () => {
+                  const text = compareCompactPinContextPayload(
+                    comparison.comparisonId,
+                    selectedDetail.pairArtifactId ?? null,
+                    {
+                      findingDiffId: highlightFindingDiffId,
+                      indexInsightDiffId: highlightIndexInsightDiffId,
+                      suggestionId: highlightSuggestionId,
+                    },
+                    { rewriteOutcomeOneLiner: selectedDetail.rewriteVerdictOneLiner ?? null },
+                  )
+                  if (text) await copyPinContext.copy(text, 'Copied pin context')
+                }}
+              >
+                Copy pin context
+              </button>
+              {copyPinContext.status ? (
+                <span role="status" aria-live="polite" style={{ fontSize: 12, opacity: 0.85 }}>
+                  {copyPinContext.status}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"

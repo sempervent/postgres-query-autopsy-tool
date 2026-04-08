@@ -12,6 +12,8 @@ export type AnalyzePlanGraphCoreProps = {
   onToggleCollapse: (nodeId: string) => void
   reframeToken: number
   graphHeight?: string
+  /** When true, frame grows in a flex column (paired Plan guide) instead of a fixed clamp height. */
+  graphFillColumn?: boolean
 }
 
 /** React Flow canvas + toolbar (heavy chunk — load via `AnalyzePlanGraphLazy`). */
@@ -23,6 +25,7 @@ export function AnalyzePlanGraphCore({
   onToggleCollapse,
   reframeToken,
   graphHeight = 'clamp(360px, 48vh, 620px)',
+  graphFillColumn = false,
 }: AnalyzePlanGraphCoreProps) {
   const nodeTypes: NodeTypes = useMemo(() => ({ analyzePlanNode: AnalyzePlanNode }), [])
   const decoratedNodes = useMemo(() => nodes.map((n) => ({ ...n, data: { ...n.data, onToggleCollapse } })), [nodes, onToggleCollapse])
@@ -37,8 +40,12 @@ export function AnalyzePlanGraphCore({
     [decoratedNodes],
   )
 
+  const frameStyle = graphFillColumn
+    ? { flex: 1, minHeight: 280, width: '100%' as const }
+    : { height: graphHeight, minHeight: 320 }
+
   return (
-    <div className="pqat-graphFrame" style={{ height: graphHeight, minHeight: 320 }}>
+    <div className="pqat-graphFrame" style={frameStyle}>
       <ReactFlow
         nodes={safeNodes as any}
         edges={edges as any}

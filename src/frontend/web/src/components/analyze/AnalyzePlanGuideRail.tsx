@@ -8,7 +8,11 @@ import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { ClickableRow } from '../ClickableRow'
 import { ReferenceCopyButton } from '../ReferenceCopyButton'
 import type { AnalyzeGuideSectionId } from '../../analyzeWorkspace/analyzeWorkspaceModel'
-import { companionRailSurface, planGuideRailClassName } from './analyzePanelChrome'
+import {
+  companionRailSurfaceStyle,
+  planGuideRailClassName,
+  type PlanGuideRailLayout,
+} from './analyzePanelChrome'
 import {
   suggestionConfidenceShort,
   suggestionFamilyLabel,
@@ -41,6 +45,8 @@ export function AnalyzePlanGuideRail(props: {
   jumpToNodeId: (id: string) => void
   copyHotspot: ReturnType<typeof useCopyFeedback>
   nodeLabel: (n: AnalyzedPlanNode) => string
+  /** `besideWorkspace`: stretch with Plan workspace row; scroll sections inside the rail. */
+  railLayout?: PlanGuideRailLayout
 }) {
   const {
     analysis,
@@ -54,6 +60,7 @@ export function AnalyzePlanGuideRail(props: {
     jumpToNodeId,
     copyHotspot,
     nodeLabel,
+    railLayout = 'stacked',
   } = props
 
   const storyLbl = planStorySectionLabels()
@@ -392,14 +399,43 @@ export function AnalyzePlanGuideRail(props: {
     ) : null,
   }
 
+  const surface = companionRailSurfaceStyle(railLayout)
+  const beside = railLayout === 'besideWorkspace'
+
   return (
-    <aside aria-label="Graph companion" className={planGuideRailClassName} style={{ ...companionRailSurface, minWidth: 0 }}>
-      <div className="pqat-eyebrow">Companion</div>
-      <div style={{ fontWeight: 750, fontSize: '0.9375rem', letterSpacing: '-0.02em', color: 'var(--text-h)', marginBottom: 12 }}>Plan guide</div>
-      {guideSectionOrder.map((sid) => {
-        const el = sections[sid]
-        return el ? <div key={sid}>{el}</div> : null
-      })}
+    <aside
+      aria-label="Graph companion"
+      data-pqat-rail-layout={railLayout}
+      className={planGuideRailClassName}
+      style={{ ...surface, minWidth: 0 }}
+    >
+      <div className="pqat-planGuideRail__header" style={{ flexShrink: 0 }}>
+        <div className="pqat-eyebrow">Companion</div>
+        <div
+          style={{
+            fontWeight: 750,
+            fontSize: '0.9375rem',
+            letterSpacing: '-0.02em',
+            color: 'var(--text-h)',
+            marginBottom: beside ? 0 : 12,
+          }}
+        >
+          Plan guide
+        </div>
+      </div>
+      <div
+        className="pqat-planGuideRail__body"
+        style={
+          beside
+            ? { flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: 12 }
+            : { paddingTop: 0 }
+        }
+      >
+        {guideSectionOrder.map((sid) => {
+          const el = sections[sid]
+          return el ? <div key={sid}>{el}</div> : null
+        })}
+      </div>
     </aside>
   )
 }

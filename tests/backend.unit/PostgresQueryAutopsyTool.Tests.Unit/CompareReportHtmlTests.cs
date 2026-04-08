@@ -37,6 +37,8 @@ public sealed class CompareReportHtmlTests
         Assert.Contains("Postgres Query Autopsy — Compare", html, StringComparison.Ordinal);
         Assert.Contains("Plan capture &amp; EXPLAIN context (per side)", html, StringComparison.Ordinal);
         Assert.Contains("Plan A (baseline)", html, StringComparison.Ordinal);
+        Assert.Contains("<h2>Index changes</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("ii_", html, StringComparison.Ordinal);
         Assert.Contains("Top worsened pair", html, StringComparison.Ordinal);
         Assert.Contains("Top improved pair", html, StringComparison.Ordinal);
         Assert.Contains("Change briefing", html, StringComparison.Ordinal);
@@ -144,6 +146,27 @@ public sealed class CompareReportHtmlTests
 
         var html = svc.RenderCompareHtmlReport(cmp);
         Assert.Contains("Next steps after this change", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RenderCompareMarkdownReport_uses_index_changes_heading_aligned_with_html_export()
+    {
+        var dir = AnalyzeFixtureCorpus.ResolvePostgresJsonDirectory();
+        var pathA = Path.Combine(dir, "compare_before_seq_scan.json");
+        var pathB = Path.Combine(dir, "compare_after_index_scan.json");
+        Assert.True(File.Exists(pathA) && File.Exists(pathB));
+
+        var jsonA = await File.ReadAllTextAsync(pathA);
+        var jsonB = await File.ReadAllTextAsync(pathB);
+        using var docA = JsonDocument.Parse(jsonA);
+        using var docB = JsonDocument.Parse(jsonB);
+
+        var svc = new PlanAnalysisService(new PostgresJsonExplainParser());
+        var cmp = await svc.CompareAsync(docA.RootElement, docB.RootElement, CancellationToken.None);
+
+        var md = svc.RenderCompareMarkdownReport(cmp);
+        Assert.Contains("## Index changes", md, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Index comparison", md, StringComparison.Ordinal);
     }
 
     [Fact]

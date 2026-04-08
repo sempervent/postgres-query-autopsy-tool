@@ -86,7 +86,7 @@
 ### Reports
 
 - `POST /api/report/markdown` / `POST /api/report/html` / `POST /api/report/json`
-- `POST /api/compare/report/markdown` / `POST /api/compare/report/html` / `POST /api/compare/report/json` — compare report endpoints use the **same compare request body** as `POST /api/compare` (including **`planAText`** / **`planBText`** and per-side metadata). HTML includes **Top worsened/improved** lines with **Rewrite outcome** when a pair verdict exists, plus **Plan capture (per side)**, **change briefing** (with **Story beats** when the story has beats), **bottleneck posture**, **narrative**, and a **Next steps after this change** block when compare-scoped suggestions exist (**Phase 88** tightens markdown/HTML alignment).
+- `POST /api/compare/report/markdown` / `POST /api/compare/report/html` / `POST /api/compare/report/json` — compare report endpoints use the **same compare request body** as `POST /api/compare` (including **`planAText`** / **`planBText`** and per-side metadata). HTML includes **Top worsened/improved** lines with **Rewrite outcome** when a pair verdict exists, plus **Plan capture (per side)**, **change briefing** (with **Story beats** when the story has beats), **bottleneck posture**, **narrative**, an **Index changes** section (plan overview + insight diffs, aligned with the app — **Phase 94**), and a **Next steps after this change** block when compare-scoped suggestions exist (**Phase 88** tightens markdown/HTML alignment).
 
 ### Markdown report notes
 

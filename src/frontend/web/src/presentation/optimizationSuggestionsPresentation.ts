@@ -52,8 +52,18 @@ export function normalizeOptimizationSuggestionsForDisplay(suggestions: Optimiza
 }
 
 /**
- * Phase 49: map a URL `suggestion=` query value to the canonical `suggestionId` on a suggestion row
- * (matches `suggestionId` or any entry in `alsoKnownAs` from server normalization).
+ * Map a URL `suggestion=` query value to the canonical `suggestionId` on a suggestion row.
+ *
+ * **Phase 49:** matches `suggestionId` or any entry in `alsoKnownAs` from server normalization (carried
+ * “After this change:” suggestions may expose a legacy title-derived id; `alsoKnownAs` links it to the
+ * stable `suggestionId`).
+ *
+ * **URL bar vs E2E seed ids:** After hydrate, the Compare page syncs **`suggestion=`** to the
+ * **canonical** `suggestionId` whenever the param resolves. The **settled** `sg_*` in the address bar is
+ * the durable handle — it may differ from a **seed response’s** `canonicalSuggestionId` field if that
+ * field was sampled from a pre-persist object while the loaded artifact’s primary id is the same
+ * logical row (alias resolution still highlights the correct row). Prefer asserting **row highlight**
+ * + **URL stability on reopen**, not equality to a pre-save id from fixtures.
  */
 export function resolveCompareSuggestionParamToCanonicalId(
   suggestions: OptimizationSuggestion[] | null | undefined,

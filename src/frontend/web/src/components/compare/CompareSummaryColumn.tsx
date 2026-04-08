@@ -1,21 +1,13 @@
 import type { AppConfig, OptimizationSuggestion, PlanComparisonResult } from '../../api/types'
-import { relatedFindingChangesCue } from '../../presentation/compareIndexLinks'
 import type { CompareIndexSectionModel } from '../../presentation/comparePresentation'
-import {
-  compareSuggestionAnchorsSelectedPlanB,
-  optimizationCategoryLabel,
-  suggestionConfidenceShort,
-  suggestionFamilyLabel,
-  suggestionPriorityShort,
-  suggestionReferenceText,
-} from '../../presentation/optimizationSuggestionsPresentation'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
-import { ArtifactDomKind } from '../../presentation/artifactLinks'
 import type { CompareSummarySectionId, CompareWorkspaceLayoutState } from '../../compareWorkspace/compareWorkspaceModel'
 import { ArtifactSharingPanel } from '../ArtifactSharingPanel'
 import { CompareCaptureContextColumn } from './CompareCaptureContextColumn'
+import { CompareIndexInsightRows } from './CompareIndexInsightRows'
+import { CompareNextStepsList } from './CompareNextStepsList'
 import { prefetchCompareSelectedPairHeavySections } from './prefetchCompareSelectedPairHeavySections'
-import { humanNodeAnchorFromPlan, normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
+import { normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
 import { comparisonStorySectionLabels } from '../../presentation/storyPresentation'
 
 export type CompareSummaryColumnProps = {
@@ -127,11 +119,15 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
             </div>
           </details>
         )
-      case 'summaryIndexChanges':
+      case 'summaryIndexChanges': {
         if (!indexSection || (indexSection.overviewLines.length === 0 && indexSection.topInsightDiffs.length === 0)) return null
         return (
           <div className="pqat-callout pqat-callout--accent" data-testid="compare-index-changes-callout">
             <div className="pqat-callout__title">Index changes</div>
+            <div className="pqat-hint pqat-pinHint" style={{ fontSize: '0.8125rem', marginBottom: 8, color: 'var(--text-secondary)' }}>
+              Click or keyboard (Arrow keys between rows, Enter to pin) sets the index insight for Copy link; pinning replaces any other
+              active pin.
+            </div>
             {indexSection.headlineResolved ? (
               <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 6, color: 'var(--text)' }}>
                 <span className="pqat-inlineMeta">Resolved highlight · </span>
@@ -152,53 +148,14 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
               </ul>
             ) : null}
             {indexSection.topInsightDiffs.length ? (
-              <ul className="pqat-bulletList">
-                {indexSection.topInsightDiffs.map((row) => {
-                  const rowHighlighted = Boolean(row.insightDiffId) && highlightIndexInsightDiffId === row.insightDiffId
-                  const id = row.insightDiffId || null
-                  return (
-                    <li
-                      key={`${row.diffIndex}-${row.kindLabel}-${row.summary.slice(0, 40)}`}
-                      data-artifact={id ? ArtifactDomKind.indexInsightDiff : undefined}
-                      data-artifact-id={id ?? undefined}
-                      className={`pqat-indexInsightItem${rowHighlighted ? ' pqat-indexInsightItem--active' : ''}`}
-                    >
-                      <span className="pqat-inlineMeta">{row.kindLabel} · </span>
-                      {row.summary}
-                      {row.relatedFindingHints.length ? (
-                        <div className="pqat-suggestionMeta" style={{ marginTop: 4 }}>
-                          <span>{relatedFindingChangesCue(row.relatedFindingIndexes.length)}</span>
-                          <span className="pqat-mutedSpan">({row.relatedFindingHints.join(' · ')})</span>
-                          {row.relatedFindingDiffIds[0] ? (
-                            <button
-                              type="button"
-                              className="pqat-pillLinkBtn"
-                              onClick={() => {
-                                setHighlightFindingDiffId(row.relatedFindingDiffIds[0]!)
-                                setHighlightIndexInsightDiffId(null)
-                              }}
-                            >
-                              Highlight finding
-                            </button>
-                          ) : row.relatedFindingIndexes[0] != null ? (
-                            <button
-                              type="button"
-                              className="pqat-pillLinkBtn"
-                              onClick={() => {
-                                const item = comparison.findingsDiff.items[row.relatedFindingIndexes[0]!]
-                                if (item?.diffId) setHighlightFindingDiffId(item.diffId)
-                                setHighlightIndexInsightDiffId(null)
-                              }}
-                            >
-                              Highlight finding
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
+              <CompareIndexInsightRows
+                indexSection={indexSection}
+                comparison={comparison}
+                highlightIndexInsightDiffId={highlightIndexInsightDiffId}
+                setHighlightFindingDiffId={setHighlightFindingDiffId}
+                setHighlightIndexInsightDiffId={setHighlightIndexInsightDiffId}
+                setHighlightSuggestionId={setHighlightSuggestionId}
+              />
             ) : null}
             {indexSection.chunkedNuance ? (
               <div className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
@@ -208,6 +165,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
             ) : null}
           </div>
         )
+      }
       case 'summaryCompareSuggestions':
         if (compareOptimizationTop.length === 0) return null
         return (
@@ -226,128 +184,23 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
             <div className="pqat-callout__hint">
               Ranked compare-scoped next steps (Plan B + diff context)—not the full Analyze suggestion list. Chips show whether a row
               targets the same Plan B node as the selected pair.
+              <span className="pqat-hint pqat-pinHint" style={{ display: 'block', marginTop: 6, marginBottom: 0 }}>
+                Pinning one next step (or a finding / index insight elsewhere) replaces the prior pin for Copy link — only one primary pin at
+                a time.
+              </span>
             </div>
-            <ul className="pqat-bulletList">
-              {compareOptimizationTop.map((s) => {
-                const anchorsPair = compareSuggestionAnchorsSelectedPlanB(s, selectedPlanBNodeId)
-                return (
-                <li
-                  key={s.suggestionId}
-                  data-artifact={ArtifactDomKind.compareSuggestion}
-                  data-artifact-id={s.suggestionId}
-                  className={`pqat-suggestionItem pqat-suggestionItem--layout${
-                    highlightSuggestionId === s.suggestionId ? ' pqat-suggestionItem--highlight' : ''
-                  }`}
-                >
-                  <h3
-                    className="pqat-suggestionTitle"
-                    style={{ gridColumn: 1, gridRow: 1, margin: 0 }}
-                    id={`compare-next-step-title-${s.suggestionId}`}
-                  >
-                    {s.title}
-                  </h3>
-                  <div style={{ gridColumn: '1 / -1', gridRow: 2 }}>
-                    <div className="pqat-suggestionMeta pqat-suggestionMeta--readable">
-                      <span>{suggestionFamilyLabel(s.suggestionFamily)}</span>
-                      <span>{suggestionConfidenceShort(s.confidence)}</span>
-                      <span>{suggestionPriorityShort(s.priority)}</span>
-                      <span className="pqat-mutedSpan">{optimizationCategoryLabel(s.category)}</span>
-                    </div>
-                    {selectedPlanBNodeId ? (
-                      <div className="pqat-suggestionMeta" style={{ marginTop: 4 }}>
-                        {anchorsPair ? (
-                          <span
-                            className="pqat-chip pqat-chip--suggestionMeta"
-                            aria-label="Suggestion focuses the Plan B node in the selected sidebar pair"
-                          >
-                            Same pair as sidebar
-                          </span>
-                        ) : (
-                          <span
-                            className="pqat-chip pqat-chip--suggestionMeta"
-                            style={{ opacity: 0.88 }}
-                            aria-label="Suggestion focuses a different Plan B region than the selected pair"
-                          >
-                            Other region
-                          </span>
-                        )}
-                      </div>
-                    ) : null}
-                    <div className="pqat-hint" style={{ marginTop: 4, marginBottom: 0, color: 'var(--text)' }}>
-                      {s.summary}
-                    </div>
-                    {s.recommendedNextAction ? (
-                      <div className="pqat-hint" style={{ marginTop: 6, marginBottom: 0, color: 'var(--text)' }}>
-                        <span style={{ fontWeight: 650 }}>Next · </span>
-                        {s.recommendedNextAction}
-                      </div>
-                    ) : null}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                      {(s.targetNodeIds ?? [])[0] ? (
-                        <button
-                          type="button"
-                          className="pqat-btn pqat-btn--sm pqat-btn--ghost"
-                          onMouseEnter={prefetchCompareSelectedPairHeavySections}
-                          onFocus={prefetchCompareSelectedPairHeavySections}
-                          onClick={() => {
-                            const targetB = (s.targetNodeIds ?? [])[0]
-                            const m = comparison.matches.find((x) => x.nodeIdB === targetB)
-                            if (m) setSelectedPair({ a: m.nodeIdA, b: m.nodeIdB })
-                            setHighlightSuggestionId(s.suggestionId)
-                          }}
-                        >
-                          Focus plan B ·{' '}
-                          {s.targetDisplayLabel?.trim() ||
-                            humanNodeAnchorFromPlan((s.targetNodeIds ?? [])[0], comparison.planB)}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="pqat-btn pqat-btn--sm pqat-btn--ghost"
-                        data-testid="compare-suggestion-copy-ticket"
-                        aria-label={`Copy compare suggestion for ${s.title}`}
-                        onClick={() =>
-                          void copyCompareSuggestion.copy(
-                            suggestionReferenceText(s, {
-                              comparisonId: comparison.comparisonId,
-                              pairArtifactId:
-                                highlightSuggestionId === s.suggestionId ? selectedPairArtifactId : null,
-                              anchorsSelectedPlanBPair: anchorsPair,
-                            }),
-                            'Copied suggestion',
-                          )
-                        }
-                      >
-                        Copy for ticket
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="pqat-btn pqat-btn--sm pqat-btn--ghost pqat-suggestionPinBtn"
-                    style={{ gridColumn: 2, gridRow: 1, justifySelf: 'end' }}
-                    onClick={() => setHighlightSuggestionId(s.suggestionId)}
-                    aria-describedby={`compare-next-step-title-${s.suggestionId}`}
-                    aria-label={`Pin “${s.title}” for the shared link`}
-                    title="Pin this suggestion for the shared link"
-                  >
-                    Pin
-                  </button>
-                </li>
-                )
-              })}
-            </ul>
-            {copyCompareSuggestion.status ? (
-              <div
-                className="pqat-hint"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                style={{ marginTop: 10, marginBottom: 0 }}
-              >
-                {copyCompareSuggestion.status}
-              </div>
-            ) : null}
+            <CompareNextStepsList
+              comparison={comparison}
+              compareOptimizationTop={compareOptimizationTop}
+              selectedPlanBNodeId={selectedPlanBNodeId}
+              selectedPairArtifactId={selectedPairArtifactId}
+              highlightSuggestionId={highlightSuggestionId}
+              setHighlightFindingDiffId={setHighlightFindingDiffId}
+              setHighlightIndexInsightDiffId={setHighlightIndexInsightDiffId}
+              setHighlightSuggestionId={setHighlightSuggestionId}
+              setSelectedPair={setSelectedPair}
+              copyCompareSuggestion={copyCompareSuggestion}
+            />
           </section>
         )
       case 'summaryMeta':

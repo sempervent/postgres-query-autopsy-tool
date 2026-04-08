@@ -2053,3 +2053,117 @@ Verified (agent run, 2026-04-04):
 - **`mkdocs build --strict`** — **OK**.
 - **Backend `dotnet test`**: not run on this host (**.NET 8 runtime missing**; Docker **`make test-backend-docker`** is the parity path when local SDK/runtime unavailable).
 
+## Phase 94 — Pinned copy, export parity, suggestion semantics (2026-04-08)
+
+**Playwright**
+
+- **`persisted-flows.spec.ts`**: **`Compare: Copy link with pinned index insight includes ticket lines and round-trips URL`** — asserts **`Pinned index insight: ii_*`**, **`PQAT compare:`**, **`Pair ref:`**, URL line contains **`indexDiff=`**; second tab **`goto`** restores **`pqat-indexInsightItem--active`**.
+- **`Compare: indexDiff= deep link…`**: **`toBeInViewport`** on **`compare-index-changes-callout`** after deep link.
+- **`jwt-auth-smoke.spec.ts`**: **`JWT: Compare Copy link includes pinned index insight line when indexDiff is active`**.
+
+**Backend (compare reports)**
+
+- **`PlanAnalysisService.RenderCompareHtmlReport`**: **`Index changes`** section (overview + insight diffs + chunked note), **after** **Narrative**, **before** top pairs — **aligned with markdown**.
+- **`RenderCompareMarkdownReport`**: **`## Index changes`** (replaces **`## Index comparison (posture + bounded insights)`**).
+- **`CompareReportHtmlTests`**: **`RenderCompareMarkdownReport_uses_index_changes_heading_aligned_with_html_export`**.
+
+**Frontend**
+
+- **`optimizationSuggestionsPresentation.ts`**: expanded **`resolveCompareSuggestionParamToCanonicalId`** JSDoc (**URL bar vs E2E seed ids**, **`alsoKnownAs`**).
+- **`E2eSeedEndpoints`**: comment on **`canonicalSuggestionId`** in seed response.
+
+**Docs**
+
+- **`compare-workflow.md`**: **Compare URL parameters** table; Phase 94 note.
+- **`api-and-reports.md`**, **`architecture.md`**, **`contributing.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`make test-backend-docker`** — **OK** (**167** xUnit tests, **Release**).
+- **`npm test`** / **`npm run build`** (**`src/frontend/web`**) — **OK** (**183** Vitest tests).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**24** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**5** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 95 — Native Compare pinning UX + pinned-copy parity (2026-04-08)
+
+**Frontend**
+
+- **`CompareSummaryColumn`**: **Index changes** insight **`li`** rows are clickable and **Enter/Space** activatable (`tabIndex`, **`aria-current`**, **`aria-label`**); pinning clears finding + suggestion highlights; **`Highlight finding`** stops propagation and clears suggestion pin; **Next steps** **Pin** / **Focus plan B** clear finding + index pins; suggestion rows use **`aria-current`** when pinned.
+- **`CompareNavigatorPanel`**: **`setHighlightSuggestionId`** — selecting a finding or an index pill clears **index + suggestion** or **finding + suggestion** consistently; finding wrappers **`aria-current`** when active.
+- **`CompareSelectedPairPanel`**: **`formatComparePinnedSummaryLine`** readout (**`compare-pinned-summary`**) when any pin is set.
+- **`artifactLinks`**: **`formatComparePinnedSummaryLine`** helper + unit test.
+- **`workstation-patterns.css`**: **`.pqat-indexInsightItem--interactive`** focus/cursor styles.
+- **`ComparePage`**: passes **`setHighlightSuggestionId`** into the navigator.
+
+**Playwright**
+
+- **`persisted-flows.spec.ts`**: index row click → **`indexDiff=`** + pinned summary; **Copy link** with pinned **finding** / **suggestion**; **`finding=`** deep link **`toBeInViewport`** on the findings row.
+- **`jwt-auth-smoke.spec.ts`**: JWT **Copy link** asserts **`Pinned finding:`** / **`Pinned suggestion:`** when those pins are active.
+
+**Docs**
+
+- **`compare-workflow.md`**: URL table **When active** column; Phase 95 note in Phase 93 paragraph block.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**185** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**27** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**7** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 96 — Keyboard-native pinning + pin-context copy + visibility (2026-04-08)
+
+**Frontend**
+
+- **`CompareIndexInsightRows`**: roving **`tabIndex`** for **Index changes** (Arrow Up/Down, Enter/Space to pin); **`comparePinning.nextRovingOrdinal`** unit-tested.
+- **`CompareNextStepsList`**: **Pin** buttons ref-chained for Arrow Up/Down; extracted from **`CompareSummaryColumn`**.
+- **`CompareSummaryColumn`**: pin-replacement hints in **Index changes** / **Next steps** callouts.
+- **`CompareSelectedPairPanel`**: **Copy pin context** (**`compare-copy-pin-context`**) via **`compareCompactPinContextPayload`** (**`shareAppUrl.ts`** — no URL).
+- **`ComparePage`**: **`copyPinContext`** **`useCopyFeedback`**.
+- **`workstation-patterns.css`**: **`focus-within`** outline alignment for active findings / highlighted suggestions.
+
+**Playwright**
+
+- **`persisted-flows.spec.ts`**: **`suggestion=`** tests **`toBeInViewport`**; **Copy pin context** omits URL, includes **PQAT** + pinned readout.
+- **`jwt-auth-smoke.spec.ts`**: JWT **Copy pin context** omits URL.
+
+**Docs**
+
+- **`compare-workflow.md`**: Phase 96 note; input list mentions **Copy pin context**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**188** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**28** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**8** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+## Phase 97 — Analyze pane coherence + pinning follow-ups (2026-04-08)
+
+**Frontend**
+
+- **`analyzePanelChrome`**: **`PlanGuideRailLayout`**, **`companionRailSurfaceStyle`** (`besideWorkspace` vs **`companionRailSurfaceStacked`**); removes the short **`max-height`** cap when the guide sits beside the workspace.
+- **`AnalyzePlanGuideRail`**: header + scrollable body when **`railLayout="besideWorkspace"`**; **`data-pqat-rail-layout`** for tests.
+- **`AnalyzePage`** / **`workstation-patterns.css`**: **`pqat-analyzeWorkspaceRow--paired`** + **`pqat-planWorkspaceShell`** stretch behavior.
+- **`AnalyzePlanWorkspacePanel`**: **`pairedWithGuide`** wraps the investigation band; **`AnalyzePlanGraphLazy`** / **`AnalyzePlanGraphCore`**: **`graphFillColumn`** flex-fill when paired; text tree gets **`overflow: auto`** wrapper when paired.
+- **`CompareIndexInsightRows`**: URL-driven **`highlightIndexInsightDiffId`** syncs roving focus + **`focus({ preventScroll: true })`**.
+- **`CompareNextStepsList`**: **Home** / **End** on **Pin** controls.
+
+**Tests**
+
+- **`analyzePanelChrome.test.ts`**, **`CompareNextStepsList.test.tsx`**, **`CompareIndexInsightRows.test.tsx`** (URL sync + **preventScroll**).
+
+**Docs**
+
+- **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**: Phase 97 layout + **Copy link** vs **Copy pin context** + Compare keyboard note.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**192** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**28** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --jwt`** — **OK** (**8** **`e2e-auth-jwt`** tests).
+- **`mkdocs build --strict`** — **OK**.
+
+**Backend:** unchanged this phase (no **`dotnet test`** run).
+

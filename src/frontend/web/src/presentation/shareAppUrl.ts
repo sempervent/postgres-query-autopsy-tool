@@ -1,3 +1,5 @@
+import { formatComparePinnedSummaryLine } from './artifactLinks'
+
 /** Absolute URL for a same-origin pathname (e.g. `/analyze/…`) — used by copy-link actions. */
 export function appUrlForPath(path: string): string {
   return `${window.location.origin}${path}`
@@ -25,6 +27,30 @@ export function compareDeepLinkClipboardPayload(
   if (f) lines.push(`Pinned finding: ${f}`)
   if (ix) lines.push(`Pinned index insight: ${ix}`)
   if (s) lines.push(`Pinned suggestion: ${s}`)
+  return lines.join('\n')
+}
+
+/**
+ * Short chat/ticket block: no URL line — PQAT id, optional pair ref, pinned summary readout, optional rewrite line (Phase 96).
+ */
+export function compareCompactPinContextPayload(
+  comparisonId: string,
+  pairArtifactId: string | null | undefined,
+  pins: CompareDeepLinkClipboardPins | null | undefined,
+  options?: { rewriteOutcomeOneLiner?: string | null },
+): string | null {
+  const pinnedLine = formatComparePinnedSummaryLine({
+    findingDiffId: pins?.findingDiffId,
+    indexInsightDiffId: pins?.indexInsightDiffId,
+    suggestionId: pins?.suggestionId,
+  })
+  const rw = options?.rewriteOutcomeOneLiner?.trim()
+  if (!pinnedLine && !rw) return null
+  const lines: string[] = [`PQAT compare: ${comparisonId.trim()}`]
+  const p = pairArtifactId?.trim()
+  if (p) lines.push(`Pair ref: ${p}`)
+  if (pinnedLine) lines.push(pinnedLine)
+  if (rw) lines.push(`Rewrite outcome: ${rw}`)
   return lines.join('\n')
 }
 

@@ -455,6 +455,11 @@ export default function AnalyzePage() {
 
       {analysis && layout.visibility.workspace ? (
         <div
+          className={
+            layoutTier !== 'narrow' && layout.visibility.guide
+              ? 'pqat-analyzeWorkspaceRow pqat-analyzeWorkspaceRow--paired'
+              : 'pqat-analyzeWorkspaceRow'
+          }
           style={{
             display: 'grid',
             gridTemplateColumns:
@@ -470,6 +475,7 @@ export default function AnalyzePage() {
         >
           <AnalyzePlanWorkspacePanel
             layoutApi={layoutApi}
+            pairedWithGuide={layoutTier !== 'narrow' && layout.visibility.guide}
             analysis={analysis}
             treeMode={treeMode}
             setTreeMode={setTreeMode}
@@ -507,6 +513,7 @@ export default function AnalyzePage() {
               jumpToNodeId={jumpToNodeId}
               copyHotspot={copyHotspot}
               nodeLabel={nodeLabel}
+              railLayout={layoutTier !== 'narrow' ? 'besideWorkspace' : 'stacked'}
             />
           ) : null}
         </div>

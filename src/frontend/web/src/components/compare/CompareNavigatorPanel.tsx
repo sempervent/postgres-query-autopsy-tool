@@ -36,6 +36,7 @@ export type CompareNavigatorPanelProps = {
   highlightFindingDiffId: string | null
   setHighlightFindingDiffId: (id: string | null) => void
   setHighlightIndexInsightDiffId: (id: string | null) => void
+  setHighlightSuggestionId: (id: string | null) => void
   copyNav: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
   copyFinding: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
 }
@@ -70,6 +71,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
     highlightFindingDiffId,
     setHighlightFindingDiffId,
     setHighlightIndexInsightDiffId,
+    setHighlightSuggestionId,
     copyNav,
     copyFinding,
   } = props
@@ -200,6 +202,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                     key={i.diffId || `${i.ruleId}-${rowIdx}`}
                     data-artifact={i.diffId ? ArtifactDomKind.findingDiff : undefined}
                     data-artifact-id={i.diffId || undefined}
+                    aria-current={rowHighlighted ? 'true' : undefined}
                     className={`pqat-artifactOutline${rowHighlighted ? ' pqat-artifactOutline--active' : ''}`}
                   >
                     <ClickableRow
@@ -212,6 +215,8 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                         const r = resolveFindingDiffPair(i, comparison.matches)
                         if (r) setSelectedPair(r)
                         if (i.diffId) setHighlightFindingDiffId(i.diffId)
+                        setHighlightIndexInsightDiffId(null)
+                        setHighlightSuggestionId(null)
                       }}
                       onPointerIntent={prefetchCompareSelectedPairHeavySections}
                       className="pqat-findingsDiffRow"
@@ -249,6 +254,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                                 e.stopPropagation()
                                 setHighlightIndexInsightDiffId(rid)
                                 setHighlightFindingDiffId(null)
+                                setHighlightSuggestionId(null)
                               }}
                             >
                               {rid.length > 14 ? `${rid.slice(0, 12)}…` : rid}
@@ -264,6 +270,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                                 const insightId = comparison.indexComparison?.insightDiffs[ix]?.insightDiffId
                                 if (insightId) setHighlightIndexInsightDiffId(insightId)
                                 setHighlightFindingDiffId(null)
+                                setHighlightSuggestionId(null)
                               }}
                             >
                               Index Δ #{ix}
@@ -287,6 +294,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                     key={i.diffId || `${i.ruleId}-${idx}`}
                     data-artifact={i.diffId ? ArtifactDomKind.findingDiff : undefined}
                     data-artifact-id={i.diffId || undefined}
+                    aria-current={rowHighlighted ? 'true' : undefined}
                     className={`pqat-artifactOutline${rowHighlighted ? ' pqat-artifactOutline--active' : ''}`}
                   >
                     <ClickableRow
@@ -299,6 +307,8 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                         const r = resolveFindingDiffPair(i, comparison.matches)
                         if (r) setSelectedPair(r)
                         if (i.diffId) setHighlightFindingDiffId(i.diffId)
+                        setHighlightIndexInsightDiffId(null)
+                        setHighlightSuggestionId(null)
                       }}
                       onPointerIntent={prefetchCompareSelectedPairHeavySections}
                       className="pqat-findingsDiffRow"
@@ -336,6 +346,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                                 e.stopPropagation()
                                 setHighlightIndexInsightDiffId(rid)
                                 setHighlightFindingDiffId(null)
+                                setHighlightSuggestionId(null)
                               }}
                             >
                               {rid.length > 14 ? `${rid.slice(0, 12)}…` : rid}
@@ -351,6 +362,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                                 const insightId = comparison.indexComparison?.insightDiffs[ix]?.insightDiffId
                                 if (insightId) setHighlightIndexInsightDiffId(insightId)
                                 setHighlightFindingDiffId(null)
+                                setHighlightSuggestionId(null)
                               }}
                             >
                               Index Δ #{ix}

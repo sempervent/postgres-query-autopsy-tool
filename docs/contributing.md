@@ -147,7 +147,7 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 | Project | Spec | Env file | What it proves |
 |--------|------|----------|----------------|
-| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare deep-link + **Pair scope** copy, **`suggestion=`** / **`finding=`** / **`indexDiff=`** reopen highlights + URL bar checks, **Phase 66** theme (no screenshots) |
+| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare **Copy link** with **pinned index insight**, deep-link + **Pair scope** copy, **`suggestion=`** / **`finding=`** / **`indexDiff=`** reopen highlights + URL bar checks, **Phase 66** theme (no screenshots) |
 | **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing + **Copy artifact link** clipboard payload (**URL** + **`PQAT analysis:`**, Phase 88) |
 | **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial, **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) |
 | **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial; **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**, Phase 91) |

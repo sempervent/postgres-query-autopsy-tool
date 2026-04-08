@@ -6,6 +6,7 @@ import {
   buildCompareDeepLinkSearchParams,
   compareDeepLinkPath,
   copyArtifactShareToast,
+  formatComparePinnedSummaryLine,
   shareArtifactLinkLabel,
 } from './artifactLinks'
 
@@ -53,6 +54,18 @@ describe('artifactLinks', () => {
     expect(
       shareArtifactLinkLabel(true, { accessScope: 'private', sharedGroupIds: [], allowLinkAccess: false }),
     ).toBe('Copy artifact link (private)')
+  })
+
+  it('formatComparePinnedSummaryLine lists active pins in stable order', () => {
+    expect(formatComparePinnedSummaryLine({})).toBeNull()
+    expect(formatComparePinnedSummaryLine({ findingDiffId: 'fd_x' })).toBe('Pinned for link: finding fd_x')
+    expect(
+      formatComparePinnedSummaryLine({
+        findingDiffId: 'fd_a',
+        indexInsightDiffId: 'ii_b',
+        suggestionId: 'sg_c',
+      }),
+    ).toBe('Pinned for link: finding fd_a · index insight ii_b · next step sg_c')
   })
 
   it('copyArtifactShareToast matches label semantics', () => {

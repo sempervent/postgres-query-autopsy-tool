@@ -123,6 +123,8 @@ public static class E2eSeedEndpoints
                     var stamped = PersistedArtifactNormalizer.StampNewCompareResponse(cmp);
                     var access = new ArtifactAccessWrite(null, ArtifactAccessScope.Link, Array.Empty<string>(), true);
                     sqlite.SaveComparison(stamped, access);
+                    // canonicalSuggestionId = stable id on the suggestion row at seed time; the browser may
+                    // settle a different sg_* in the query string after load while still resolving legacy→row.
                     return Results.Ok(new
                     {
                         comparisonId = cmp.ComparisonId,
