@@ -1,4 +1,4 @@
-# Phase 80: frontend uses Node 20.18.0 to match Volta (package.json) / .nvmrc / digest-pinned Docker verify path.
+# Phase 80–81: frontend uses Node 20.18.0 (Volta / .nvmrc); npm cache speeds npm ci (Phase 81).
 # Phase 73: Unquoted `run:` scalars are fragile:
 # - `#` starts a YAML comment (truncates the line).
 # - A substring like `Local: ./path` contains `: ` which YAML can parse as a nested mapping.
@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20.18.0"
+          cache: npm
+          cache-dependency-path: src/frontend/web/package-lock.json
       - name: Install
         run: |
           cd src/frontend/web

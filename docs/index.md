@@ -1,5 +1,14 @@
 # Postgres Query Autopsy Tool
 
+[![CI](https://github.com/sempervent/postgres-query-autopsy-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/sempervent/postgres-query-autopsy-tool/actions/workflows/ci.yml)
+[![Workflow lint](https://github.com/sempervent/postgres-query-autopsy-tool/actions/workflows/workflow-lint.yml/badge.svg)](https://github.com/sempervent/postgres-query-autopsy-tool/actions/workflows/workflow-lint.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-222?logo=githubpages&logoColor=white)](https://sempervent.github.io/postgres-query-autopsy-tool/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/sempervent/postgres-query-autopsy-tool/blob/main/LICENSE)
+[![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Node 20.18](https://img.shields.io/badge/node-20.18-339933?logo=nodedotjs)](https://nodejs.org/)
+
+*The same badge row lives on the [GitHub README](https://github.com/sempervent/postgres-query-autopsy-tool#readme); keep both in sync when changing trust signals (Phase 81).*
+
 A forensic workstation for PostgreSQL execution plans. The **Phase 55–57** UI pass tightens the dark “operator deck” look—clearer state banners (errors, access, loading), a stronger summary column, guided suggestion blocks, calmer motion (**reduced motion** respected), **bundled fonts** (no Google CDN at runtime), shared **Analyze/Compare** error and **utility** chrome (customizer, sharing, capture disclosures), and a **Playwright visual** suite (**four** canonical frames, including access denied) wired through **CI**. **Phase 65–66** make **appearance** first-class: **System** (default, follows OS), **Dark**, and **Light**, with **localStorage** (`pqat_theme_v1`), optional **account sync** of the same string under **`appearance_theme_v1`** when auth + credentials exist, **`html[data-theme]`** / **`data-effective-theme`** + CSS variables (including **Phase 66** semantic tints for badges, story lanes, graph chrome), and Playwright **theme smoke** on the **`e2e-smoke`** project. Visual regression still **locks dark** for deterministic pixels.
 
 Given `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` output, the tool:

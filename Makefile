@@ -1,7 +1,7 @@
 .PHONY: help up down logs test test-backend test-backend-docker test-frontend verify-frontend-docker test-e2e-copy \
 	e2e-playwright-docker e2e-playwright-docker-auth e2e-playwright-docker-jwt e2e-playwright-docker-proxy \
 	e2e-playwright-docker-visual e2e-playwright-docker-all-auth \
-	lint-workflows repo-health repo-health-docker verify verify-docker lint format docs-install docs-serve docs-build
+	lint-workflows repo-health repo-health-docker verify verify-docker shellcheck-scripts lint format docs-install docs-serve docs-build
 
 help:
 	@echo "Targets:"
@@ -16,7 +16,8 @@ help:
 	@echo "      make verify                  - lint + backend (PATH) + frontend tests (host)"
 	@echo "      make verify-docker           - lint + backend (Docker SDK 8) + verify-frontend-docker"
 	@echo "    Shared:"
-	@echo "      make lint-workflows          - actionlint only (PATH | Docker digest pin | ACTIONLINT_BOOTSTRAP=1)"
+	@echo "      make lint-workflows          - actionlint (PATH | Docker digest | ACTIONLINT_BOOTSTRAP=1 + SHA256 verify)"
+	@echo "      make shellcheck-scripts      - shellcheck scripts/*.sh (optional; install shellcheck)"
 	@echo "      make test-e2e-copy           - host Playwright slice (api+web :3000, .env.testing)"
 	@echo ""
 	@echo "  Stack"
@@ -74,6 +75,9 @@ verify-docker: lint-workflows test-backend-docker verify-frontend-docker
 
 verify-frontend-docker:
 	./scripts/verify-frontend-docker.sh
+
+shellcheck-scripts:
+	./scripts/shellcheck-scripts.sh
 
 test-backend-docker:
 	docker run --rm -v "$(CURDIR):/src" -w /src \

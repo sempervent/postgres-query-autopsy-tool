@@ -1714,3 +1714,27 @@ Verified (agent run, 2026-04-04):
 - **`docker compose build`** — **OK**.
 - **`mkdocs build --strict`** — **OK**.
 
+## Phase 81 — README front door + badges + checksum bootstrap + frontend Docker parity + docs (2026-04-07)
+
+**README / docs home:** Rebuilt **`README.md`** as the repository front door (shields, hosted docs link, verification tiers pointer, Docker one-liner, layout table). **`docs/index.md`** mirrors the **same badge row** (absolute URLs where needed) so GitHub and MkDocs stay consistent.
+
+**Trust / reproducibility:** **`scripts/lint-workflows.sh`** **`ACTIONLINT_BOOTSTRAP`** downloads **`actionlint_${ver}_checksums.txt`** and refuses to extract unless the tarball **SHA256** matches the official checksum file (**openssl** / **sha256sum** / **shasum**). **`scripts/verify-frontend-docker.sh`** mounts **`$REPO_ROOT` → `/repo`**, **`WORKDIR`** **`src/frontend/web`**, runs **`npm ci`**, **`npm run fixtures:check`**, **`npm test`**, **`npm run build`**.
+
+**Repo health:** **`scripts/shellcheck-scripts.sh`** + **`make shellcheck-scripts`**; **`scripts/e2e-playwright-docker.sh`** **`for _ in`** for **shellcheck** SC2034.
+
+**CI:** **`actions/setup-node@v4`** **`cache: npm`**, **`cache-dependency-path: src/frontend/web/package-lock.json`**.
+
+**Docs:** **`contributing.md`** — status badges, expanded **container re-pinning**, **npm audit** policy, **shellcheck** row, updated workflow-lint / verify-frontend-docker wording; **`architecture.md`** Phase 81 bullet.
+
+**Verified (agent run, 2026-04-07)**
+
+- **`./scripts/lint-workflows.sh`** — **OK** (Docker **actionlint** path).
+- **`PATH=/usr/bin:/bin:/usr/sbin ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** — **OK** after moving **`.cache/pqat-actionlint`** aside (cold **checksum** bootstrap).
+- **`make shellcheck-scripts`** — **OK** (host **shellcheck** present).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (includes **`fixtures:check`**).
+- **`make verify-docker`** — **OK** (includes **Docker** **`dotnet test`** — **153** unit tests).
+- **`docker compose build`** — **OK**.
+- **`mkdocs build --strict`** — **OK** (from repo root with **`docs/.venv`** activated + **`pip install -r requirements-docs.txt`**).
+
+**Note:** Host had **.NET 10** only; **`dotnet test`** on the host was not used — **Docker** backend tests above are the authoritative local stand-in for **.NET 8**.
+

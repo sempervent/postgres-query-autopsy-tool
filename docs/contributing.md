@@ -7,6 +7,10 @@
 - `tests/backend.unit/` xUnit tests + fixtures
 - `docs/` documentation source (MkDocs)
 
+## Status badges (Phase 81)
+
+README (**repository root**) and **`docs/index.md`** (MkDocs home) share the **same shield row** (CI, workflow lint, docs, license, .NET, Node). When you add or change a badge, update **both** files so GitHub and GitHub Pages stay aligned. Prefer **repository workflow badges** (`…/actions/workflows/<file>/badge.svg`) and **shields.io** static badges over brittle third-party “live” counters.
+
 ## Verification tiers (Phase 80)
 
 | Tier | Intent | Typical command |
@@ -17,7 +21,7 @@
 | **D — full Docker** | Lint + Docker **.NET 8** + Docker Node frontend (max parity, minimal host deps) | **`make verify-docker`** |
 | **Specialty** | E2E, visual PNGs, docs site, copy slice | **`make e2e-playwright-docker*`**, **`make docs-build`**, **`make test-e2e-copy`** |
 
-**Workflow lint alone:** **`make lint-workflows`**. Order inside script: **actionlint** on **PATH** → **Docker** (digest-pinned **`rhysd/actionlint:1.7.7@sha256:887a…`**, override **`ACTIONLINT_DOCKER_IMAGE`**) → optional **`ACTIONLINT_BOOTSTRAP=1`** (GitHub release **v1.7.7** binary into **`.cache/pqat-actionlint/`**, needs **curl**) → error with install hints.
+**Workflow lint alone:** **`make lint-workflows`**. Order: **PATH** → **Docker** (digest-pinned **`rhysd/actionlint:1.7.7@sha256:887a…`**) → **`ACTIONLINT_BOOTSTRAP=1`** (downloads **`actionlint_${ver}_checksums.txt`** + tarball, **SHA256** must match upstream; needs **curl** + **openssl** / **sha256sum** / **shasum**) → error with hints. Optional **`make shellcheck-scripts`** if **shellcheck** is installed.
 
 ## CI parity (verified commands)
 
@@ -28,7 +32,7 @@ These paths mirror what **GitHub Actions** exercises (see **`.github/workflows/c
 | **Workflow YAML** | **`make lint-workflows`** or **`./scripts/lint-workflows.sh`** (same as **`workflow-lint.yml`**; Docker image digest-pinned; **`ACTIONLINT_BOOTSTRAP=1`** if no Docker — see [Verification tiers](#verification-tiers-phase-80)) |
 | **Backend unit tests** | **`make test-backend`** (needs **.NET 8** on PATH) or **`make test-backend-docker`** (**.NET SDK 8** in Docker — digest-pinned in **`Makefile`**, matches **`PostgresQueryAutopsyTool.Api/Dockerfile`**) |
 | **Frontend (host Node 20)** | **`cd src/frontend/web && npm ci && npm test && npm run build`** |
-| **Frontend (Docker — CI-like)** | **`make verify-frontend-docker`** or **`./scripts/verify-frontend-docker.sh`** — **Node 20 Alpine** digest-pinned (same family as **`src/frontend/web/Dockerfile`**); override with **`PQAT_NODE_IMAGE`** if needed |
+| **Frontend (Docker — CI-like)** | **`make verify-frontend-docker`** — mounts **full repo** at **`/repo`**, runs in **`src/frontend/web`**: **`npm ci`**, **`npm run fixtures:check`**, **`npm test`**, **`npm run build`** (matches **`ci.yml`** **`frontend`** job). **Node 20 Alpine** digest-pinned (same **major** line as CI **20.18.0**; see [CI Node version](#ci-node-version-phase-80)); override **`PQAT_NODE_IMAGE`** if needed |
 | **Docker images** | **`docker compose build`** (**`docker-smoke`** job) |
 | **E2E smoke** (persisted flows + theme + copy capture) | **`make e2e-playwright-docker`** or **`./scripts/e2e-playwright-docker.sh`** (**`.env.testing`**, **`e2e-smoke`**) |
 | **E2E visual** | **`make e2e-playwright-docker-visual`** or **`./scripts/e2e-playwright-docker.sh --visual`** |
@@ -36,13 +40,27 @@ These paths mirror what **GitHub Actions** exercises (see **`.github/workflows/c
 
 **Shortcuts:** **`make verify`** = lint + host backend + host frontend tests; **`make verify-docker`** = lint + **`test-backend-docker`** + **`verify-frontend-docker`**. **`make repo-health`** / **`make repo-health-docker`** = tier A / B above. **`workflow-lint.yml`** runs only when workflow files or **`.actionlint.yaml`** change — still run **`make lint-workflows`** before pushing workflow edits.
 
-### Container image pins (Phase 79–80)
+### Container image pins & re-pinning (Phase 79–81)
 
-Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (**`node:20-alpine`**, **`nginx:alpine`**), **API** **.NET 8** images, **`Makefile`** **`test-backend-docker`**, **`scripts/verify-frontend-docker.sh`**, and **`scripts/lint-workflows.sh`** default **actionlint** Docker image. Bump when retargeting versions: **`docker buildx imagetools inspect <image:tag>`** → update digest + comment.
+Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (**`node:20-alpine`**, **`nginx:alpine`**), **API** **.NET 8** images, **`Makefile`** **`test-backend-docker`**, **`scripts/verify-frontend-docker.sh`**, and **`scripts/lint-workflows.sh`** default **actionlint** Docker image.
+
+**How to bump safely**
+
+1. Choose the new **tag** (e.g. **`node:20-alpine`** after upstream refresh, or **`v1.53.0-jammy`** for Playwright — then bump **`@playwright/test`** in **`package.json`** to match).
+2. Run **`docker buildx imagetools inspect <registry>/<image>:<tag>`** and copy the top-level **Digest** (manifest list / index).
+3. Replace **`image@sha256:…`** in **`docker-compose.yml`**, **`Dockerfile`** files, **`Makefile`**, and any script default that embeds the same image — **one commit** per bump reduces drift.
+4. Re-run **`docker compose build`**, **`make verify-frontend-docker`**, **`make verify-docker`**, and Playwright Docker suites if the bump touches browser or Node.
+5. **`ACTIONLINT_BOOTSTRAP`**: if **`ACTIONLINT_VERSION_BOOTSTRAP`** / default Docker tag changes, confirm **`actionlint_${ver}_checksums.txt`** exists on the release (script verifies tarball against it).
+
+**CI npm cache (Phase 81):** **`setup-node`** uses **`cache: npm`** with **`cache-dependency-path: src/frontend/web/package-lock.json`** to speed **`npm ci`** — no change to verification semantics.
 
 ### CI Node version (Phase 80)
 
-**`.github/workflows/ci.yml`** **`frontend`** job uses **`actions/setup-node@v4`** with **`node-version: "20.18.0"`** — aligns with **`package.json`** **`volta.node`**, **`src/frontend/web/.nvmrc`**, and the digest-pinned **Node 20 Alpine** used by **`verify-frontend-docker`** / **`Dockerfile`**. Patch bumps: change all three together when you intentionally move the pinned minor/patch.
+**`.github/workflows/ci.yml`** **`frontend`** job uses **`actions/setup-node@v4`** with **`node-version: "20.18.0"`** — aligns with **`package.json`** **`volta.node`**, **`src/frontend/web/.nvmrc`**, and the **Node 20** line used in Docker (**Alpine** image is digest-pinned on **`node:20-alpine`**; it may trail **20.18.0** patch-for-patch — CI is the exact patch reference). When bumping **20.18.x**, update **`.nvmrc`**, **Volta**, **`ci.yml`**, and re-test **`verify-frontend-docker`**.
+
+### npm audit (Phase 81)
+
+**`npm audit`** is **not** a merge gate in CI. Treat reports as **triage**: fix high-impact issues in direct dependencies when practical; use **`npm audit fix`** only when lockfile churn is acceptable. Frontend CI stays **`npm ci`** + tests + build; security posture relies on pinned lockfiles, image digests, and periodic manual **`npm audit`** / Dependabot-style updates.
 
 ### GitHub Actions job families (`ci.yml` + `workflow-lint.yml`)
 
@@ -59,7 +77,7 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 
 ## Repo health, workflows, and .NET runtime (Phase 74)
 
-**Workflow lint:** [**actionlint**](https://github.com/rhysd/actionlint) via **`./scripts/lint-workflows.sh`**. Config: **`.actionlint.yaml`**. **`.github/workflows/workflow-lint.yml`** runs this script (path-scoped); do **not** use **`uses: rhysd/actionlint@v1`**. Resolution order and fallbacks: [Verification tiers](#verification-tiers-phase-80). **Without Docker:** install the **actionlint** binary (see upstream docs), or **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** once (cached under **`.cache/pqat-actionlint/`**).
+**Workflow lint:** [**actionlint**](https://github.com/rhysd/actionlint) via **`./scripts/lint-workflows.sh`**. Config: **`.actionlint.yaml`**. **`.github/workflows/workflow-lint.yml`** runs this script (path-scoped); do **not** use **`uses: rhysd/actionlint@v1`**. **Without Docker:** install **actionlint** on **PATH**, or **`ACTIONLINT_BOOTSTRAP=1 ./scripts/lint-workflows.sh`** (checksum-verified download to **`.cache/pqat-actionlint/`**). Clear the cache after changing **`ACTIONLINT_VERSION_BOOTSTRAP`**.
 
 **Host Vitest / optional native bindings (Phase 76 + 79):** If **`npm test`** fails with **rolldown** / **“Cannot find native binding”** / missing **`@rolldown/binding-*`**, run **`make verify-frontend-docker`** (or **`./scripts/verify-frontend-docker.sh`**) — same steps as CI **`frontend`** job, without relying on host Node. **Alternatively:** from **`src/frontend/web`**, clean **`node_modules`** / lockfile and reinstall on **20.x** (**`engines`** / **`.nvmrc`**). Avoid **Node 25+** for local dev until the stack officially supports it.
 
@@ -74,6 +92,7 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 | Frontend only (Docker, CI-like) | **`make verify-frontend-docker`** |
 | Backend unit tests only (Docker) | **`make test-backend-docker`** |
 | Copy/persisted-flow Playwright slice (host) | **`make test-e2e-copy`** — requires **`api` + `web`** on **`:3000`** with **`.env.testing`** (see [Browser E2E](#browser-e2e-playwright)); equivalent to **`npm run test:e2e:copy`** in **`src/frontend/web`** with **`PLAYWRIGHT_*`** env set |
+| Shell script static analysis (optional) | **`make shellcheck-scripts`** — requires **`shellcheck`** on **PATH** |
 
 **Analyze fixture sweep** is still **`PostgresJsonAnalyzeFixtureSweepTests`** plus **`Support/AnalyzeFixtureCorpus*`**; there is no separate CLI — run **`make test-backend-docker`** or **`dotnet test`** on the unit project to execute it.
 

@@ -70,7 +70,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 wait_health() {
-  for i in $(seq 1 60); do
+  for _ in $(seq 1 60); do
     if curl -sf http://127.0.0.1:3000/api/health >/dev/null; then
       return 0
     fi
