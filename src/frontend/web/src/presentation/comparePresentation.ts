@@ -2,13 +2,6 @@ import type { PlanComparisonResult } from '../api/types'
 import { relatedFindingRuleHints, relatedFindingRuleHintsByDiffIds } from './compareIndexLinks'
 import { formatIndexInsightDiffKind } from './indexInsightPresentation'
 
-export type CompareIntroCopy = {
-  title: string
-  subtitle: string
-  bullets: string[]
-  inputHints: string[]
-}
-
 export type CompareSummaryCard = {
   key: string
   label: string
@@ -43,27 +36,10 @@ function deltaArrow(delta: number | null | undefined): string {
   return delta > 0 ? '↑' : '↓'
 }
 
-export function compareIntroCopy(): CompareIntroCopy {
-  return {
-    title: 'Compare plans',
-    subtitle:
-      'Paste two PostgreSQL JSON plans. The tool maps nodes heuristically and highlights what changed (runtime, reads, and findings), with confidence surfaced where matches are uncertain.',
-    bullets: [
-      'Heuristic node mapping (not magical certainty)',
-      'Top improved/worsened branches',
-      'Twin branch context (path + children) for the selected pair',
-      'Findings changes + context diffs',
-      'Inspectable pair details + confidence',
-      'Index posture + bounded index insight diffs (new/resolved/shifted)',
-    ],
-    inputHints: ['Best input: `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)`', '`ANALYZE` improves runtime deltas; `BUFFERS` improves read deltas', 'If evidence is missing, sections will degrade gracefully'],
-  }
-}
-
 export function compareEmptyStateCopy() {
   return {
     title: 'Paste two plans to compare',
-    body: 'Provide Plan A and Plan B JSON, then click Compare. After it runs, start with “What changed most”, use the navigator lists, and read the branch context strip next to pair details to see where the selection sits in each plan.',
+    body: 'Fill Plan A and Plan B, then run Compare. Use How to use Compare (or ?) for a full tour—the guide explains navigator, summary lanes, and copy actions.',
   }
 }
 

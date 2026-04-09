@@ -124,6 +124,9 @@ export function AnalyzePlanWorkspacePanel(props: {
             Text
           </button>
         </div>
+        <div className="pqat-help-inline" style={{ margin: 0, flex: '1 1 200px' }} data-testid="analyze-plan-view-mode-hint">
+          <strong>Graph</strong> = spatial view with hotspots. <strong>Text</strong> = the same tree, compact. Both drive the same selection.
+        </div>
         <div className="pqat-hint" style={{ margin: 0 }}>
           Tip: inspect-next and findings jump the graph selection.
         </div>

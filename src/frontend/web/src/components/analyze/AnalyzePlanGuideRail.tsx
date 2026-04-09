@@ -426,6 +426,9 @@ export function AnalyzePlanGuideRail(props: {
         >
           Plan guide
         </div>
+        <p className="pqat-help-inline" style={{ marginTop: beside ? 6 : 0, marginBottom: beside ? 8 : 10 }} data-testid="analyze-plan-guide-kicker">
+          <strong>Guide rail:</strong> summarized story and selection context for your click—not raw EXPLAIN text. Cross-check hot nodes on the graph.
+        </p>
       </div>
       {selectionPinnedBeside ? (
         <div className="pqat-planGuideRail__stickyBand">{sections.selection}</div>

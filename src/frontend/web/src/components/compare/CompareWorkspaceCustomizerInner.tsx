@@ -12,10 +12,10 @@ import { WorkspaceSortableOrderList } from '../workspace/WorkspaceSortableOrderL
 
 const presets: { id: CompareWorkspacePresetId; label: string; hint: string }[] = [
   { id: 'balanced', label: 'Balanced', hint: 'Default layout' },
-  { id: 'wideGraph', label: 'Wide pair', hint: 'Pair + branch column first; hide intro' },
-  { id: 'review', label: 'Review', hint: 'Pair first; trim intro & summary suggestions' },
+  { id: 'wideGraph', label: 'Wide pair', hint: 'Pair + branch column first; hide empty-state guide default' },
+  { id: 'review', label: 'Review', hint: 'Pair first; trim guide default & summary suggestions' },
   { id: 'diffHeavy', label: 'Diff-heavy', hint: 'Findings diff above worsened/improved' },
-  { id: 'compact', label: 'Compact', hint: 'Hide intro, capture context, unmatched, narrative block' },
+  { id: 'compact', label: 'Compact', hint: 'Hide guide default, capture context, unmatched, narrative block' },
 ]
 
 const regionOrder: CompareWorkspaceRegionId[] = [

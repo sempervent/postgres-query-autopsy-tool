@@ -21,6 +21,116 @@ test.beforeEach(async ({ page }) => {
   await installE2eClipboardCapture(page)
 })
 
+test('Analyze: ?guide=1 shows distinct workflow guide shell', async ({ page }) => {
+  await page.goto('/?guide=1')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  const panel = page.getByTestId('analyze-workflow-guide-panel')
+  await expect(panel).toBeVisible({ timeout: 15_000 })
+  await expect(panel).toHaveAttribute('data-pqat-help-surface', '1')
+})
+
+test('Analyze: Hide guide strips guide param from URL', async ({ page }) => {
+  await page.goto('/?guide=1')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden()
+  expect(page.url()).not.toMatch(/[?&]guide=/)
+})
+
+test('Analyze: ? hotkey opens guide after dismiss; ignored while typing in plan input', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  })
+  await page.goto('/')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden({ timeout: 15_000 })
+  const planBox = page.getByPlaceholder(/JSON or psql/i)
+  await planBox.click()
+  await planBox.press('Shift+/')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden()
+  await page.locator('body').click()
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true }))
+  })
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 5000 })
+})
+
+test('Compare: ?guide=1 shows guide; Hide guide hides panel', async ({ page }) => {
+  await page.goto('/compare?guide=1')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeHidden()
+})
+
+test('Analyze: dismissed guide stays closed after reload; ?guide=1 reopens', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden()
+  const stored = await page.evaluate(() => window.localStorage.getItem('pqat_workflow_guide_v1'))
+  expect(stored).toBeTruthy()
+  expect(stored).toMatch(/analyzeDismissed/i)
+
+  await page.reload()
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden({ timeout: 15_000 })
+
+  await page.goto('/?guide=1')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+})
+
+test('Compare: dismissed guide stays closed after reload when intro on; ?guide=1 reopens', async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      const key = 'pqat.compareWorkspaceLayout.v1'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) return
+      const o = JSON.parse(raw) as { visibility?: Record<string, unknown> }
+      if (o?.visibility) o.visibility.intro = true
+      window.localStorage.setItem(key, JSON.stringify(o))
+    } catch {
+      /* ignore */
+    }
+  })
+  await page.goto('/compare')
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeHidden()
+  const stored = await page.evaluate(() => window.localStorage.getItem('pqat_workflow_guide_v1'))
+  expect(stored).toBeTruthy()
+  expect(stored).toMatch(/compareDismissed/i)
+
+  await page.reload()
+  await expect(page.getByRole('link', { name: 'Compare' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('compare-plan-a-text')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeHidden({ timeout: 15_000 })
+
+  await page.goto('/compare?guide=1')
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+})
+
+test('Analyze: Copy guided link merges guide=1 into current query', async ({ page }) => {
+  await page.goto('/?utm_pqat_e2e=keep&guide=1')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('analyze-workflow-guide-copy-guided').getByRole('button', { name: /Copy guided link/i }).click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toMatch(/^https?:\/\//)
+  expect(clip).toMatch(/[?&]guide=1(?:&|$)/)
+  expect(clip).toMatch(/utm_pqat_e2e=keep/)
+})
+
+test('Analyze: Esc closes guide and returns focus to toggle', async ({ page }) => {
+  await page.goto('/?guide=1')
+  const panel = page.getByTestId('analyze-workflow-guide-panel')
+  await expect(panel).toBeVisible({ timeout: 15_000 })
+  const title = page.locator('#analyze-workflow-guide-title')
+  await title.focus()
+  await expect(title).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(panel).toBeHidden()
+  await expect(page.getByTestId('analyze-workflow-guide-bar').getByRole('button', { name: /How to use Analyze/i })).toBeFocused()
+})
+
 test('Analyze: copy node reference writes expected reference text', async ({ page }) => {
   const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
 

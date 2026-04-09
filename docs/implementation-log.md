@@ -2251,3 +2251,121 @@ Verified (agent run, 2026-04-04):
 - **`mkdocs build --strict`** — **OK**.
 - **Backend:** unchanged (no **`dotnet test`** this phase).
 
+## Phase 101 — In-product help and onboarding, visually distinct from analysis (2026-04-08)
+
+**Frontend**
+
+- **`help/helpSurface.css`**: **`pqat-help-*`** design language (dotted border, teal accent rail, dashed guide bar)—separate from **`pqat-panel`** investigation surfaces; light/dark via shared root tokens.
+- **`help/WorkflowGuideShell.tsx`**, **`WorkflowGuideBar.tsx`**, **`AnalyzeWorkflowGuide.tsx`**, **`CompareWorkflowGuide.tsx`**: instructional copy (what to paste, how to read graph/guide/findings, compare pins/links/continuity); Compare retains **`h2` “Compare plans”** for wayfinding/E2E.
+- **`App.tsx`**: imports **`helpSurface.css`** globally.
+- **`AnalyzePage.tsx`**: guide toggle + panel; auto-open when empty / after clear; auto-close when analysis or **`analysis=`** load is in play.
+- **`ComparePage.tsx`**: same pattern; initial open follows workspace **`intro`**; **`pair=`** removal behavior documented in code comment; empty-state hint points to **How to use Compare**; **`compare-pin-live`** adds **`aria-relevant="additions text"`**.
+- **Context:** **`pqat-help-inline`** on **`AnalyzeCapturePanel`**, **`AnalyzePlanWorkspacePanel`** (graph/text), **`CompareCapturePanel`**, **`CompareSelectedPairPanel`** (copy trio).
+- **Removed** **`CompareIntroPanel.tsx`**; **`comparePresentation`** drops unused **`compareIntroCopy`**; **`compareWorkspaceModel`** / **`CompareWorkspaceCustomizerInner`** labels reference the workflow guide.
+
+**Tests**
+
+- **`help/workflowGuide.test.tsx`** (shell sections, heading, bar **`aria-*`**).
+- **`AnalyzePage.interaction.test.tsx`**: empty-load guide + toggle.
+- **`ComparePage.ux.test.tsx`**: heuristic copy + guide button.
+
+**Docs**
+
+- **`README.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`** ( **`pair=`** row, URL matrix, guide section), **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**202** Vitest tests, production **`vite build`**).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**33** **`e2e-smoke`** tests).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 102 — Help discoverability, persistence, and re-entry (2026-04-08)
+
+**Frontend**
+
+- **`help/workflowGuidePrefs.ts`**: **`pqat_workflow_guide_v1`** (**`analyzeDismissed`**, **`compareDismissed`**), **`WorkflowGuideQueryParam`** (**`guide`=`1`/`true`**), **`readAnalyzeGuideInitialOpen()`** (dismissal only—URL handled in effects for MemoryRouter parity).
+- **`help/workflowGuideHotkey.ts`**: **`?`** / **Shift+/** when focus is not **`input` / `textarea` / `select` / `contenteditable`** (attribute fallback for test envs).
+- **`AnalyzePage.tsx` / `ComparePage.tsx`**: **`urlWantsGuide`** opens panel; **Hide guide** persists dismissal; **`?guide=`** stripped only on **open→close** transition (avoids stripping before first open); **Clear** + skip-sync refs keep guide open after reset; window **`keydown`** listeners.
+- **`WorkflowGuideBar`**: optional **`keyboardHint`** (Analyze/Compare copy + **`?guide=1`**).
+- **`WorkflowGuideShell`**: **`data-pqat-help-surface="1"`** (visual/struct contract).
+- **`comparePresentation.compareEmptyStateCopy`**: shorter empty body (guide is primary).
+- **`AnalyzePlanGuideRail`**: **`pqat-help-inline`** kicker for rail vs raw plan.
+- **`CompareSummaryColumn`**: summary-lanes **`pqat-help-inline`** (**Change briefing** / **Index changes** / **Next steps**).
+- **`compareWorkspaceModel`**: **`intro`** region label mentions **`compareDismissed`**.
+
+**Tests**
+
+- **`workflowGuidePrefs.test.ts`**, **`workflowGuideHotkey.test.ts`**; **`workflowGuide.test.tsx`** asserts **`data-pqat-help-surface`**.
+- **`AnalyzePage.interaction.test.tsx`**: dismissal persistence, **`?guide=1`**, hotkey.
+- **`ComparePage.ux.test.tsx`**: **`compare-index-changes-callout`** scoping for **Index changes** text.
+- Playwright **`persisted-flows.spec.ts`**: **`?guide=1`**, URL strip, Compare guide toggle, hotkey ignore-in-input + synthetic **`?`**.
+
+**Docs**
+
+- **`README.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**209** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**37** **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 103 — Help lifecycle, focus behavior, and support-friendly guided entry (2026-04-08)
+
+**Frontend**
+
+- **`help/workflowGuideDomIds.ts`**, **`help/workflowGuideEntryUrl.ts`**, **`help/WorkflowGuideCopyGuidedRow.tsx`**: absolute **`?guide=1`** URL + footer **Copy guided link** on Analyze/Compare guides.
+- **`WorkflowGuideShell`**: optional **`footer`**, **`tabIndex={-1}`** on title, **`pqat-help-shell__footer`** / **`__support*`** styles in **`helpSurface.css`**.
+- **`WorkflowGuideBar`**: **`toggleRef`**, **`toggleTitle`** ( **`?` / Esc** hint).
+- **`AnalyzePage.tsx` / `ComparePage.tsx`**: single **`window`** **`keydown`** (**`?`** opens + pending focus title; **`Esc`** closes + dismiss when not in ignored targets); **`useEffect`** moves focus to title only after explicit open; returns focus to toggle after explicit close only.
+- **`CompareWorkflowGuide`**: pins bullet clarifies **Copy link** vs **Copy pin context** vs **Copy guided link**.
+- **`CompareSelectedPairPanel`**: **`pqat-help-inline`** ties copy trio to **Copy guided link** in the guide.
+
+**Tests**
+
+- **`workflowGuideEntryUrl.test.ts`**; **`workflowGuide.test.tsx`** — **`pqat-help-shell`** class, copy row + hint; **`afterEach` cleanup**.
+- **`AnalyzePage.interaction.test.tsx`**: **Esc** close / ignore-in-input, toggle → title focus.
+- Playwright **`persisted-flows.spec.ts`**: Analyze + Compare dismissal **reload** + **`?guide=1`** reopen; **Copy guided link**; **Esc** + toggle focus (title **`.focus()`** in test).
+
+**Docs**
+
+- **`README.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**215** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**41** **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 104 — Help accessibility and support-path refinement (2026-04-08)
+
+**Frontend**
+
+- **`help/workflowGuideFocusLoopHelpers.ts`**: **`collectWorkflowGuideFocusables`**, **`workflowGuideFocusLoopKeydownHandler`** (wrap **Tab** / **Shift+Tab** when ≥2 focusables).
+- **`WorkflowGuideShell`**: **`keyboardContain`** prop; capture **`keydown`** on the section; guide **`h2`** **`tabIndex={0}`** for tab order with **Copy guided link**.
+- **`workflowGuideEntryUrl.ts`**: **`buildCopyGuidedLinkUrlFromLocation`** merges **`guide=1`** into **`pathname` + `search` + `hash`**.
+- **`WorkflowGuideCopyGuidedRow`**: uses **`window.location`** for copy; updated hint + button **`title`**.
+- **`AnalyzePage.tsx` / `ComparePage.tsx`**: polite live-region announcers (**`analyze-workflow-guide-announcer`**, **`compare-workflow-guide-announcer`**); **`analyzeGuideKeyboardContain` / `compareGuideKeyboardContain`** only after explicit opens; open/close message queue with timeout clear.
+- **`CompareSelectedPairPanel`**: **`aria-label`** + **`title`** on **Copy link** / **Copy pin context**; inline hint ties **Copy guided link** to merged URL.
+- **`CompareWorkflowGuide`**: pins bullet updated for merged guided link.
+
+**Tests**
+
+- **`workflowGuideFocusLoopHelpers.test.ts`**; extended **`workflowGuideEntryUrl.test.ts`**; **`workflowGuide.test.tsx`** asserts shell lacks **`pqat-panel`** classes.
+- **`AnalyzePage.interaction.test.tsx`**: announcer explicit open/close.
+- Playwright: **Copy guided link** keeps **`utm_pqat_e2e=keep`**; Compare reload test patches **`intro: true`** on stored layout when present.
+
+**Docs**
+
+- **`README.md`**, **`analyze-workflow.md`**, **`compare-workflow.md`**, **`architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**221** Vitest tests, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**41** **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+

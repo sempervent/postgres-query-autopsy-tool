@@ -166,7 +166,8 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
                 type="button"
                 data-testid="compare-copy-pin-context"
                 className="pqat-btn pqat-btn--sm pqat-btn--ghost"
-                title="Copies a short block (no URL): PQAT compare id, Pair ref when present, pinned line, optional rewrite outcome."
+                aria-label="Copy pin context: ticket text without URL"
+                title="Pin context: short block for chat/tickets (no URL). Not a shareable deep link—use Copy link for that, or Copy guided link in the workflow guide for onboarding (?guide=1)."
                 onClick={async () => {
                   const text = compareCompactPinContextPayload(
                     comparison.comparisonId,
@@ -190,6 +191,11 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
               ) : null}
             </div>
           ) : null}
+          <p className="pqat-help-inline" style={{ marginTop: 10 }} data-testid="compare-copy-actions-hint">
+            <strong>Copy reference</strong> = human pair summary. <strong>Copy link</strong> = shareable URL for this comparison (plus pins when set).{' '}
+            <strong>Copy pin context</strong> = ticket/chat text only (no URL). For onboarding, use <strong>Copy guided link</strong> in the workflow guide (merges{' '}
+            <code>guide=1</code> into the address bar)—not these snapshot copy actions.
+          </p>
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -208,7 +214,8 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
             <button
               type="button"
               data-testid="compare-copy-deep-link"
-              title="Copies a ticket-friendly block: URL, PQAT compare line, Pair ref, and optional pinned finding / index insight / suggestion lines when highlights are set."
+              aria-label="Copy link: shareable URL and pinned compare state"
+              title="Shareable link: URL + PQAT compare line + Pair ref + pinned finding/index/suggestion when set. Different from Copy guided link in the guide (merges ?guide=1 for onboarding)."
               onClick={async () => {
                 const params = buildCompareDeepLinkSearchParams({
                   comparisonId: comparison.comparisonId,

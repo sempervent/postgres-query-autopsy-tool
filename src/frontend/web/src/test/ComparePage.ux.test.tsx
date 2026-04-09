@@ -320,6 +320,7 @@ beforeEach(() => {
   clipboardWrite.mockClear()
   try {
     localStorage.removeItem(COMPARE_WORKSPACE_LOCAL_STORAGE_KEY)
+    localStorage.removeItem('pqat_workflow_guide_v1')
   } catch {
     /* ignore */
   }
@@ -344,7 +345,8 @@ test('compare page is truthful (no stale MVP placeholder copy)', async () => {
   expect(screen.getByText('Compare plans')).toBeInTheDocument()
   expect(screen.queryByText(/placeholder diff summary/i)).toBeNull()
   expect(screen.queryByText(/This MVP/i)).toBeNull()
-  expect(screen.getByText(/Heuristic node mapping/i)).toBeInTheDocument()
+  expect(screen.getByText(/aligns nodes heuristically/i)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /How to use Compare|Hide guide/i })).toBeInTheDocument()
 })
 
 test(
@@ -466,7 +468,8 @@ test('compare page renders summary + what changed most and allows selecting a to
   const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
   expect(within(selectedPrimary).getByText(/Seq Scan on users → Index Scan on users/)).toBeInTheDocument()
 
-  expect(screen.getByText('Index changes')).toBeInTheDocument()
+  const indexCallout = screen.getByTestId('compare-index-changes-callout')
+  expect(within(indexCallout).getByText('Index changes')).toBeInTheDocument()
   expect(screen.getByText(/Sequential scans decreased/i)).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Access path / index delta' })).toBeInTheDocument()
   expect(screen.getByText(/Access path family: Seq Scan → Index Scan/)).toBeInTheDocument()

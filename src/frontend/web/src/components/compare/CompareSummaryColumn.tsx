@@ -316,6 +316,9 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         <h2 id="compare-summary-heading" className="pqat-sectionHeadline">
           Summary
         </h2>
+        <p className="pqat-help-inline" style={{ margin: '0 0 12px' }} data-testid="compare-summary-lanes-hint">
+          <strong>Summary column:</strong> <strong>Change briefing</strong> narrates the diff; <strong>Index changes</strong> and <strong>Next steps</strong> are separate—pin rows there to shape <strong>Copy link</strong> / share URL.
+        </p>
         {vis.summaryCards ? (
           <div className="pqat-shareRow">
             {coverage ? <div className="pqat-monoMuted">{coverage}</div> : null}

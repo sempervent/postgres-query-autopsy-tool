@@ -54,6 +54,10 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
     <section className="pqat-panel pqat-panel--capture" style={{ minWidth: 0, padding: '18px 20px' }} aria-label="Plan capture input">
       <div className="pqat-eyebrow">Input</div>
       <h2>Input plan</h2>
+      <p className="pqat-help-inline" data-testid="analyze-capture-guide-hint">
+        <strong>Read this first:</strong> everything in this panel is your raw capture. After you run Analyze, findings and the graph are interpretations—use{' '}
+        <strong>How to use Analyze</strong> at the top if you need the tour again.
+      </p>
       <p className="pqat-hint pqat-hint--tight">
         Paste raw <code>EXPLAIN (…, FORMAT JSON)</code> output: plain JSON, or <code>psql</code> tabular output with a <code>QUERY PLAN</code> header and optional line wraps ending in <code>+</code>. The server normalizes common shapes before parsing. Planner <code>COSTS</code> are optional; cost fields are detected from the JSON.
       </p>

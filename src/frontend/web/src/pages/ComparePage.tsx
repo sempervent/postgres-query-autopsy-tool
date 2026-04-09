@@ -49,8 +49,19 @@ import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useCompareWorkspaceLayout } from '../compareWorkspace/useCompareWorkspaceLayout'
 import { CompareCapturePanel } from '../components/compare/CompareCapturePanel'
 import { ArtifactErrorBanner } from '../components/ArtifactErrorBanner'
-import { CompareIntroPanel } from '../components/compare/CompareIntroPanel'
+import { CompareWorkflowGuide } from '../help/CompareWorkflowGuide'
+import { WorkflowGuideBar } from '../help/WorkflowGuideBar'
+import { COMPARE_WORKFLOW_GUIDE_TITLE_ID } from '../help/workflowGuideDomIds'
+import { isWorkflowGuideHotkey, workflowGuideHotkeyShouldIgnoreTarget } from '../help/workflowGuideHotkey'
+import {
+  readWorkflowGuideDismissed,
+  urlWantsWorkflowGuide,
+  WorkflowGuideQueryParam,
+  writeWorkflowGuideDismissed,
+} from '../help/workflowGuidePrefs'
 import { CompareNavigatorPanel } from '../components/compare/CompareNavigatorPanel'
+
+const COMPARE_GUIDE_PANEL_ID = 'compare-workflow-guide-panel'
 import { ComparePairColumn } from '../components/compare/ComparePairColumn'
 import { CompareSummaryColumn } from '../components/compare/CompareSummaryColumn'
 import { CompareTopChangesPanel } from '../components/compare/CompareTopChangesPanel'
@@ -122,10 +133,36 @@ export default function ComparePage() {
   /** Skips one redundant transition announcement right after hydrate seeds the same fingerprint (strict mount / batching). */
   const suppressNextPinTransitionForFpRef = useRef<string | null>(null)
   const loadPersistedCompareSeqRef = useRef(0)
+  /** After Clear, keep guide open even when workspace intro default would stay closed. */
+  const skipCompareEmptyGuideSyncRef = useRef(false)
+  const prevCompareGuideOpenRef = useRef<boolean | undefined>(undefined)
+  const compareGuideToggleRef = useRef<HTMLButtonElement | null>(null)
   const urlComparisonId = searchParams.get(CompareDeepLinkParam.comparison)?.trim() ?? ''
+  const urlWantsGuide = useMemo(() => urlWantsWorkflowGuide(searchParams), [searchParams])
   const layoutTier = useWorkspaceLayoutTier()
   const workspaceLayout = useCompareWorkspaceLayout(appConfig?.authEnabled ?? false)
   const { layout, setVisibility } = workspaceLayout
+  const [compareGuideOpen, setCompareGuideOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const sp = new URLSearchParams(window.location.search)
+        if (urlWantsWorkflowGuide(sp)) return true
+      } catch {
+        /* ignore */
+      }
+    }
+    return layout.visibility.intro && !readWorkflowGuideDismissed('compare')
+  })
+  const [compareGuideKeyboardContain, setCompareGuideKeyboardContain] = useState(false)
+  const [compareGuideLiveMsg, setCompareGuideLiveMsg] = useState('')
+  const compareGuideLiveClearRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const pendingCompareGuideOpenAnnRef = useRef<string | null>(null)
+  const announceCompareGuideCloseRef = useRef(false)
+  const prevCompareGuideOpenAnnRef = useRef(compareGuideOpen)
+  const compareGuideOpenRef = useRef(compareGuideOpen)
+  const pendingCompareGuideFocusTitleRef = useRef(false)
+  const explicitCompareGuideClosePendingRef = useRef(false)
+  compareGuideOpenRef.current = compareGuideOpen
 
   const suggestedExplainA = useMemo(
     () => buildSuggestedExplainSql(queryTextA, compareExplainToggles),
@@ -194,6 +231,149 @@ export default function ComparePage() {
       cancelled = true
     }
   }, [urlComparisonId, comparison?.comparisonId])
+
+  const queueCompareGuideLiveMsg = useCallback((text: string) => {
+    if (compareGuideLiveClearRef.current != null) {
+      globalThis.clearTimeout(compareGuideLiveClearRef.current)
+      compareGuideLiveClearRef.current = null
+    }
+    setCompareGuideLiveMsg(text)
+    compareGuideLiveClearRef.current = globalThis.setTimeout(() => {
+      setCompareGuideLiveMsg('')
+      compareGuideLiveClearRef.current = null
+    }, 2800)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (compareGuideLiveClearRef.current != null) globalThis.clearTimeout(compareGuideLiveClearRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const prev = prevCompareGuideOpenAnnRef.current
+    prevCompareGuideOpenAnnRef.current = compareGuideOpen
+    if (!compareGuideOpen && prev) {
+      if (announceCompareGuideCloseRef.current) {
+        announceCompareGuideCloseRef.current = false
+        queueCompareGuideLiveMsg('Compare workflow guide closed.')
+      }
+    } else if (compareGuideOpen && !prev) {
+      const m = pendingCompareGuideOpenAnnRef.current
+      pendingCompareGuideOpenAnnRef.current = null
+      if (m) queueCompareGuideLiveMsg(m)
+    }
+  }, [compareGuideOpen, queueCompareGuideLiveMsg])
+
+  useEffect(() => {
+    if (!urlWantsGuide) return
+    let becameOpen = false
+    setCompareGuideOpen((wasOpen) => {
+      if (!wasOpen) {
+        becameOpen = true
+        pendingCompareGuideFocusTitleRef.current = true
+        pendingCompareGuideOpenAnnRef.current = 'Guided help opened from link.'
+      }
+      return true
+    })
+    if (becameOpen) queueMicrotask(() => setCompareGuideKeyboardContain(true))
+  }, [urlWantsGuide])
+
+  useEffect(() => {
+    if (urlComparisonId.trim()) setCompareGuideOpen(false)
+  }, [urlComparisonId])
+
+  useEffect(() => {
+    if (comparison) setCompareGuideOpen(false)
+  }, [comparison?.comparisonId])
+
+  useEffect(() => {
+    if (comparison || urlComparisonId.trim()) return
+    if (urlWantsGuide) return
+    if (skipCompareEmptyGuideSyncRef.current) {
+      skipCompareEmptyGuideSyncRef.current = false
+      return
+    }
+    pendingCompareGuideOpenAnnRef.current = null
+    setCompareGuideKeyboardContain(false)
+    setCompareGuideOpen(layout.visibility.intro && !readWorkflowGuideDismissed('compare'))
+  }, [comparison, urlComparisonId, layout.visibility.intro, urlWantsGuide])
+
+  useEffect(() => {
+    const prev = prevCompareGuideOpenRef.current
+    prevCompareGuideOpenRef.current = compareGuideOpen
+    if (prev === undefined) return
+    if (prev && !compareGuideOpen && urlWantsWorkflowGuide(searchParams)) {
+      const p = new URLSearchParams(searchParams)
+      p.delete(WorkflowGuideQueryParam)
+      setSearchParams(p, { replace: true })
+    }
+  }, [compareGuideOpen, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isWorkflowGuideHotkey(e)) {
+        e.preventDefault()
+        setCompareGuideOpen((was) => {
+          if (!was) {
+            pendingCompareGuideFocusTitleRef.current = true
+            pendingCompareGuideOpenAnnRef.current = 'Compare workflow guide opened.'
+            queueMicrotask(() => setCompareGuideKeyboardContain(true))
+          }
+          return true
+        })
+        return
+      }
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (!compareGuideOpenRef.current) return
+      if (workflowGuideHotkeyShouldIgnoreTarget(e.target)) return
+      e.preventDefault()
+      explicitCompareGuideClosePendingRef.current = true
+      announceCompareGuideCloseRef.current = true
+      setCompareGuideOpen((prev) => {
+        if (prev) writeWorkflowGuideDismissed('compare', true)
+        return false
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    if (!compareGuideOpen || !pendingCompareGuideFocusTitleRef.current) return
+    pendingCompareGuideFocusTitleRef.current = false
+    const id = requestAnimationFrame(() => {
+      document.getElementById(COMPARE_WORKFLOW_GUIDE_TITLE_ID)?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [compareGuideOpen])
+
+  useEffect(() => {
+    if (!compareGuideOpen) setCompareGuideKeyboardContain(false)
+  }, [compareGuideOpen])
+
+  useEffect(() => {
+    if (compareGuideOpen) return
+    if (!explicitCompareGuideClosePendingRef.current) return
+    explicitCompareGuideClosePendingRef.current = false
+    const id = requestAnimationFrame(() => compareGuideToggleRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [compareGuideOpen])
+
+  const toggleCompareGuide = useCallback(() => {
+    setCompareGuideOpen((prev) => {
+      if (prev) {
+        writeWorkflowGuideDismissed('compare', true)
+        explicitCompareGuideClosePendingRef.current = true
+        announceCompareGuideCloseRef.current = true
+        return false
+      }
+      pendingCompareGuideFocusTitleRef.current = true
+      pendingCompareGuideOpenAnnRef.current = 'Compare workflow guide opened.'
+      queueMicrotask(() => setCompareGuideKeyboardContain(true))
+      return true
+    })
+  }, [])
 
   const effectivePair = selectedPair ?? urlResolvedPair ?? selectedDefault
   const pairSelected = (nodeIdA: string, nodeIdB: string) =>
@@ -363,6 +543,8 @@ export default function ComparePage() {
         ? pairDetails.find((p) => p.identity.nodeIdA === effectivePair.a && p.identity.nodeIdB === effectivePair.b)
         : null
 
+    // When `pair=` is dropped from the URL, we stop treating the address bar as authoritative for pair id:
+    // fall back to the explicit UI selection if any, otherwise the effective navigator/default pair.
     const pairArtifactId =
       selectedPair != null
         ? pdExplicit?.pairArtifactId ?? null
@@ -554,6 +736,8 @@ export default function ComparePage() {
     setPlanB('')
     setComparison(null)
     setError(null)
+    skipCompareEmptyGuideSyncRef.current = true
+    setCompareGuideOpen(true)
     loadPersistedCompareSeqRef.current += 1
     const p = new URLSearchParams(location.search)
     p.delete(CompareDeepLinkParam.comparison)
@@ -643,7 +827,33 @@ export default function ComparePage() {
 
   return (
     <div className="pqat-page pqat-pageGrid">
-      {layout.visibility.intro ? <CompareIntroPanel /> : null}
+      <div
+        className="pqat-srOnly"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="compare-workflow-guide-announcer"
+      >
+        {compareGuideLiveMsg}
+      </div>
+      <WorkflowGuideBar
+        expanded={compareGuideOpen}
+        onToggle={toggleCompareGuide}
+        toggleCollapsedLabel="How to use Compare"
+        toggleExpandedLabel="Hide guide"
+        hint="Instructional guide—distinct from change briefings and plan deltas below."
+        keyboardHint="Press ? to reopen (not while typing). Share /compare?guide=1 for onboarding."
+        toggleRef={compareGuideToggleRef}
+        toggleTitle="Press ? to reopen help when focus is not in a text field. Esc closes the guide."
+        testId="compare-workflow-guide-bar"
+        panelId={COMPARE_GUIDE_PANEL_ID}
+      />
+      {compareGuideOpen ? (
+        <CompareWorkflowGuide
+          panelId={COMPARE_GUIDE_PANEL_ID}
+          testId="compare-workflow-guide-panel"
+          keyboardContain={compareGuideKeyboardContain}
+        />
+      ) : null}
 
       {!layout.visibility.input ? (
         <div className="pqat-panel pqat-panel--tool pqat-panelDashedHint">
@@ -717,6 +927,7 @@ export default function ComparePage() {
             role="status"
             aria-live="polite"
             aria-atomic="true"
+            aria-relevant="additions text"
             className="pqat-srOnly"
             data-testid="compare-pin-live"
           >

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import type { AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../api/types'
 import {
@@ -32,6 +32,19 @@ import { AnalyzeSummaryCard } from '../components/analyze/AnalyzeSummaryCard'
 import { LowerBandPanelSkeleton } from '../components/HeavyPanelShell'
 import { AnalyzePlanWorkspacePanel } from '../components/analyze/AnalyzePlanWorkspacePanel'
 import { AnalyzePlanGuideRail } from '../components/analyze/AnalyzePlanGuideRail'
+import { AnalyzeWorkflowGuide } from '../help/AnalyzeWorkflowGuide'
+import { WorkflowGuideBar } from '../help/WorkflowGuideBar'
+import { ANALYZE_WORKFLOW_GUIDE_TITLE_ID } from '../help/workflowGuideDomIds'
+import { isWorkflowGuideHotkey, workflowGuideHotkeyShouldIgnoreTarget } from '../help/workflowGuideHotkey'
+import {
+  readAnalyzeGuideInitialOpen,
+  readWorkflowGuideDismissed,
+  urlWantsWorkflowGuide,
+  WorkflowGuideQueryParam,
+  writeWorkflowGuideDismissed,
+} from '../help/workflowGuidePrefs'
+
+const ANALYZE_GUIDE_PANEL_ID = 'analyze-workflow-guide-panel'
 
 const AnalyzeFindingsPanel = lazy(() =>
   import('../components/analyze/AnalyzeFindingsPanel').then((m) => ({ default: m.AnalyzeFindingsPanel })),
@@ -82,6 +95,13 @@ export default function AnalyzePage() {
   const [findingSearch, setFindingSearch] = useState('')
   const [minSeverity, setMinSeverity] = useState<number>(1)
   const [expandedOptimizationId, setExpandedOptimizationId] = useState<string | null>(null)
+  const [analyzeGuideOpen, setAnalyzeGuideOpen] = useState(readAnalyzeGuideInitialOpen)
+  const [analyzeGuideKeyboardContain, setAnalyzeGuideKeyboardContain] = useState(false)
+  const [analyzeGuideLiveMsg, setAnalyzeGuideLiveMsg] = useState('')
+  const analyzeGuideLiveClearRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const pendingAnalyzeGuideOpenAnnRef = useRef<string | null>(null)
+  const announceAnalyzeGuideCloseRef = useRef(false)
+  const prevAnalyzeGuideOpenAnnRef = useRef(analyzeGuideOpen)
 
   const copyNode = useCopyFeedback()
   const copyHotspot = useCopyFeedback()
@@ -90,8 +110,17 @@ export default function AnalyzePage() {
   const copySuggestedExplain = useCopyFeedback()
   const lastSyncedAnalyzeQs = useRef('')
   const loadPersistedSeqRef = useRef(0)
+  /** After Clear, keep guide open even if the user previously dismissed it on an empty page. */
+  const skipAnalyzeEmptyGuideSyncRef = useRef(false)
+  const prevAnalyzeGuideOpenRef = useRef<boolean | undefined>(undefined)
+  const analyzeGuideToggleRef = useRef<HTMLButtonElement | null>(null)
+  const analyzeGuideOpenRef = useRef(analyzeGuideOpen)
+  const pendingAnalyzeGuideFocusTitleRef = useRef(false)
+  const explicitAnalyzeGuideClosePendingRef = useRef(false)
+  analyzeGuideOpenRef.current = analyzeGuideOpen
 
   const urlAnalysisId = searchParams.get(AnalyzeDeepLinkParam.analysis)?.trim() ?? ''
+  const urlWantsGuide = useMemo(() => urlWantsWorkflowGuide(searchParams), [searchParams])
   const layoutTier = useWorkspaceLayoutTier()
   const layoutApi = useAnalyzeWorkspaceLayout(appConfig?.authEnabled ?? false)
   const { layout } = layoutApi
@@ -161,6 +190,151 @@ export default function AnalyzePage() {
       cancelled = true
     }
   }, [urlAnalysisId, analysis?.analysisId])
+
+  const queueAnalyzeGuideLiveMsg = useCallback((text: string) => {
+    if (analyzeGuideLiveClearRef.current != null) {
+      globalThis.clearTimeout(analyzeGuideLiveClearRef.current)
+      analyzeGuideLiveClearRef.current = null
+    }
+    setAnalyzeGuideLiveMsg(text)
+    analyzeGuideLiveClearRef.current = globalThis.setTimeout(() => {
+      setAnalyzeGuideLiveMsg('')
+      analyzeGuideLiveClearRef.current = null
+    }, 2800)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (analyzeGuideLiveClearRef.current != null) globalThis.clearTimeout(analyzeGuideLiveClearRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const prev = prevAnalyzeGuideOpenAnnRef.current
+    prevAnalyzeGuideOpenAnnRef.current = analyzeGuideOpen
+    if (!analyzeGuideOpen && prev) {
+      if (announceAnalyzeGuideCloseRef.current) {
+        announceAnalyzeGuideCloseRef.current = false
+        queueAnalyzeGuideLiveMsg('Analyze workflow guide closed.')
+      }
+    } else if (analyzeGuideOpen && !prev) {
+      const m = pendingAnalyzeGuideOpenAnnRef.current
+      pendingAnalyzeGuideOpenAnnRef.current = null
+      if (m) queueAnalyzeGuideLiveMsg(m)
+    }
+  }, [analyzeGuideOpen, queueAnalyzeGuideLiveMsg])
+
+  useEffect(() => {
+    if (!urlWantsGuide) return
+    let becameOpen = false
+    setAnalyzeGuideOpen((wasOpen) => {
+      if (!wasOpen) {
+        becameOpen = true
+        pendingAnalyzeGuideFocusTitleRef.current = true
+        pendingAnalyzeGuideOpenAnnRef.current = 'Guided help opened from link.'
+      }
+      return true
+    })
+    if (becameOpen) queueMicrotask(() => setAnalyzeGuideKeyboardContain(true))
+  }, [urlWantsGuide])
+
+  useEffect(() => {
+    if (urlAnalysisId.trim()) setAnalyzeGuideOpen(false)
+  }, [urlAnalysisId])
+
+  useEffect(() => {
+    if (analysis) setAnalyzeGuideOpen(false)
+  }, [analysis?.analysisId])
+
+  /** Empty workspace (no snapshot): respect dismissal unless ?guide=1 forces open. */
+  useEffect(() => {
+    if (analysis || urlAnalysisId.trim()) return
+    if (urlWantsGuide) return
+    if (skipAnalyzeEmptyGuideSyncRef.current) {
+      skipAnalyzeEmptyGuideSyncRef.current = false
+      return
+    }
+    pendingAnalyzeGuideOpenAnnRef.current = null
+    setAnalyzeGuideKeyboardContain(false)
+    setAnalyzeGuideOpen(!readWorkflowGuideDismissed('analyze'))
+  }, [analysis, urlAnalysisId, urlWantsGuide])
+
+  /** Drop ?guide= only after an explicit close (not on first paint with guide=1). */
+  useEffect(() => {
+    const prev = prevAnalyzeGuideOpenRef.current
+    prevAnalyzeGuideOpenRef.current = analyzeGuideOpen
+    if (prev === undefined) return
+    if (prev && !analyzeGuideOpen && urlWantsWorkflowGuide(searchParams)) {
+      const p = new URLSearchParams(searchParams)
+      p.delete(WorkflowGuideQueryParam)
+      setSearchParams(p, { replace: true })
+    }
+  }, [analyzeGuideOpen, searchParams, setSearchParams])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isWorkflowGuideHotkey(e)) {
+        e.preventDefault()
+        setAnalyzeGuideOpen((was) => {
+          if (!was) {
+            pendingAnalyzeGuideFocusTitleRef.current = true
+            pendingAnalyzeGuideOpenAnnRef.current = 'Analyze workflow guide opened.'
+            queueMicrotask(() => setAnalyzeGuideKeyboardContain(true))
+          }
+          return true
+        })
+        return
+      }
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (!analyzeGuideOpenRef.current) return
+      if (workflowGuideHotkeyShouldIgnoreTarget(e.target)) return
+      e.preventDefault()
+      explicitAnalyzeGuideClosePendingRef.current = true
+      announceAnalyzeGuideCloseRef.current = true
+      setAnalyzeGuideOpen((prev) => {
+        if (prev) writeWorkflowGuideDismissed('analyze', true)
+        return false
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    if (!analyzeGuideOpen || !pendingAnalyzeGuideFocusTitleRef.current) return
+    pendingAnalyzeGuideFocusTitleRef.current = false
+    const id = requestAnimationFrame(() => {
+      document.getElementById(ANALYZE_WORKFLOW_GUIDE_TITLE_ID)?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [analyzeGuideOpen])
+
+  useEffect(() => {
+    if (!analyzeGuideOpen) setAnalyzeGuideKeyboardContain(false)
+  }, [analyzeGuideOpen])
+
+  useEffect(() => {
+    if (analyzeGuideOpen) return
+    if (!explicitAnalyzeGuideClosePendingRef.current) return
+    explicitAnalyzeGuideClosePendingRef.current = false
+    const id = requestAnimationFrame(() => analyzeGuideToggleRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [analyzeGuideOpen])
+
+  const toggleAnalyzeGuide = useCallback(() => {
+    setAnalyzeGuideOpen((prev) => {
+      if (prev) {
+        writeWorkflowGuideDismissed('analyze', true)
+        explicitAnalyzeGuideClosePendingRef.current = true
+        announceAnalyzeGuideCloseRef.current = true
+        return false
+      }
+      pendingAnalyzeGuideFocusTitleRef.current = true
+      pendingAnalyzeGuideOpenAnnRef.current = 'Analyze workflow guide opened.'
+      queueMicrotask(() => setAnalyzeGuideKeyboardContain(true))
+      return true
+    })
+  }, [])
 
   useEffect(() => {
     if (!analysis) return
@@ -323,6 +497,8 @@ export default function AnalyzePage() {
     setError(null)
     setSelectedNodeId(null)
     loadPersistedSeqRef.current += 1
+    skipAnalyzeEmptyGuideSyncRef.current = true
+    setAnalyzeGuideOpen(true)
     const p = new URLSearchParams(location.search)
     p.delete(AnalyzeDeepLinkParam.node)
     p.delete(AnalyzeDeepLinkParam.analysis)
@@ -396,6 +572,33 @@ export default function AnalyzePage() {
 
   return (
     <div className="pqat-page pqat-stack" style={{ gap: 18 }}>
+      <div
+        className="pqat-srOnly"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="analyze-workflow-guide-announcer"
+      >
+        {analyzeGuideLiveMsg}
+      </div>
+      <WorkflowGuideBar
+        expanded={analyzeGuideOpen}
+        onToggle={toggleAnalyzeGuide}
+        toggleCollapsedLabel="How to use Analyze"
+        toggleExpandedLabel="Hide guide"
+        hint="Instructional layer—not findings or plan narrative."
+        keyboardHint="Press ? to reopen anytime (not while typing in a field). Add ?guide=1 to the URL for a guided entry point."
+        toggleRef={analyzeGuideToggleRef}
+        toggleTitle="Press ? to reopen help when focus is not in a text field. Esc closes the guide."
+        testId="analyze-workflow-guide-bar"
+        panelId={ANALYZE_GUIDE_PANEL_ID}
+      />
+      {analyzeGuideOpen ? (
+        <AnalyzeWorkflowGuide
+          panelId={ANALYZE_GUIDE_PANEL_ID}
+          testId="analyze-workflow-guide-panel"
+          keyboardContain={analyzeGuideKeyboardContain}
+        />
+      ) : null}
       {!layout.visibility.capture ? (
         <div
           className="pqat-panel pqat-panel--tool"

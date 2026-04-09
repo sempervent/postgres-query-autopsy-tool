@@ -68,6 +68,10 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
       <div>
         <div className="pqat-eyebrow">Workspace</div>
         <h2 className="pqat-captureTitle">Plan inputs</h2>
+        <p className="pqat-help-inline" data-testid="compare-capture-guide-hint">
+          <strong>Read this first:</strong> Plan A/B boxes are your captures only. Summary cards and pair readouts below are diff output—reopen{' '}
+          <strong>How to use Compare</strong> anytime for definitions.
+        </p>
         <p className="pqat-hint pqat-hint--tight">
           Paste two plans to diff. Layout and visibility follow the same workstation model as Analyze.
         </p>

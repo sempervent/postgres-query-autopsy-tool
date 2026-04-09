@@ -45,7 +45,8 @@ export type CompareWorkspaceLayoutState = {
 }
 
 export const compareWorkspaceRegionLabels: Record<CompareWorkspaceRegionId, string> = {
-  intro: 'Show panel: Compare intro',
+  intro:
+    'Empty page: start with workflow guide open when not dismissed (localStorage pqat_workflow_guide_v1.compareDismissed)',
   input: 'Show panel: plan inputs & Compare',
   topChanges: 'Show panel: what changed most',
   summaryCards: 'Show panel: summary metric cards',

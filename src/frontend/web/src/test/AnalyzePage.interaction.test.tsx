@@ -190,6 +190,7 @@ const defaultAppConfig = {
 beforeEach(() => {
   try {
     localStorage.removeItem(ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY)
+    localStorage.removeItem('pqat_workflow_guide_v1')
   } catch {
     /* jsdom / restricted storage */
   }
@@ -210,6 +211,122 @@ afterEach(() => {
   execCmdSpy?.mockRestore()
   cleanup()
   vi.mocked(analyzePlanWithQuery).mockImplementation(async () => mockAnalysis)
+})
+
+test('analyze workflow guide is visible on empty load and toggles', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: /Analyze a plan/i })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /Hide guide/i }))
+  expect(screen.queryByTestId('analyze-workflow-guide-panel')).toBeNull()
+  expect(JSON.parse(localStorage.getItem('pqat_workflow_guide_v1')!).analyzeDismissed).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: /How to use Analyze/i }))
+  expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument()
+})
+
+test('analyze ?guide=1 opens guide even when previously dismissed', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/?guide=1']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  await waitFor(() => {
+    expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument()
+  })
+})
+
+test('analyze dismissed user starts with guide closed without guide param', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  expect(screen.queryByTestId('analyze-workflow-guide-panel')).toBeNull()
+})
+
+test('analyze workflow guide hotkey opens from body target', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  expect(screen.queryByTestId('analyze-workflow-guide-panel')).toBeNull()
+  fireEvent.keyDown(document.body, { key: '?', bubbles: true })
+  expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument()
+})
+
+test('analyze Esc closes workflow guide when focus is not in an input', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  fireEvent.keyDown(document.body, { key: '?', bubbles: true })
+  await waitFor(() => expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument())
+  fireEvent.keyDown(document.body, { key: 'Escape', bubbles: true })
+  expect(screen.queryByTestId('analyze-workflow-guide-panel')).toBeNull()
+  expect(JSON.parse(localStorage.getItem('pqat_workflow_guide_v1')!).analyzeDismissed).toBe(true)
+})
+
+test('analyze Esc does not close workflow guide while plan input is focused', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  fireEvent.keyDown(document.body, { key: '?', bubbles: true })
+  await waitFor(() => expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument())
+  const planBox = screen.getByPlaceholderText(/JSON or psql QUERY PLAN cell/i)
+  fireEvent.focus(planBox)
+  fireEvent.keyDown(planBox, { key: 'Escape', bubbles: true })
+  expect(screen.getByTestId('analyze-workflow-guide-panel')).toBeInTheDocument()
+})
+
+test('analyze opening guide via toggle moves focus to guide title', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  fireEvent.click(screen.getByRole('button', { name: /How to use Analyze/i }))
+  await waitFor(() => {
+    expect(document.getElementById('analyze-workflow-guide-title')).toBe(document.activeElement)
+  })
+})
+
+test('analyze workflow guide announcer reports explicit open and close', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  fireEvent.click(screen.getByRole('button', { name: /How to use Analyze/i }))
+  await waitFor(() => {
+    expect(screen.getByTestId('analyze-workflow-guide-announcer')).toHaveTextContent(/Analyze workflow guide opened/i)
+  })
+  fireEvent.click(screen.getByRole('button', { name: /Hide guide/i }))
+  await waitFor(() => {
+    expect(screen.getByTestId('analyze-workflow-guide-announcer')).toHaveTextContent(/Analyze workflow guide closed/i)
+  })
 })
 
 test(

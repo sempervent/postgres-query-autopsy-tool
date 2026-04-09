@@ -59,6 +59,7 @@ docker compose up --build
 - Ranked **findings** with bounded evidence  
 - **Compare** two plans (mapping, deltas, continuity cues)  
 - Export **JSON / Markdown / HTML** reports  
+- In-app **How to use Analyze / Compare** guides (distinct **guide** styling—dotted border and teal accent—so help is not mistaken for findings or plan narrative); **`?`** / **Shift+/** reopen help when focus is not in an input; **`Esc`** closes the guide when focus is not in a text field and returns focus to the toggle; **`?guide=1`** opens in guided mode; **Copy guided link** merges **`guide=1`** into the **current** URL (keeps other query params) for support handoff; polite **`aria-live`** announcements on explicit open/close; optional **Tab loop** inside the guide after explicit opens; repeat users can hide the guide and that choice persists (**`localStorage`**, per workflow)  
 
 ---
 

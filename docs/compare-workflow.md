@@ -13,10 +13,44 @@
 | Param | Role | When active (what to expect) |
 |-------|------|------------------------------|
 | **`comparison`** | Persisted snapshot id (**required** for reopen). | Workspace loads that comparison; other params apply on top. |
-| **`pair`** | Selected **pair artifact** id (`pair_*`). | **Selected node pair** matches that artifact; **Copy link** includes **`Pair ref:`**. |
+| **`pair`** | Selected **pair artifact** id (`pair_*`). | **Selected node pair** matches that artifact; **Copy link** includes **`Pair ref:`**. Removing **`pair=`** from the URL drops that explicit selection; the UI falls back to the current navigator choice or a default pair, and the sync effect rewrites the query string without **`pair=`** until you pin a pair again from the URL or UI. |
 | **`finding`** | Highlights a **findings diff** row (`fd_*`). | Navigator finding row shows **active** outline; **Copy link** adds **`Pinned finding:`**; scroll targets the row. |
 | **`indexDiff`** | Highlights an **index insight diff** (`ii_*`). | **Index changes** row is **active**; click row in UI also pins (**Phase 95**); **Copy link** adds **`Pinned index insight:`**. |
 | **`suggestion`** | Highlights a **compare next step** (`sg_*`). Values matching **`suggestionId`** or **`alsoKnownAs`** resolve to the same row; after hydrate the UI typically syncs the query string to the **canonical** `suggestionId`. The **settled** `sg_*` in the URL is the durable handle for reopen tests (**Phase 93–94**). | Next-step row highlighted; **Pin** or **Focus plan B** sets pins; **Copy link** adds **`Pinned suggestion:`**. |
+
+### URL params × first load vs in-place edit (Phase 101)
+
+| Situation | `comparison` | `pair` / pins |
+|-----------|--------------|----------------|
+| **First open / paste URL** | Hydrates snapshot from server; guide may stay collapsed if **`comparison=`** present. | Parsed into selection + highlights; hydrate line in **`compare-pin-live`** when pins present. |
+| **In-place URL edit (same snapshot)** | Unchanged id keeps data; **`useLayoutEffect`** reapplies **`parseCompareUrlPinAndPairState`**. | **`pair=`** removed → no valid URL pair → falls back to **`selectedPair`** or effective default; sync writes canonical params back. |
+| **Clear / new Compare** | Param stripped; empty workspace. | All pair/pin params cleared. |
+
+## In-product workflow guide (Phase 101)
+
+- **Replaces** the old **`CompareIntroPanel`** (**`pqat-panel--capture`**) with **`CompareWorkflowGuide`** inside the same **guide** visual language as Analyze (teal rail, dotted border, instructional tone).
+- **Toggle:** **`How to use Compare` / `Hide guide`** (always available). Default open when the page is empty depends on workspace **`intro`** visibility (**“Empty page: open workflow guide by default”** in the customizer).
+- **Context hints:** **`pqat-help-inline`** near **Plan inputs** and **Copy reference / Copy link / Copy pin context** explains capture vs diff output vs clipboard shapes.
+- **Pin live region:** **`compare-pin-live`** uses **`aria-relevant="additions text"`** so screen readers treat hydrate/transition lines as supplemental (**Phase 101** a11y pass).
+
+## Workflow guide persistence & re-entry (Phase 102)
+
+- **Dismissal:** **`compareDismissed`** in the same **`pqat_workflow_guide_v1`** object. Empty-page default is **`layout.visibility.intro && !compareDismissed`**; hiding the guide persists dismissal. **Clear** reopens the guide (same skip-sync ref pattern as Analyze so workspace **intro** off does not immediately collapse it).
+- **Keyboard / URL:** **`?`** / **Shift+/** and **`/compare?guide=1`** match Analyze semantics; **`?guide=`** strips on **close** after an explicit open→close transition (not on first paint).
+- **Summary column:** One **`pqat-help-inline`** at the top of the summary shell distinguishes **Change briefing** vs **Index changes** vs **Next steps** relative to **Copy link**.
+- **Empty state:** Compare empty hint text was shortened so the workflow guide carries primary onboarding copy.
+
+## Help lifecycle, focus, and support entry (Phase 103)
+
+- **Focus / Esc / Copy guided link:** Same model as [Analyze workflow](analyze-workflow.md#help-lifecycle-focus-and-support-entry-phase-103): explicit open targets the guide title; **Esc** closes when not typing in a field; **Copy guided link** is onboarding-only (**`?guide=1`**), not a persisted comparison URL.
+- **Copy trio clarity:** **Selected node pair** **`pqat-help-inline`** distinguishes **Copy link** (shareable snapshot + pins), **Copy pin context** (no URL), and **Copy guided link** (footer—onboarding).
+- **E2E:** Dismissal persistence across reload is asserted against **`pqat_workflow_guide_v1`**. If persisted **`pqat.compareWorkspaceLayout.v1`** exists, the test **sets `visibility.intro` to true** instead of deleting the whole layout—closer to real “re-enable intro” usage.
+
+## Help accessibility and guided-link merge (Phase 104)
+
+- **Announcer:** **`compare-workflow-guide-announcer`** mirrors Analyze (**open / close / from link**).
+- **Tab loop & merged guided URL:** Same as [Analyze workflow](analyze-workflow.md#help-accessibility-and-guided-link-merge-phase-104).
+- **Copy trio:** **Selected node pair** buttons use **`aria-label`** + **`title`** to separate **Copy link** (shareable snapshot) vs **Copy pin context** (no URL) vs **Copy guided link** (guide footer).
 
 After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
 
@@ -44,7 +78,7 @@ After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-
 
 **Phase 89:** **Graph layout:** **`buildAnalyzeGraph`** / **`layoutTopDown`** coerce **dagre** coordinates to **finite** **`x`/`y`**; **`AnalyzePlanGraphCore`** clamps node positions before **`ReactFlow`**; **`fitView`** runs after **`requestAnimationFrame`** when the viewport is finite. **Vitest:** **`AnalyzePage.interaction.test.tsx`** alone filters the known transient React **NaN-attribute** **`console.error`** pair (other suites stay noisy-clean). **Playwright:** **`Compare: deep link from Copy link restores pair param and rewrite outcome`** (clipboard URL + **`Pair ref:`** → reopen → **`pair=`** + **Rewrite outcome**); **`Compare: Copy for ticket on same-pair suggestion includes Pair scope line`**. **`useCopyFeedback`** Vitest regression: unmount before success timer / late **`copyToClipboard`** resolve. **Compare a11y:** **Next steps** block is a **`section`** **`role="region"`** with **`aria-labelledby`** the **`h2`**; **Selected node pair** heading has **`id="compare-selected-pair-heading"`**. **Copy:** change-briefing subtitle avoids “verdict” next to **Rewrite outcome** (**headline judgment** wording).
 
-**Phase 90:** **Compare collaboration parity:** **Intro** uses **`h1.pqat-captureTitle`**; **Summary**, **Navigator** / **Findings diff**, **What changed most**, **Selected node pair** use a coherent **`h1`→`h2`** ladder (summary shell **`aria-labelledby="compare-summary-heading"`**). **Next steps** rows: each suggestion title is an **`h3`**; **Focus plan B** / **Copy for ticket** precede **Pin** in **Tab** order (DOM order), with **Pin** as a compact top-right control. **Playwright:** **`Compare: suggestion= deep link highlight survives reopen in fresh tab`** ( **`suggestion=`** **highlight** beyond `pair=` round-trip); **`jwt-auth-smoke.spec.ts`** — **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) in **JWT** mode. **`AnalyzePlanGraphCore`** sets **`defaultViewport`** to reduce transient viewport edge cases; **NaN** console noise remains **file-scoped** in **`AnalyzePage.interaction.test.tsx`** if jsdom still logs one frame. **Vitest:** next-step **button order** regression.
+**Phase 90:** **Compare collaboration parity:** **Phase 101** moved first-run orientation into **`CompareWorkflowGuide`** (**`h2` “Compare plans”** inside the guide shell); **Summary**, **Navigator** / **Findings diff**, **What changed most**, **Selected node pair** use a coherent heading ladder (summary shell **`aria-labelledby="compare-summary-heading"`**). **Next steps** rows: each suggestion title is an **`h3`**; **Focus plan B** / **Copy for ticket** precede **Pin** in **Tab** order (DOM order), with **Pin** as a compact top-right control. **Playwright:** **`Compare: suggestion= deep link highlight survives reopen in fresh tab`** ( **`suggestion=`** **highlight** beyond `pair=` round-trip); **`jwt-auth-smoke.spec.ts`** — **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) in **JWT** mode. **`AnalyzePlanGraphCore`** sets **`defaultViewport`** to reduce transient viewport edge cases; **NaN** console noise remains **file-scoped** in **`AnalyzePage.interaction.test.tsx`** if jsdom still logs one frame. **Vitest:** next-step **button order** regression.
 
 **Phase 91:** **Frontend CI:** **`ci.yml`** **`frontend`** job runs **`./scripts/verify-frontend-docker.sh`** (digest-pinned **Node** container) so **Vitest** / **Rolldown** no longer depends on **GitHub-hosted** **`npm ci`** optional native bindings. **Contributing** documents the Docker path as canonical for CI parity. **Compare:** **proxy** Playwright (**`proxy-auth-smoke.spec.ts`**) **Compare Copy link** clipboard parity with **JWT**; **Next steps** **Pin** uses **`aria-describedby`** the suggestion **`h3`**; **Summary** “share” vs selected-pair **Copy link** **`title`** tooltips clarify URL-only vs ticket-sized payload. **Visual** baselines: still a follow-up when refreshing **e2e-visual** PNGs.
 
@@ -85,7 +119,7 @@ After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-
 
 ## Visual hierarchy (Phase 43) + Phase 55 polish
 
-Compare uses the same **`pqat-*`** styling as Analyze: capture card, summary **metric tiles**, navigator and pair **workspace** panels, and a dashed **customizer** well. **Phase 55** adds the same **state banners** for reopen/load/errors, a **comparing** info banner during POST, **intro** top accent strip, and **summary shell** glow/border tuning. Intro copy sits in a structured overview card. Behavior, URL params, and layout persistence are unchanged. **Phase 65–66:** the shared **Theme appearance** control and **`data-theme`** / **`data-effective-theme`** tokens apply here too (**Change briefing**, selected-pair panel, **What changed most** row tints, meta/customizer panels). Optional server **`appearance_theme_v1`** sync matches Analyze when auth + credentials are configured.
+Compare uses the same **`pqat-*`** styling as Analyze: capture card, summary **metric tiles**, navigator and pair **workspace** panels, and a dashed **customizer** well. **Phase 55** adds the same **state banners** for reopen/load/errors, a **comparing** info banner during POST, and **summary shell** glow/border tuning. **Phase 101** replaces the old intro **metric-tile** card with the shared **guide** shell at the top of the page (see **In-product workflow guide** above). Behavior, URL params, and layout persistence are unchanged aside from **`intro`** controlling default guide visibility when empty. **Phase 65–66:** the shared **Theme appearance** control and **`data-theme`** / **`data-effective-theme`** tokens apply here too (**Change briefing**, selected-pair panel, **What changed most** row tints, meta/customizer panels). Optional server **`appearance_theme_v1`** sync matches Analyze when auth + credentials are configured.
 
 ## Patterns & delivery (Phase 44)
 

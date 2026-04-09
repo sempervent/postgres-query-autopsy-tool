@@ -1,0 +1,218 @@
+/**
+ * Phase 101 — in-product guide / onboarding surfaces only.
+ * Deliberately NOT pqat-panel: dotted border, teal accent rail, calmer type rhythm.
+ */
+
+:root {
+  --pqat-help-accent: #0d9488;
+  --pqat-help-accent-soft: color-mix(in srgb, #0d9488 14%, var(--surface-1));
+  --pqat-help-border: color-mix(in srgb, #0d9488 28%, var(--border));
+  --pqat-help-text: var(--text);
+  --pqat-help-muted: var(--text-secondary);
+  --pqat-help-kicker: color-mix(in srgb, #0f766e 55%, var(--text-tertiary));
+}
+
+html[data-theme='dark'] {
+  --pqat-help-accent: #2dd4bf;
+  --pqat-help-accent-soft: color-mix(in srgb, #2dd4bf 12%, var(--surface-1));
+  --pqat-help-border: color-mix(in srgb, #2dd4bf 32%, var(--border));
+  --pqat-help-kicker: color-mix(in srgb, #5eead4 45%, var(--text-tertiary));
+}
+
+.pqat-help-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--pqat-help-border);
+  background: var(--pqat-help-accent-soft);
+}
+
+.pqat-help-bar__note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--pqat-help-muted);
+  max-width: 52ch;
+}
+
+.pqat-help-bar__toggle {
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--pqat-help-border);
+  background: color-mix(in srgb, var(--surface-1) 88%, var(--pqat-help-accent-soft));
+  color: var(--text-h);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text-h) 4%, transparent);
+}
+
+.pqat-help-bar__toggle:hover {
+  border-color: color-mix(in srgb, var(--pqat-help-accent) 55%, var(--border));
+}
+
+.pqat-help-bar__toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--pqat-help-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.pqat-help-shell {
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px dotted var(--pqat-help-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--pqat-help-accent) 5%, var(--surface-1)) 0%,
+    var(--surface-1) 48%,
+    color-mix(in srgb, var(--pqat-help-accent) 4%, var(--surface-2)) 100%
+  );
+  padding: 18px 20px 20px 22px;
+  box-shadow: none;
+}
+
+.pqat-help-shell::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--pqat-help-accent), color-mix(in srgb, var(--pqat-help-accent) 35%, var(--border)));
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.pqat-help-shell__kicker {
+  margin: 0 0 6px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pqat-help-kicker);
+}
+
+.pqat-help-shell__title {
+  margin: 0 0 10px;
+  font-family: var(--sans);
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text-h);
+}
+
+.pqat-help-shell__lede {
+  margin: 0 0 16px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--pqat-help-muted);
+  max-width: 70ch;
+}
+
+.pqat-help-shell__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pqat-help-shell__footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--pqat-help-border);
+}
+
+.pqat-help-shell__support {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pqat-help-shell__supportRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pqat-help-shell__supportStatus {
+  font-size: 0.8125rem;
+  color: var(--pqat-help-muted);
+}
+
+.pqat-help-shell__supportHint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--pqat-help-muted);
+  max-width: 72ch;
+}
+
+.pqat-help-shell__supportHint code {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
+.pqat-help-section {
+  margin-top: 14px;
+}
+
+.pqat-help-section:first-of-type {
+  margin-top: 0;
+}
+
+.pqat-help-section__title {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pqat-help-kicker);
+}
+
+.pqat-help-section__body {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--pqat-help-text);
+}
+
+.pqat-help-section__body li {
+  margin-bottom: 6px;
+}
+
+.pqat-help-section__body li:last-child {
+  margin-bottom: 0;
+}
+
+.pqat-help-inline {
+  display: block;
+  margin: 0 0 10px;
+  padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--pqat-help-border);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--pqat-help-accent) 6%, var(--surface-1));
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--pqat-help-muted);
+}
+
+.pqat-help-inline code {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--code-bg);
+}
