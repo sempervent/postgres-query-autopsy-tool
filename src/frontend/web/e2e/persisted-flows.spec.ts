@@ -21,6 +21,239 @@ test.beforeEach(async ({ page }) => {
   await installE2eClipboardCapture(page)
 })
 
+test('Analyze: Try example runs analyze and shows triage takeaway', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-takeaway')).toBeVisible({ timeout: 90_000 })
+})
+
+test('Analyze: graph click shows in-graph issue summary + local shelf; ranked list not focused until explicit pivot', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 })
+  await page.locator('.react-flow__node').first().click()
+  await expect(page.getByTestId('analyze-graph-issue-summary')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('What looks wrong here')).toBeVisible()
+  await expect(page.getByTestId('analyze-graph-local-findings-shelf')).toBeVisible({ timeout: 15_000 })
+  // Graph selection alone must not trigger ranked-list pivot scroll/highlight (Phase 123/124).
+  await expect(page.getByText('Continues from plan')).toHaveCount(0)
+  await expect(page.getByTestId('analyze-local-evidence-bridge')).toBeVisible()
+  await expect
+    .poll(async () => page.evaluate(() => document.activeElement?.id === 'analyze-ranked-findings'))
+    .toBe(false)
+})
+
+test('Analyze: bridge Open in ranked list shows ranked continuation in ranked list', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 })
+  await page.locator('.react-flow__node').first().click()
+  await expect(page.getByTestId('analyze-graph-local-findings-shelf')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Continues from plan')).toHaveCount(0)
+  await page.getByTestId('analyze-local-evidence-open-top-in-list').click()
+  await expect(page.getByText('Continues from plan')).toBeVisible({ timeout: 15_000 })
+  // DOM focus is the contract for keyboard/SR users; a11y "focused" can read inactive in headless.
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const el = document.activeElement
+        return Boolean(el && el.classList.contains('pqat-listRow--graphPivot'))
+      }),
+    )
+    .toBe(true)
+})
+
+test('Analyze: skip link focuses Ranked findings region', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 })
+  await page.locator('.react-flow__node').first().click()
+  const skipToRanked = page.getByRole('link', { name: 'Skip to Ranked findings' })
+  await expect(skipToRanked).toHaveCount(1)
+  // Skip links are positioned for keyboard users; pointer clicks can hit overlapping plan hints in CI.
+  await skipToRanked.focus()
+  await skipToRanked.press('Enter')
+  await expect(page.locator('#analyze-ranked-findings')).toBeFocused()
+})
+
+test('Analyze: skip link pointer click reaches Ranked findings', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 })
+  await page.locator('.react-flow__node').first().click()
+  const skipToRanked = page.getByTestId('analyze-skip-to-ranked-findings')
+  await expect(skipToRanked).toHaveCount(1)
+  // Skip is off-screen until focus; focus expands the link so a real pointer activation hits the same handler.
+  await skipToRanked.focus()
+  await skipToRanked.click()
+  await expect
+    .poll(async () =>
+      page.evaluate(() => document.activeElement?.id === 'analyze-ranked-findings'),
+    )
+    .toBe(true)
+})
+
+test('Analyze: Sort-pressure sample reaches summary triage', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-sort-pressure-shipments-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+})
+
+test('Analyze: Nested-loop sample reaches triage deck', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-nl-join-inner-heavy-capture').click()
+  await expect(page.getByTestId('analyze-triage-deck')).toBeVisible({ timeout: 90_000 })
+})
+
+test('Compare: narrow viewport Tab chain reaches skip then Enter focuses pair region', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 960 })
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+
+  const firstWorsened = page.getByRole('button', { name: /^Worsened pair:/ }).first()
+  await expect(firstWorsened).toBeVisible({ timeout: 45_000 })
+  await firstWorsened.click()
+  await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 30_000 })
+  await firstWorsened.focus()
+
+  const skip = page.getByTestId('compare-skip-to-pair-inspector')
+  for (let i = 0; i < 40; i++) {
+    const id = await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))
+    if (id === 'compare-skip-to-pair-inspector') break
+    await page.keyboard.press('Tab')
+  }
+  await expect(skip).toBeFocused()
+  await skip.press('Enter')
+  await expect(page.locator('#compare-pair-inspector-region')).toBeFocused()
+})
+
+test('Compare: reopened link shows Briefing — reopened when pair thread is continuity-only', async ({
+  page,
+  context,
+}) => {
+  // NL → hash rewrite compares three worsened pairs; only the top pair gets the summary triage bridge.
+  // A secondary pair carries `regionContinuitySummaryCue` ("join strategy shift") → `briefing` handoff
+  // with the soft Reading thread panel (no "Context" summary bridge).
+  const planA = readFileSync(postgresJsonFixture('rewrite_nl_orders_lineitems.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('rewrite_hash_orders_lineitems.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+
+  const hint = page.getByTestId('compare-pair-handoff-hint')
+  const summaryBridge = page.getByTestId('compare-selected-pair-triage-bridge')
+  const continuityFallback = page.getByTestId('compare-selected-pair-continuity-fallback')
+  const worsened = page.getByRole('button', { name: /^Worsened pair:/ })
+  const improved = page.getByRole('button', { name: /^Improved pair:/ })
+
+  let foundSessionBriefing = false
+  for (const rowGroup of [worsened, improved]) {
+    const n = await rowGroup.count()
+    for (let i = 0; i < n; i++) {
+      await rowGroup.nth(i).click()
+      await expect(hint).toBeVisible({ timeout: 20_000 })
+      const triageVisible = await summaryBridge.isVisible().catch(() => false)
+      const softContinuityVisible = await continuityFallback.isVisible().catch(() => false)
+      if (triageVisible || !softContinuityVisible) continue
+      await expect(hint).toHaveText('From the briefing')
+      foundSessionBriefing = true
+      break
+    }
+    if (foundSessionBriefing) break
+  }
+  expect(foundSessionBriefing, 'need a pair with Reading thread continuity and no summary triage bridge').toBe(
+    true,
+  )
+
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]comparison=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toContainText(/Briefing — reopened/i)
+  await expect(reopen.getByTestId('compare-selected-pair-continuity-fallback')).toBeVisible()
+  await reopen.close()
+})
+
+test('Compare: reopened link shows From the lists — reopened for navigator-only pair', async ({
+  page,
+  context,
+}) => {
+  // Multi-pair compare with no `regionContinuitySummaryCue` on these pairs — secondary worsened rows
+  // stay on `navigator` (no Context bridge from top-ranked / story beat for that selection).
+  const planA = readFileSync(postgresJsonFixture('nested_loop_amplification.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('nested_loop_misestimation.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+
+  const hint = page.getByTestId('compare-pair-handoff-hint')
+  const worsened = page.getByRole('button', { name: /^Worsened pair:/ })
+  const improved = page.getByRole('button', { name: /^Improved pair:/ })
+
+  let foundNavigator = false
+  for (const rowGroup of [worsened, improved]) {
+    const n = await rowGroup.count()
+    for (let i = 0; i < n; i++) {
+      await rowGroup.nth(i).click()
+      await expect(hint).toBeVisible({ timeout: 20_000 })
+      const t = ((await hint.textContent()) ?? '').trim()
+      if (t === 'From the lists') {
+        foundNavigator = true
+        break
+      }
+    }
+    if (foundNavigator) break
+  }
+  expect(foundNavigator, 'need a From the lists handoff row in worsened/improved lists').toBe(true)
+
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]comparison=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toContainText(/From the lists — reopened/i)
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toHaveAttribute('data-pqat-handoff-origin', 'link')
+  await reopen.close()
+})
+
+test('Compare: Try example runs compare and shows summary', async ({ page }) => {
+  await page.goto('/compare')
+  await page.getByTestId('compare-try-example-seq-scan-to-index-capture').click()
+  await expect(page.getByRole('heading', { name: 'Summary', exact: true })).toBeVisible({ timeout: 90_000 })
+})
+
+test('Compare: Bitmap→index sample reaches summary', async ({ page }) => {
+  await page.goto('/compare')
+  await page.getByTestId('compare-try-example-bitmap-to-index-rows-capture').click()
+  await expect(page.getByRole('heading', { name: 'Summary', exact: true })).toBeVisible({ timeout: 90_000 })
+})
+
 test('Analyze: ?guide=1 shows distinct workflow guide shell', async ({ page }) => {
   await page.goto('/?guide=1')
   await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
@@ -109,14 +342,91 @@ test('Compare: dismissed guide stays closed after reload when intro on; ?guide=1
   await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
 })
 
-test('Analyze: Copy guided link merges guide=1 into current query', async ({ page }) => {
+test('Analyze: Copy merged guided link keeps extra query params', async ({ page }) => {
   await page.goto('/?utm_pqat_e2e=keep&guide=1')
   await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
-  await page.getByTestId('analyze-workflow-guide-copy-guided').getByRole('button', { name: /Copy guided link/i }).click()
+  await page.getByTestId('analyze-workflow-guide-copy-guided-merged').click()
   const clip = await readE2eCapturedClipboard(page)
   expect(clip).toMatch(/^https?:\/\//)
   expect(clip).toMatch(/[?&]guide=1(?:&|$)/)
   expect(clip).toMatch(/utm_pqat_e2e=keep/)
+})
+
+test('Compare: Copy merged guided link keeps extra query params and reopens guide', async ({ page }) => {
+  await page.goto('/compare?utm_pqat_e2e=keep&guide=1')
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('compare-workflow-guide-copy-guided-merged').click()
+  const clip = (await readE2eCapturedClipboard(page)).trim()
+  expect(clip).toMatch(/^https?:\/\//)
+  expect(clip).toMatch(/[?&]guide=1(?:&|$)/)
+  expect(clip).toMatch(/utm_pqat_e2e=keep/)
+  await page.goto(clip)
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+})
+
+test('Analyze: Copy entry guided link drops other query params', async ({ page }) => {
+  await page.goto('/?utm_pqat_e2e=strip&guide=1')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('analyze-workflow-guide-copy-guided-entry').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toMatch(/^https?:\/\//)
+  expect(clip).toMatch(/\?guide=1(?:#|$)/)
+  expect(clip).not.toMatch(/utm_pqat_e2e/)
+})
+
+test('Compare: Copy entry guided link drops other query params', async ({ page }) => {
+  await page.goto('/compare?utm_pqat_e2e=strip&guide=1')
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('compare-workflow-guide-copy-guided-entry').click()
+  const clip = await readE2eCapturedClipboard(page)
+  expect(clip).toMatch(/^https?:\/\//)
+  expect(clip).toMatch(/\/compare\?guide=1(?:#|$)/)
+  expect(clip).not.toMatch(/utm_pqat_e2e/)
+})
+
+test('Analyze: guide announcer on explicit open, close, and ?guide=1 after dismiss', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  })
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeHidden({ timeout: 15_000 })
+  await page.getByTestId('analyze-workflow-guide-bar').getByRole('button', { name: /How to use Analyze/i }).click()
+  await expect(page.getByTestId('analyze-workflow-guide-announcer')).toContainText(/Analyze workflow guide opened/i, {
+    timeout: 5000,
+  })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('analyze-workflow-guide-announcer')).toContainText(/Analyze workflow guide closed/i, {
+    timeout: 5000,
+  })
+  await page.goto('/?guide=1')
+  await expect(page.getByTestId('analyze-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('analyze-workflow-guide-announcer')).toContainText(/Guided help opened from link/i, {
+    timeout: 5000,
+  })
+})
+
+test('Compare: guide announcer on explicit open, close, and ?guide=1 after dismiss', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, compareDismissed: true }))
+  })
+  await page.goto('/compare')
+  await expect(page.getByRole('link', { name: 'Compare' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('compare-plan-a-text')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeHidden({ timeout: 15_000 })
+  await page.getByTestId('compare-workflow-guide-bar').getByRole('button', { name: /How to use Compare/i }).click()
+  await expect(page.getByTestId('compare-workflow-guide-announcer')).toContainText(/Compare workflow guide opened/i, {
+    timeout: 5000,
+  })
+  await page.getByRole('button', { name: /Hide guide/i }).click()
+  await expect(page.getByTestId('compare-workflow-guide-announcer')).toContainText(/Compare workflow guide closed/i, {
+    timeout: 5000,
+  })
+  await page.goto('/compare?guide=1')
+  await expect(page.getByTestId('compare-workflow-guide-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('compare-workflow-guide-announcer')).toContainText(/Guided help opened from link/i, {
+    timeout: 5000,
+  })
 })
 
 test('Analyze: Esc closes guide and returns focus to toggle', async ({ page }) => {
@@ -138,7 +448,7 @@ test('Analyze: copy node reference writes expected reference text', async ({ pag
   await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
 
   const copyBtn = page.getByTestId('analyze-copy-node-reference')
   await expect(copyBtn).toBeVisible({ timeout: 30_000 })
@@ -157,14 +467,13 @@ test('Analyze: Copy for ticket on optimization suggestion writes structured payl
   await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
 
-  const optHeading = page.getByRole('heading', { name: 'Optimization suggestions' })
-  await expect(optHeading).toBeVisible({ timeout: 45_000 })
-  await optHeading.scrollIntoViewIfNeeded()
+  const suggestionsPanel = page.getByTestId('analyze-optimization-suggestions-panel')
+  await expect(suggestionsPanel).toBeVisible({ timeout: 45_000 })
 
   const copyTicket = page.getByTestId('analyze-suggestion-copy-ticket').first()
-  await expect(copyTicket).toBeVisible({ timeout: 15_000 })
+  await expect(copyTicket).toBeVisible({ timeout: 20_000 })
   await copyTicket.click()
 
   const clip = await readE2eCapturedClipboard(page)
@@ -250,7 +559,7 @@ test('Analyze: Copy share link includes URL and PQAT analysis line', async ({ pa
   await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
 
   const copyShare = page.getByRole('button', { name: /Copy share link/i }).first()
   await expect(copyShare).toBeVisible({ timeout: 30_000 })
@@ -270,7 +579,7 @@ test('Analyze: suggested EXPLAIN copy captures wrapped SQL', async ({ page }) =>
   await page.locator('details').filter({ hasText: 'Optional: source SQL query' }).locator('summary').click()
   await page.locator('details').filter({ hasText: 'Optional: source SQL query' }).locator('textarea').first().fill('SELECT 1 AS probe')
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
 
   await page.locator('details').filter({ hasText: 'Suggested EXPLAIN command' }).locator('summary').click()
   await page.getByTestId('analyze-copy-suggested-explain').click()
@@ -286,7 +595,7 @@ test('Analyze: Plan briefing exposes ordered inspect steps (structured Start her
   await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByLabel('Ordered inspect steps')).toBeVisible({ timeout: 30_000 })
 })
 
@@ -299,8 +608,9 @@ test('Analyze: paste fixture, persist, reopen in fresh tab, restore node deep li
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
 
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByLabel('Analyze workspace')).toBeVisible({ timeout: 30_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
 
   const persistedUrl = page.url()
   expect(persistedUrl).toMatch(/[?&]analysis=/)
@@ -308,7 +618,7 @@ test('Analyze: paste fixture, persist, reopen in fresh tab, restore node deep li
   const reopen = await context.newPage()
   await reopen.goto(persistedUrl)
   await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })
-  await expect(reopen.getByText('Summary & metadata')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
   await expect(reopen.getByLabel('Analyze workspace')).toBeVisible({ timeout: 30_000 })
 
   const findingBtn = reopen.getByRole('button', { name: /^Finding:/ }).first()
@@ -321,6 +631,149 @@ test('Analyze: paste fixture, persist, reopen in fresh tab, restore node deep li
   await expect(deep.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })
   await expect(deep.getByLabel('Analyze workspace')).toBeVisible({ timeout: 30_000 })
   await deep.close()
+  await reopen.close()
+})
+
+test('Analyze: reopened snapshot shows ranked band hint then pivot reopened thread', async ({ page, context }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]analysis=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-ranked-restored-hint')).toContainText(/Ranked — reopened/i)
+
+  await expect(reopen.locator('.react-flow__node').first()).toBeVisible({ timeout: 30_000 })
+  await reopen.locator('.react-flow__node').first().click()
+  await expect(reopen.getByTestId('analyze-graph-local-findings-shelf')).toBeVisible({ timeout: 15_000 })
+  await reopen.getByTestId('analyze-local-evidence-open-top-in-list').click()
+  await expect(reopen.getByTestId('analyze-ranked-handoff-hint')).toContainText(/Continues from plan — reopened/i)
+  await reopen.close()
+})
+
+test('Analyze: reopen with empty plan input exports markdown using snapshot payload', async ({ page, context }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]analysis=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+  await expect(reopen.getByTestId('analyze-ranked-restored-hint')).toContainText(/Ranked — reopened/i)
+
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/report/markdown') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/report/markdown') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('analyze-export-markdown').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { analysis?: { analysisId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.analysis?.analysisId).toBeTruthy()
+  const payload = (await exportRes.json()) as { markdown: string; analysisId: string }
+  expect(payload.markdown).toMatch(/Postgres Query Autopsy|Analyze/i)
+  expect(payload.markdown.length).toBeGreaterThan(120)
+  await reopen.close()
+})
+
+test('Analyze: reopen with empty plan input exports HTML using snapshot payload', async ({ page, context }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
+  const persistedUrl = page.url()
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/report/html') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/report/html') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('analyze-export-html').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { analysis?: { analysisId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.analysis?.analysisId).toBeTruthy()
+  const payload = (await exportRes.json()) as { html: string; analysisId: string }
+  expect(payload.html.length).toBeGreaterThan(200)
+  expect(payload.html).toMatch(/<html/i)
+  expect(payload.html).toMatch(/Postgres Query Autopsy|Analyze/i)
+  await reopen.close()
+})
+
+test('Analyze: reopen with empty plan input exports JSON using snapshot payload', async ({ page, context }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
+  const persistedUrl = page.url()
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/report/json') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/report/json') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('analyze-export-json').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { analysis?: { analysisId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.analysis?.analysisId).toBeTruthy()
+  const payload = (await exportRes.json()) as { analysisId: string; nodes?: unknown[]; findings?: unknown[] }
+  expect(payload.analysisId).toBe(postJson?.analysis?.analysisId)
+  expect(Array.isArray(payload.nodes)).toBe(true)
   await reopen.close()
 })
 
@@ -337,6 +790,7 @@ test('Compare: two fixtures, persist, reopen, findings diff visible', async ({ p
 
   await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
   await expect(page.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 30_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
 
   const persistedUrl = page.url()
   expect(persistedUrl).toMatch(/[?&]comparison=/)
@@ -346,6 +800,8 @@ test('Compare: two fixtures, persist, reopen, findings diff visible', async ({ p
   await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
   await expect(reopen.getByText('Summary', { exact: true })).toBeVisible({ timeout: 60_000 })
   await expect(reopen.getByRole('heading', { name: 'Findings diff' })).toBeVisible({ timeout: 30_000 })
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toHaveAttribute('data-pqat-handoff-origin', 'link')
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toContainText(/Summary — reopened/i)
   await reopen.close()
 })
 
@@ -379,6 +835,9 @@ test('Compare: deep link from Copy link restores pair param and rewrite outcome'
   await expect(reopen).toHaveURL(/[?&]pair=pair_/, { timeout: 45_000 })
   await expect(reopen.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 60_000 })
   await expect(reopen.getByLabel('Rewrite outcome for this pair')).toBeVisible({ timeout: 45_000 })
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toHaveAttribute('data-pqat-handoff-origin', 'link')
+  // Deep link restores pins + pair; triage bridge usually wins → summary handoff, not pinned-only copy.
+  await expect(reopen.getByTestId('compare-pair-handoff-hint')).toContainText(/Summary — reopened/i)
   await reopen.close()
 })
 
@@ -422,6 +881,25 @@ test('Compare: selected pair shell appears, heavy pair detail becomes available'
   await expect(page.getByText('Key metric deltas')).toBeVisible({ timeout: 45_000 })
 })
 
+test('Compare: Show in list from triage strip highlights finding diff in viewport', async ({ page }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByTestId('compare-scan-signals')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText(/Comparing…/)).toBeHidden({ timeout: 90_000 })
+
+  await page.getByRole('button', { name: 'Show in list' }).first().click()
+
+  const activeRow = page.locator('.pqat-artifactOutline--active').first()
+  await expect(activeRow).toBeVisible({ timeout: 20_000 })
+  await expect(activeRow).toBeInViewport()
+})
+
 test('Compare: continuity summary cue appears after real compare (seq vs index)', async ({ page }) => {
   const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
   const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
@@ -436,7 +914,7 @@ test('Compare: continuity summary cue appears after real compare (seq vs index)'
   const cue = page.getByTestId('compare-continuity-summary-cue')
   await expect(cue).toBeVisible({ timeout: 30_000 })
   await expect(cue).toContainText(/narrower access|strategy shift/i)
-  await expect(page.getByText(/Continuity ·/)).toBeVisible()
+  await expect(page.getByText(/Reading thread ·/)).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Selected node pair' })).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText(/same relation|sequential scan|index-backed/i).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByLabel('Rewrite outcome for this pair')).toBeVisible({ timeout: 20_000 })
@@ -456,7 +934,7 @@ test('Compare: continuity summary shows regression cue for index vs bitmap heap'
   const cue = page.getByTestId('compare-continuity-summary-cue')
   await expect(cue).toBeVisible({ timeout: 30_000 })
   await expect(cue).toContainText(/bitmap|regression|heap/i)
-  await expect(page.getByText(/Continuity ·/)).toBeVisible()
+  await expect(page.getByText(/Reading thread ·/)).toBeVisible()
 })
 
 test('Analyze reopen: corrupt artifact shows explicit error (422)', async ({ page, request }) => {
@@ -854,7 +1332,7 @@ test('Compare: Copy link with pinned finding includes ticket lines', async ({ pa
   const clip = await readE2eCapturedClipboard(page)
   expect(clip).toContain('PQAT compare:')
   expect(clip).toMatch(/Pair ref:\s*pair_/i)
-  expect(clip).toContain(`Pinned finding: ${diffId}`)
+  expect(clip).toContain(`Highlighted finding: ${diffId}`)
 })
 
 test('Compare: Copy pin context omits URL and includes pinned lines', async ({ page }) => {
@@ -879,7 +1357,7 @@ test('Compare: Copy pin context omits URL and includes pinned lines', async ({ p
   expect(clip).not.toMatch(/^https?:\/\//m)
   expect(clip).toContain('PQAT compare:')
   expect(clip).toMatch(/Pair ref:\s*pair_/i)
-  expect(clip).toMatch(/Pinned for link:.*finding/i)
+  expect(clip).toMatch(/Link includes:.*finding/i)
 })
 
 test('Compare: Copy link with pinned suggestion includes ticket lines', async ({ page }) => {
@@ -912,7 +1390,7 @@ test('Compare: Copy link with pinned suggestion includes ticket lines', async ({
   const clip = await readE2eCapturedClipboard(page)
   expect(clip).toContain('PQAT compare:')
   expect(clip).toMatch(/Pair ref:\s*pair_/i)
-  expect(clip).toContain(`Pinned suggestion: ${suggestionId}`)
+  expect(clip).toContain(`Highlighted next step: ${suggestionId}`)
 })
 
 test('Compare: Copy link with pinned index insight includes ticket lines and round-trips URL', async ({ page, context }) => {
@@ -946,7 +1424,7 @@ test('Compare: Copy link with pinned index insight includes ticket lines and rou
   const clip = await readE2eCapturedClipboard(page)
   expect(clip).toMatch(/^https?:\/\//m)
   expect(clip).toContain('PQAT compare:')
-  expect(clip).toContain(`Pinned index insight: ${insightId}`)
+  expect(clip).toContain(`Highlighted index change: ${insightId}`)
   expect(clip).toMatch(/Pair ref:\s*pair_/i)
   const urlLine = clip
     .split('\n')
@@ -964,4 +1442,239 @@ test('Compare: Copy link with pinned index insight includes ticket lines and rou
     reopen.getByTestId('compare-index-changes-callout').locator(`[data-artifact-id="${insightId}"]`).first(),
   ).toHaveClass(/pqat-indexInsightItem--active/)
   await reopen.close()
+})
+
+test('Compare: reopen with empty plan inputs exports markdown using snapshot payload', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]comparison=/)
+
+  const reopen = await context.newPage()
+
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByText('Summary', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('compare-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+
+  // Do not use page.route() here: Playwright can omit/truncate postData for large JSON bodies, which breaks
+  // route.continue() and yields a failed export — use waitForRequest instead.
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/compare/report/markdown') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/compare/report/markdown') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('compare-export-markdown').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { comparison?: { comparisonId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.comparison?.comparisonId).toBeTruthy()
+  const payload = (await exportRes.json()) as { markdown: string; comparisonId: string }
+  expect(payload.markdown).toContain('## Reading thread')
+  expect(payload.markdown).toContain('**Change at a glance**')
+  expect(payload.markdown).toContain('ComparisonId:')
+  expect(payload.markdown).toMatch(/Postgres Query Autopsy Compare Report/)
+  await reopen.close()
+})
+
+test('Compare: reopen with empty plan inputs exports HTML using snapshot payload', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]comparison=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByText('Summary', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('compare-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/compare/report/html') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/compare/report/html') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('compare-export-html').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { comparison?: { comparisonId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.comparison?.comparisonId).toBeTruthy()
+  const payload = (await exportRes.json()) as { html: string; comparisonId: string }
+  expect(payload.html.length).toBeGreaterThan(200)
+  expect(payload.html).toMatch(/<html/i)
+  expect(payload.html).toMatch(/Postgres Query Autopsy|Compare/i)
+  await reopen.close()
+})
+
+test('Compare: reopen with empty plan inputs exports JSON using snapshot payload', async ({ page, context }) => {
+  const planA = readFileSync(postgresJsonFixture('compare_before_seq_scan.json'), 'utf-8')
+  const planB = readFileSync(postgresJsonFixture('compare_after_index_scan.json'), 'utf-8')
+
+  await page.goto('/compare')
+  await expect(page.getByRole('heading', { name: 'Compare plans' })).toBeVisible()
+  await page.getByTestId('compare-plan-a-text').fill(planA)
+  await page.getByTestId('compare-plan-b-text').fill(planB)
+  await page.getByRole('button', { name: 'Compare' }).click()
+
+  await expect(page.getByText('Summary', { exact: true })).toBeVisible({ timeout: 90_000 })
+  await expect(page).toHaveURL(/[?&]comparison=/, { timeout: 60_000 })
+  const persistedUrl = page.url()
+  expect(persistedUrl).toMatch(/[?&]comparison=/)
+
+  const reopen = await context.newPage()
+  await reopen.goto(persistedUrl)
+  await expect(reopen.getByTestId('compare-persisted-loading')).toBeHidden({ timeout: 90_000 })
+  await expect(reopen.getByText('Summary', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('compare-export-snapshot-cue')).toBeVisible({ timeout: 20_000 })
+
+  const requestPromise = reopen.waitForRequest(
+    (r) => r.url().includes('/api/compare/report/json') && r.method() === 'POST',
+  )
+  const responsePromise = reopen.waitForResponse(
+    (r) => r.url().includes('/api/compare/report/json') && r.request().method() === 'POST',
+  )
+  const [exportReq, exportRes] = await Promise.all([
+    requestPromise,
+    responsePromise,
+    reopen.getByTestId('compare-export-json').click(),
+  ])
+  const postJson = exportReq.postDataJSON() as { comparison?: { comparisonId?: string } }
+  expect(exportRes.ok(), await exportRes.text()).toBeTruthy()
+  expect(postJson?.comparison?.comparisonId).toBeTruthy()
+  const payload = (await exportRes.json()) as { comparisonId: string; planA?: unknown; planB?: unknown }
+  expect(payload.comparisonId).toBe(postJson?.comparison?.comparisonId)
+  expect(payload.planA).toBeTruthy()
+  expect(payload.planB).toBeTruthy()
+  await reopen.close()
+})
+
+test('Analyze: export failure shows calm status line without error-code prefix', async ({ page }) => {
+  const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: 'Analyze' })).toBeVisible()
+  await page.getByPlaceholder(/JSON or psql/i).fill(planText)
+  await page.getByRole('button', { name: /Analyze/i }).click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+
+  await page.route('**/api/report/markdown', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'request_body_invalid',
+        message:
+          'This export request could not be read. Reload the page and try again, or paste the plan text again before exporting.',
+      }),
+    })
+  })
+
+  await page.getByTestId('analyze-export-markdown').click()
+  const status = page.getByTestId('analyze-export-status')
+  await expect(status).toBeVisible({ timeout: 15_000 })
+  await expect(status).toContainText(/could not be read/i)
+  await expect(status).not.toContainText('request_body_invalid:')
+})
+
+test('Analyze: long suggestions surface uses virtual scroller and triage-aligned cue', async ({ page }) => {
+  await page.route('**/api/analyze', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue()
+      return
+    }
+    const response = await route.fetch()
+    const j = (await response.json()) as Record<string, unknown>
+    const findings = (j.findings as Array<{ findingId: string }>) ?? []
+    const fid = findings[0]?.findingId
+    if (!fid) {
+      await route.fulfill({ response })
+      return
+    }
+    const orig = (j.optimizationSuggestions as Array<Record<string, unknown>>) ?? []
+    const tpl =
+      orig[0] ?? {
+        suggestionId: 'sg_tpl',
+        category: 'index_experiment',
+        suggestedActionType: 'create_index_candidate',
+        title: 'Template',
+        summary: 's',
+        details: '',
+        rationale: 'r',
+        confidence: 'medium',
+        priority: 'medium',
+        targetNodeIds: ['n1'],
+        relatedFindingIds: [] as string[],
+        relatedIndexInsightNodeIds: [] as string[],
+        cautions: [] as string[],
+        validationSteps: [] as string[],
+      }
+    const padded: Array<Record<string, unknown>> = []
+    for (let i = 0; i < 15; i++) {
+      padded.push({
+        ...tpl,
+        suggestionId: `sg_pad_${i}`,
+        title: `Padded suggestion ${i}`,
+        relatedFindingIds: i === 14 ? [fid] : [],
+      })
+    }
+    await route.fulfill({
+      status: response.status(),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...j, optimizationSuggestions: padded }),
+    })
+  })
+
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-optimization-suggestions-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('analyze-suggestions-virtual-scroller')).toBeVisible({ timeout: 30_000 })
+  const alignedCard = page.getByTestId('analyze-suggestion-card-triage-aligned')
+  await expect(alignedCard).toBeVisible({ timeout: 25_000 })
+  // Plan workspace may grow (e.g. graph-local findings shelf); scroll before viewport assertions.
+  await alignedCard.scrollIntoViewIfNeeded()
+  await expect(alignedCard).toBeInViewport({ ratio: 0.12, timeout: 20_000 })
+  const inScrollerBounds = await page.evaluate(() => {
+    const sc = document.querySelector('[data-testid="analyze-suggestions-virtual-scroller"]')
+    const card = document.querySelector('[data-testid="analyze-suggestion-card-triage-aligned"]')
+    if (!(sc instanceof HTMLElement) || !(card instanceof HTMLElement)) return { ok: false, reason: 'missing' as const }
+    const sb = sc.getBoundingClientRect()
+    const cb = card.getBoundingClientRect()
+    const intersects =
+      cb.bottom > sb.top + 2 &&
+      cb.top < sb.bottom - 2 &&
+      cb.right > sb.left + 2 &&
+      cb.left < sb.right - 2
+    return { ok: intersects, reason: intersects ? ('ok' as const) : ('no_overlap' as const) }
+  })
+  expect(inScrollerBounds.ok, 'aligned suggestion card should sit inside the virtual scroller viewport').toBe(true)
 })

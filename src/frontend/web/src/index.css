@@ -1,4 +1,6 @@
 :root {
+  /* Sticky triage: safe-area + top bar via `calc` in CSS; height from `useStickyTopOffsetSync` (Phase 111–112). */
+  --pqat-sticky-top-offset: 54px;
   --text: #5c5668;
   --text-h: #0c0a12;
   --text-secondary: #6b6577;

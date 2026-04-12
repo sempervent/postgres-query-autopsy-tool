@@ -334,6 +334,36 @@ afterEach(() => {
   cleanup()
 })
 
+test('curated compare examples expose stable try chips', async () => {
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+  expect(screen.getByTestId('compare-try-example-seq-scan-to-index-capture')).toBeInTheDocument()
+  expect(screen.getByTestId('compare-try-example-bitmap-to-index-rows-capture')).toBeInTheDocument()
+})
+
+test('Try compare example loads paired fixtures and runs compare', async () => {
+  compareWithPlanTextsMock.mockImplementation(async (opts: { planAText: string; planBText: string }) => {
+    expect(opts.planAText).toMatch(/Seq Scan/)
+    expect(opts.planAText).toMatch(/products/)
+    expect(opts.planBText).toMatch(/Index Scan/)
+    expect(opts.planBText).toMatch(/products/)
+    return mockComparisonPayload()
+  })
+  render(
+    <MemoryRouter initialEntries={['/compare']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForCompareAppReady()
+  fireEvent.click(screen.getByTestId('compare-try-example-seq-scan-to-index-capture'))
+  await waitFor(() => expect(compareWithPlanTextsMock).toHaveBeenCalled())
+  await waitFor(() => expect(screen.getByText('Summary', { exact: true })).toBeInTheDocument())
+})
+
 test('compare page is truthful (no stale MVP placeholder copy)', async () => {
   render(
     <MemoryRouter initialEntries={['/compare']}>
@@ -345,7 +375,7 @@ test('compare page is truthful (no stale MVP placeholder copy)', async () => {
   expect(screen.getByText('Compare plans')).toBeInTheDocument()
   expect(screen.queryByText(/placeholder diff summary/i)).toBeNull()
   expect(screen.queryByText(/This MVP/i)).toBeNull()
-  expect(screen.getByText(/aligns nodes heuristically/i)).toBeInTheDocument()
+  expect(screen.getByText(/mapper aligns operators heuristically/i)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /How to use Compare|Hide guide/i })).toBeInTheDocument()
 })
 
@@ -368,9 +398,7 @@ test(
     expect(await screen.findByText('Summary', undefined, { timeout: 15_000 })).toBeInTheDocument()
     await waitFor(
       () => {
-        const h = screen.getByRole('heading', { name: 'Selected node pair' })
-        const p = h.nextElementSibling as HTMLElement
-        expect(p.textContent).toMatch(/Hash Join/)
+        expect(screen.getByLabelText('Pair readout').textContent).toMatch(/Hash Join/)
       },
       { timeout: 15_000 },
     )
@@ -397,7 +425,7 @@ test('selected pair: eager copy actions and confidence line; heavy block include
     /Same relation \(users\): plan A used a sequential scan/i,
   )
   expect(continuityLines.length).toBeGreaterThanOrEqual(1)
-  expect(screen.getByRole('button', { name: 'Copy reference' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Copy reference/i })).toBeInTheDocument()
   expect(screen.getByText(/confidence: High · score/)).toBeInTheDocument()
   await waitFor(
     () => {
@@ -421,7 +449,7 @@ test('summary meta shows bottleneck posture when bottleneckBrief lines are prese
 
   await screen.findByText('Summary', {}, { timeout: 15_000 })
   expect(screen.getByLabelText('Change briefing')).toBeInTheDocument()
-  expect(screen.getByText(/Continuity ·/)).toBeInTheDocument()
+  expect(screen.getByText(/Reading thread ·/)).toBeInTheDocument()
   expect(screen.getByTestId('compare-continuity-summary-cue')).toHaveTextContent('Same region · narrower access')
   expect(screen.getByText(/Plan B is ~20ms slower/i)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Open pair/i })).toBeInTheDocument()
@@ -464,9 +492,8 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(await screen.findByText('Summary')).toBeInTheDocument()
   expect(screen.getByText('What changed most')).toBeInTheDocument()
 
-  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
-  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
-  expect(within(selectedPrimary).getByText(/Seq Scan on users → Index Scan on users/)).toBeInTheDocument()
+  const pairReadout = screen.getByLabelText('Pair readout')
+  expect(within(pairReadout).getByText(/Seq Scan on users → Index Scan on users/)).toBeInTheDocument()
 
   const indexCallout = screen.getByTestId('compare-index-changes-callout')
   expect(within(indexCallout).getByText('Index changes')).toBeInTheDocument()
@@ -487,7 +514,7 @@ test('compare page renders summary + what changed most and allows selecting a to
   expect(within(sug).queryByText(/Priority: high/i)).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: /^Top improved:/i }))
-  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  expect(within(screen.getByLabelText('Pair readout')).getByText('Hash Join → Hash Join')).toBeInTheDocument()
 })
 
 test('compare next-step row puts Focus plan B and Copy for ticket before Pin in DOM (tab order)', async () => {
@@ -593,9 +620,8 @@ test('branch context shows twin paths and clicking a mapped ancestor updates sel
   )
 
   fireEvent.click(hashJoinA)
-  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
-  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
-  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  const pairReadout = screen.getByLabelText('Pair readout')
+  expect(within(pairReadout).getByText('Hash Join → Hash Join')).toBeInTheDocument()
   expect(hashJoinA.getAttribute('aria-pressed')).toBe('true')
 })
 
@@ -613,9 +639,8 @@ test('finding diff with only Plan B anchor resolves pair and syncs selection', a
   await screen.findByText('Findings diff')
 
   fireEvent.click(screen.getByRole('button', { name: /Finding diff: anchor-b-only/i }))
-  const selectedHeading = screen.getByRole('heading', { name: 'Selected node pair' })
-  const selectedPrimary = selectedHeading.nextElementSibling as HTMLElement
-  expect(within(selectedPrimary).getByText('Hash Join → Hash Join')).toBeInTheDocument()
+  const pairReadout = screen.getByLabelText('Pair readout')
+  expect(within(pairReadout).getByText('Hash Join → Hash Join')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Finding diff: anchor-b-only/i }).getAttribute('aria-pressed')).toBe('true')
 })
 

@@ -16,6 +16,8 @@ import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
 import { TechnicalIdCollapsible } from '../TechnicalIdCollapsible'
 import { operatorBriefingLine } from '../../presentation/briefingReadoutPresentation'
 import { bottleneckClassShortLabel } from '../../presentation/bottleneckPresentation'
+import { AnalyzeLocalFindingsBridge } from './AnalyzeLocalFindingsBridge'
+import { AnalyzeLocalFindingsShelf } from './AnalyzeLocalFindingsShelf'
 
 const AnalyzeSelectedNodeHeavySections = lazy(() =>
   import('./AnalyzeSelectedNodeHeavySections').then((m) => ({ default: m.AnalyzeSelectedNodeHeavySections })),
@@ -33,6 +35,19 @@ export function AnalyzeSelectedNodePanel(props: {
   copyNode: ReturnType<typeof useCopyFeedback>
   copyShareLink: ReturnType<typeof useCopyFeedback>
   nodeLabel: (n: AnalyzedPlanNode) => string
+  /** Continuity with summary triage (Phase 109). */
+  triageFocusNodeId?: string | null
+  triagePrimaryFindingId?: string | null
+  /** Included on Copy share link clipboard (Phase 112). */
+  shareLinkStartHereHeadline?: string | null
+  /** Strongest ranked suggestion globally matches the related card for this node. */
+  relatedOptimizationIsTopLeverage?: boolean
+  /** Related suggestion aligns with Start here evidence thread (Phase 111). */
+  relatedOptimizationAlignsTriage?: boolean
+  /** Phase 122: scroll/highlight a finding row in the Ranked list (bridge from selected node). */
+  onFocusFindingInList?: (findingId: string) => void
+  /** When Plan workspace is also visible, full local shelf lives there — avoid duplicating cards here. */
+  localEvidencePrimaryInWorkspace?: boolean
 }) {
   const {
     analysis,
@@ -46,6 +61,13 @@ export function AnalyzeSelectedNodePanel(props: {
     copyNode,
     copyShareLink,
     nodeLabel,
+    triageFocusNodeId,
+    triagePrimaryFindingId,
+    shareLinkStartHereHeadline,
+    relatedOptimizationIsTopLeverage = false,
+    relatedOptimizationAlignsTriage = false,
+    onFocusFindingInList,
+    localEvidencePrimaryInWorkspace = false,
   } = props
 
   const shareLinkUi = {
@@ -57,9 +79,25 @@ export function AnalyzeSelectedNodePanel(props: {
     <div className="pqat-panel pqat-panel--detail" style={{ minWidth: 0, padding: '16px 18px' }} aria-label="Selected node detail">
       <div className="pqat-eyebrow">Detail</div>
       <h2>Selected node</h2>
+      {(() => {
+        const matchesStart = Boolean(triageFocusNodeId && selectedNodeId === triageFocusNodeId)
+        const matchesPrimaryFinding = Boolean(
+          triagePrimaryFindingId && findingsForSelectedNode.some((f) => f.findingId === triagePrimaryFindingId),
+        )
+        if (!matchesStart && !matchesPrimaryFinding) return null
+        return (
+          <div className="pqat-summaryContinuityCue" data-testid="analyze-selected-triage-cue" aria-label="Aligned with summary triage">
+            <span className="pqat-summaryContinuityCue__label">Summary</span>
+            <span className="pqat-summaryContinuityCue__text">
+              Same focus as <strong>Start here</strong> (see summary headline)
+            </span>
+          </div>
+        )
+      })()}
       {selectedNode ? (
+        <div className="pqat-investigationThread">
         <div className="pqat-readoutShell pqat-panel pqat-panel--workspace" style={{ padding: 14, marginTop: 4 }} aria-label="Selected node readout">
-          <div className="pqat-readoutKicker">Operator in focus</div>
+          <div className="pqat-readoutKicker">Operator</div>
           <div className="pqat-readoutTitle">{nodeLabel(selectedNode)}</div>
           {(() => {
             const br = operatorBriefingLine(selectedNode)
@@ -70,6 +108,18 @@ export function AnalyzeSelectedNodePanel(props: {
               </div>
             ) : null
           })()}
+          {onFocusFindingInList ? (
+            localEvidencePrimaryInWorkspace ? (
+              <AnalyzeLocalFindingsBridge findings={findingsForSelectedNode} onSeeInRankedList={onFocusFindingInList} />
+            ) : (
+              <AnalyzeLocalFindingsShelf
+                variant="detail"
+                findings={findingsForSelectedNode}
+                onSeeInRankedList={onFocusFindingInList}
+                testId="analyze-detail-local-findings-shelf"
+              />
+            )
+          ) : null}
           {(() => {
             const hits = (analysis.summary.bottlenecks ?? []).filter((b) => (b.nodeIds ?? []).includes(selectedNode.nodeId))
             if (!hits.length) return null
@@ -128,7 +178,16 @@ export function AnalyzeSelectedNodePanel(props: {
           })()}
           {relatedOptimizationForSelectedNode ? (
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }} aria-label="Related optimization suggestion">
-              <b>Related optimization suggestion</b>
+              <b>Suggested next step for this node</b>
+              {relatedOptimizationIsTopLeverage && relatedOptimizationAlignsTriage ? (
+                <div
+                  className="pqat-triageSuggestionCue pqat-triageSuggestionCue--inline"
+                  data-testid="analyze-selected-node-top-next-cue"
+                  style={{ marginTop: 6 }}
+                >
+                  Top-ranked suggestion — same evidence thread as Start here
+                </div>
+              ) : null}
               <div style={{ marginTop: 4, fontWeight: 700 }}>{relatedOptimizationForSelectedNode.title}</div>
               <div style={{ marginTop: 4, opacity: 0.9 }}>{relatedOptimizationForSelectedNode.summary}</div>
               {relatedOptimizationForSelectedNode.recommendedNextAction ? (
@@ -187,7 +246,9 @@ export function AnalyzeSelectedNodePanel(props: {
                   }),
                 )
                 await copyShareLink.copy(
-                  analyzeDeepLinkClipboardPayload(appUrlForPath(path), analysis.analysisId, selectedNodeId),
+                  analyzeDeepLinkClipboardPayload(appUrlForPath(path), analysis.analysisId, selectedNodeId, {
+                    startHereHeadline: shareLinkStartHereHeadline,
+                  }),
                   shareLinkUi.toast,
                 )
               }}
@@ -221,12 +282,9 @@ export function AnalyzeSelectedNodePanel(props: {
               </div>
             }
           >
-            <AnalyzeSelectedNodeHeavySections
-              analysis={analysis}
-              selectedNode={selectedNode}
-              findingsForSelectedNode={findingsForSelectedNode}
-            />
+            <AnalyzeSelectedNodeHeavySections analysis={analysis} selectedNode={selectedNode} />
           </Suspense>
+        </div>
         </div>
       ) : (
         <div style={{ padding: 12, borderRadius: 12, border: '1px solid var(--border)', opacity: 0.9 }}>

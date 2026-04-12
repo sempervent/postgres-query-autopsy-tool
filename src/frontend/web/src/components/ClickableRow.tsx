@@ -13,6 +13,7 @@ export type ClickableRowProps = {
   style?: CSSProperties
   className?: string
   'aria-label'?: string
+  'data-finding-id'?: string
 }
 
 /**
@@ -28,6 +29,7 @@ export function ClickableRow({
   style,
   className,
   'aria-label': ariaLabel,
+  'data-finding-id': dataFindingId,
 }: ClickableRowProps) {
   const selectedStyle: CSSProperties | undefined =
     selected === true
@@ -48,6 +50,7 @@ export function ClickableRow({
       tabIndex={0}
       aria-label={ariaLabel}
       aria-pressed={selected}
+      data-finding-id={dataFindingId}
       className={['clickableRow', selected ? 'clickableRow--selected' : '', className].filter(Boolean).join(' ')}
       onMouseEnter={() => onPointerIntent?.()}
       onFocus={() => onPointerIntent?.()}

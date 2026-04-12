@@ -44,7 +44,7 @@ test('Auth API key: owner creates analysis, reopens persisted link in fresh cont
   await page.goto('/')
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
   const persistedUrl = page.url()
 
@@ -56,7 +56,7 @@ test('Auth API key: owner creates analysis, reopens persisted link in fresh cont
   await installApiKeyRoute(reopen, E2E_KEY_USER_A)
   await reopen.goto(persistedUrl)
   await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })
-  await expect(reopen.getByText('Summary & metadata')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
   await reopenCtx.close()
   await ctx.close()
 })
@@ -72,7 +72,7 @@ test('Auth API key: other user cannot open private artifact (access denied in UI
   await pageA.goto('/')
   await pageA.getByPlaceholder(/JSON or psql/i).fill(planText)
   await pageA.getByRole('button', { name: /Analyze/i }).click()
-  await expect(pageA.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(pageA.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(pageA).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
   const persistedUrl = pageA.url()
   await ctxA.close()
@@ -105,7 +105,7 @@ test('Auth API key: owner shares to group via UI; member B can open; outsider C 
   await pageA.goto('/')
   await pageA.getByPlaceholder(/JSON or psql/i).fill(planText)
   await pageA.getByRole('button', { name: /Analyze/i }).click()
-  await expect(pageA.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(pageA.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(pageA).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
   const persistedUrl = pageA.url()
 
@@ -151,7 +151,7 @@ test('Auth API key: owner shares to group via UI; member B can open; outsider C 
   await installApiKeyRoute(pageB, E2E_KEY_USER_B)
   await pageB.goto(persistedUrl)
   await expect(pageB.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })
-  await expect(pageB.getByText('Summary & metadata')).toBeVisible({ timeout: 60_000 })
+  await expect(pageB.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
   await ctxB.close()
 
   const ctxC = await browser.newContext({
@@ -180,7 +180,7 @@ test('Auth API key: copy artifact link captures URL plus PQAT analysis id', asyn
   await page.goto('/')
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
 
   const copyBtn = page.getByRole('button', { name: /Copy artifact link/i })

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+  artifactErrorBannerNextStep,
   artifactErrorBodyKicker,
   artifactErrorBannerTitle,
   artifactErrorBannerToneClass,
@@ -42,9 +43,19 @@ test('artifactErrorBodyKicker reflects tone', () => {
 
 test('artifactErrorBannerTitle aligns with severity semantics', () => {
   expect(artifactErrorBannerTitle('Access denied.')).toBe('Access blocked')
-  expect(artifactErrorBannerTitle('No stored analysis for id x')).toBe('Snapshot not found')
-  expect(artifactErrorBannerTitle('corrupt row')).toBe('Artifact issue')
-  expect(artifactErrorBannerTitle('unsupported schema 409')).toBe('Unsupported snapshot version')
+  expect(artifactErrorBannerTitle('No stored analysis for id x')).toBe('Saved result not found')
+  expect(artifactErrorBannerTitle('corrupt row')).toBe('Couldn’t read this snapshot')
+  expect(artifactErrorBannerTitle('unsupported schema 409')).toBe('Snapshot needs a newer app version')
   expect(artifactErrorBannerTitle('[Plan A] parse failed')).toBe('Plan text issue')
-  expect(artifactErrorBannerTitle('Something else')).toBe('Could not complete request')
+  expect(artifactErrorBannerTitle('Something else')).toBe('Something went wrong')
+})
+
+test('artifactErrorBannerNextStep gives actionable hints for known patterns', () => {
+  expect(artifactErrorBannerNextStep('Access denied for this analysis.')).toMatch(/Sign in|owner/i)
+  expect(artifactErrorBannerNextStep('No stored analysis for id abc.')).toMatch(/fresh link|capture/i)
+  expect(artifactErrorBannerNextStep('artifact_corrupt: bad')).toMatch(/paste|export/i)
+  expect(artifactErrorBannerNextStep('Unsupported artifact_schema version (409).')).toMatch(/Update|compatible/i)
+  expect(artifactErrorBannerNextStep('[Plan A] parse failed')).toMatch(/capture box|try again/i)
+  expect(artifactErrorBannerNextStep('Network failure')).toMatch(/connection|retry/i)
+  expect(artifactErrorBannerNextStep('Unknown opaque error')).toBeNull()
 })

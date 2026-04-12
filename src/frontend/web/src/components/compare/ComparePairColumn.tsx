@@ -1,5 +1,6 @@
 import type { CompareBranchViewModel } from '../../presentation/compareBranchContext'
 import { CompareBranchStrip } from '../CompareBranchStrip'
+import { COMPARE_PAIR_INSPECTOR_ANCHOR_ID } from './SkipToPairInspectorLink'
 import { CompareSelectedPairPanel, type CompareSelectedPairPanelProps } from './CompareSelectedPairPanel'
 
 export type ComparePairColumnProps = {
@@ -25,7 +26,12 @@ export function ComparePairColumn(props: ComparePairColumnProps) {
   }
 
   return (
-    <div className="pqat-panel pqat-panel--workspace pqat-panelPad--md pqat-workspaceColumn" aria-label="Compare pair inspector">
+    <div
+      id={COMPARE_PAIR_INSPECTOR_ANCHOR_ID}
+      className="pqat-panel pqat-panel--workspace pqat-panelPad--md pqat-workspaceColumn"
+      aria-label="Compare pair inspector"
+      tabIndex={-1}
+    >
       {showBranchStrip && branchViewModel ? (
         <CompareBranchStrip model={branchViewModel} onSelectPair={setSelectedPair} pairHeading={branchPairHeading} />
       ) : null}

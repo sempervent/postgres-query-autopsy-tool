@@ -1,0 +1,26 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Index Scan",
+      "Relation Name": "shipments",
+      "Schema": "public",
+      "Alias": "shipments",
+      "Index Name": "shipments_warehouse_id_idx",
+      "Startup Cost": 0.42,
+      "Total Cost": 4200.0,
+      "Plan Rows": 15000,
+      "Plan Width": 48,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 18.0,
+      "Actual Rows": 12000,
+      "Actual Loops": 1,
+      "Index Cond": "(warehouse_id = 3)",
+      "Buffers": {
+        "Shared Hit Blocks": 400,
+        "Shared Read Blocks": 900,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]

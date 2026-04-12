@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import type { AnalyzedPlanNode, OptimizationSuggestion, PlanAnalysisResult } from '../api/types'
 import {
@@ -23,6 +23,9 @@ import {
 } from '../presentation/optimizationSuggestionsPresentation'
 import { AnalyzeDeepLinkParam, buildAnalyzeDeepLinkSearchParams } from '../presentation/artifactLinks'
 import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
+import { rankedFindingsForNode } from '../presentation/analyzeFindingPivot'
+import { exportDownloadSuccessHint } from '../presentation/exportStatusCopy'
+import { scrollIntoViewOptionsForUser } from '../presentation/motionPreferences'
 import { useCopyFeedback } from '../presentation/useCopyFeedback'
 import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useAnalyzeWorkspaceLayout } from '../analyzeWorkspace/useAnalyzeWorkspaceLayout'
@@ -32,10 +35,25 @@ import { AnalyzeSummaryCard } from '../components/analyze/AnalyzeSummaryCard'
 import { LowerBandPanelSkeleton } from '../components/HeavyPanelShell'
 import { AnalyzePlanWorkspacePanel } from '../components/analyze/AnalyzePlanWorkspacePanel'
 import { AnalyzePlanGuideRail } from '../components/analyze/AnalyzePlanGuideRail'
+import { ANALYZE_RANKED_FINDINGS_ANCHOR_ID } from '../components/analyze/SkipToRankedFindingsLink'
+import { queryRankedFindingRow } from '../presentation/analyzeEvidenceDom'
 import { AnalyzeWorkflowGuide } from '../help/AnalyzeWorkflowGuide'
 import { WorkflowGuideBar } from '../help/WorkflowGuideBar'
 import { ANALYZE_WORKFLOW_GUIDE_TITLE_ID } from '../help/workflowGuideDomIds'
 import { isWorkflowGuideHotkey, workflowGuideHotkeyShouldIgnoreTarget } from '../help/workflowGuideHotkey'
+import { openWorkflowGuideWhenUrlRequests } from '../help/workflowGuideOpenFromUrl'
+import { ANALYZE_PLAN_EXAMPLES, getAnalyzePlanExample, type AnalyzePlanExampleId } from '../examples/analyzePlanExamples'
+import {
+  buildAnalyzeTriageBundle,
+  filterTriageEchoScanLabels,
+  suggestionAlignsWithAnalyzeTriage,
+} from '../presentation/analyzeOutputGuidance'
+import {
+  injectTriageIntoHtml,
+  jsonExportWithTriageEnvelope,
+  markdownTriagePreamble,
+} from '../presentation/analyzeExportTriage'
+import { TryAnalyzeExampleChips } from '../components/examples/TryPlanExampleChips'
 import {
   readAnalyzeGuideInitialOpen,
   readWorkflowGuideDismissed,
@@ -83,9 +101,17 @@ export default function AnalyzePage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingPersisted, setLoadingPersisted] = useState(false)
+  /** Ranked thread copy: `?analysis=` restore vs fresh run in this tab (Phase 134). */
+  const [analyzeRankedHandoffOrigin, setAnalyzeRankedHandoffOrigin] = useState<'link' | 'session'>('session')
+  const [exportAnalyzeBusyKind, setExportAnalyzeBusyKind] = useState<'md' | 'html' | 'json' | null>(null)
+  const [exportAnalyzeHint, setExportAnalyzeHint] = useState<string | null>(null)
   const [appConfig, setAppConfig] = useState<import('../api/types').AppConfig | null>(null)
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  /** Explicit open from plan band / detail — scroll + brief highlight in lower list. */
+  const [graphPivotFindingId, setGraphPivotFindingId] = useState<string | null>(null)
+  const graphPivotFallbackTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const graphPivotAfterFocusTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
   const [treeMode, setTreeMode] = useState<'graph' | 'text'>('graph')
   const [graphSearch, setGraphSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -168,9 +194,11 @@ export default function AnalyzePage() {
         if (cancelled || loadPersistedSeqRef.current !== seq) return
         setAnalysis(data)
         setInput('')
+        setAnalyzeRankedHandoffOrigin('link')
       } catch (e) {
         if (cancelled || loadPersistedSeqRef.current !== seq) return
         setAnalysis(null)
+        setAnalyzeRankedHandoffOrigin('session')
         setError(
           e instanceof AnalysisNotFoundError
             ? e.message
@@ -224,18 +252,14 @@ export default function AnalyzePage() {
     }
   }, [analyzeGuideOpen, queueAnalyzeGuideLiveMsg])
 
-  useEffect(() => {
-    if (!urlWantsGuide) return
-    let becameOpen = false
-    setAnalyzeGuideOpen((wasOpen) => {
-      if (!wasOpen) {
-        becameOpen = true
-        pendingAnalyzeGuideFocusTitleRef.current = true
-        pendingAnalyzeGuideOpenAnnRef.current = 'Guided help opened from link.'
-      }
-      return true
+  useLayoutEffect(() => {
+    openWorkflowGuideWhenUrlRequests({
+      urlWantsGuide,
+      setGuideOpen: setAnalyzeGuideOpen,
+      pendingFocusTitleRef: pendingAnalyzeGuideFocusTitleRef,
+      pendingOpenAnnRef: pendingAnalyzeGuideOpenAnnRef,
+      setKeyboardContain: setAnalyzeGuideKeyboardContain,
     })
-    if (becameOpen) queueMicrotask(() => setAnalyzeGuideKeyboardContain(true))
   }, [urlWantsGuide])
 
   useEffect(() => {
@@ -342,7 +366,9 @@ export default function AnalyzePage() {
     if (id && analysis.nodes.some((x) => x.nodeId === id) && id !== selectedNodeId) setSelectedNodeId(id)
   }, [analysis, analysis?.analysisId, searchParams, selectedNodeId])
 
-  useEffect(() => {
+  // Layout effect: keep `?analysis=` in sync with the committed analysis before paint so share/reopen
+  // URLs and E2E `toHaveURL` checks see a stable bar address in the same frame as summary UI (Phase 136).
+  useLayoutEffect(() => {
     if (!analysis) {
       lastSyncedAnalyzeQs.current = ''
       return
@@ -380,9 +406,34 @@ export default function AnalyzePage() {
     })
   }, [analysis, findingSearch, minSeverity])
 
+  const analyzeTriageBundle = useMemo(() => (analysis ? buildAnalyzeTriageBundle(analysis) : null), [analysis])
+
+  const exportUsesSnapshot = useMemo(() => Boolean(analysis && !input.trim()), [analysis, input])
+
+  useEffect(() => {
+    if (!exportAnalyzeHint) return
+    const t = window.setTimeout(() => setExportAnalyzeHint(null), 6500)
+    return () => window.clearTimeout(t)
+  }, [exportAnalyzeHint])
+  const primaryTriageFindingId = analyzeTriageBundle?.takeaway?.primaryFindingId ?? null
+  const triageFocusNodeId = analyzeTriageBundle?.takeaway?.focusNodeId ?? null
+  const primaryFindingNodeIds = useMemo(() => {
+    if (!analysis || !primaryTriageFindingId) return null
+    const f = analysis.findings.find((x) => x.findingId === primaryTriageFindingId)
+    return f?.nodeIds ?? null
+  }, [analysis, primaryTriageFindingId])
+
+  const triagePrimaryRoute = useMemo((): 'finding' | 'step' | 'overview' => {
+    const t = analyzeTriageBundle?.takeaway
+    if (!t) return 'overview'
+    if (t.primaryFindingId) return 'finding'
+    if (t.focusNodeId) return 'step'
+    return 'overview'
+  }, [analyzeTriageBundle])
+
   const findingsForSelectedNode = useMemo(() => {
     if (!analysis || !selectedNodeId) return []
-    return analysis.findings.filter((f) => (f.nodeIds ?? []).includes(selectedNodeId))
+    return rankedFindingsForNode(analysis.findings, selectedNodeId)
   }, [analysis, selectedNodeId])
 
   const sortedOptimizationSuggestions = useMemo(() => {
@@ -397,6 +448,28 @@ export default function AnalyzePage() {
     return sortSuggestionsForLeverage(hits)[0] ?? null
   }, [sortedOptimizationSuggestions, selectedNodeId])
 
+  const topLeverageSuggestionId = sortedOptimizationSuggestions[0]?.suggestionId ?? null
+  const relatedOptimizationIsTopLeverage = Boolean(
+    topLeverageSuggestionId && relatedOptimizationForSelectedNode?.suggestionId === topLeverageSuggestionId,
+  )
+  const relatedOptimizationAlignsTriage = Boolean(
+    relatedOptimizationForSelectedNode &&
+      suggestionAlignsWithAnalyzeTriage(relatedOptimizationForSelectedNode, {
+        primaryFindingId: primaryTriageFindingId,
+        triageFocusNodeId,
+        primaryFindingNodeIds,
+      }),
+  )
+
+  const scrollToPrimaryFindingRow = useCallback(() => {
+    if (!primaryTriageFindingId || typeof document === 'undefined') return
+    const id = primaryTriageFindingId
+    const root = document.getElementById(ANALYZE_RANKED_FINDINGS_ANCHOR_ID)
+    if (!root) return
+    const el = queryRankedFindingRow(root, id)
+    if (el instanceof HTMLElement) el.scrollIntoView(scrollIntoViewOptionsForUser({ block: 'center', inline: 'nearest' }))
+  }, [primaryTriageFindingId])
+
   const graph = useMemo(() => {
     if (!analysis) return null
     return buildAnalyzeGraph(analysis)
@@ -409,20 +482,78 @@ export default function AnalyzePage() {
 
   const graphHits = graphView?.hits ?? []
 
+  const selectNodeFromTextTree = useCallback((id: string | null) => {
+    setGraphPivotFindingId(null)
+    setSelectedNodeId(id)
+  }, [])
+
+  const focusFindingInList = useCallback((findingId: string) => {
+    setGraphPivotFindingId(findingId)
+  }, [])
+
+  const clearGraphPivotTimers = useCallback(() => {
+    if (graphPivotFallbackTimerRef.current != null) {
+      window.clearTimeout(graphPivotFallbackTimerRef.current)
+      graphPivotFallbackTimerRef.current = null
+    }
+    if (graphPivotAfterFocusTimerRef.current != null) {
+      window.clearTimeout(graphPivotAfterFocusTimerRef.current)
+      graphPivotAfterFocusTimerRef.current = null
+    }
+  }, [])
+
+  /** Phase 128: clear pivot cue 4.2s after ranked row actually receives focus (not from open action alone). */
+  const onGraphPivotFocusArrived = useCallback(() => {
+    if (graphPivotFallbackTimerRef.current != null) {
+      window.clearTimeout(graphPivotFallbackTimerRef.current)
+      graphPivotFallbackTimerRef.current = null
+    }
+    if (graphPivotAfterFocusTimerRef.current != null) {
+      window.clearTimeout(graphPivotAfterFocusTimerRef.current)
+    }
+    graphPivotAfterFocusTimerRef.current = window.setTimeout(() => {
+      setGraphPivotFindingId(null)
+      graphPivotAfterFocusTimerRef.current = null
+    }, 4200)
+  }, [])
+
+  useEffect(() => {
+    if (!graphPivotFindingId) {
+      clearGraphPivotTimers()
+      return
+    }
+    if (graphPivotFallbackTimerRef.current != null) {
+      window.clearTimeout(graphPivotFallbackTimerRef.current)
+      graphPivotFallbackTimerRef.current = null
+    }
+    graphPivotFallbackTimerRef.current = window.setTimeout(() => {
+      setGraphPivotFindingId(null)
+      graphPivotFallbackTimerRef.current = null
+    }, 6000)
+    return () => {
+      if (graphPivotFallbackTimerRef.current != null) {
+        window.clearTimeout(graphPivotFallbackTimerRef.current)
+        graphPivotFallbackTimerRef.current = null
+      }
+    }
+  }, [graphPivotFindingId, clearGraphPivotTimers])
+
+  const jumpToNodeId = useCallback(
+    (id: string) => {
+      if (graph) setCollapsed((prev) => revealPath(prev, graph, id))
+      const idx = graphHits.findIndex((h) => h.nodeId === id)
+      if (idx >= 0) setMatchIdx(idx)
+      setSelectedNodeId(id)
+      setGraphPivotFindingId(null)
+    },
+    [graph, graphHits],
+  )
+
   function selectGraphHit(i: number) {
     if (!graphHits.length) return
     const idx = ((i % graphHits.length) + graphHits.length) % graphHits.length
-    setMatchIdx(idx)
-    const id = graphHits[idx].nodeId
-    if (graph) setCollapsed((prev) => revealPath(prev, graph, id))
-    setSelectedNodeId(id)
-  }
-
-  function jumpToNodeId(id: string) {
-    if (graph) setCollapsed((prev) => revealPath(prev, graph, id))
-    const idx = graphHits.findIndex((h) => h.nodeId === id)
-    if (idx >= 0) setMatchIdx(idx)
-    setSelectedNodeId(id)
+    const id = graphHits[idx]!.nodeId
+    jumpToNodeId(id)
   }
 
   function stripAnalyzeUrlParams() {
@@ -433,17 +564,27 @@ export default function AnalyzePage() {
     setSearchParams(p, { replace: true })
   }
 
-  async function onAnalyze() {
+  function loadAnalyzeExampleAndRun(id: AnalyzePlanExampleId) {
+    const ex = getAnalyzePlanExample(id)
+    if (!ex) return
+    setInput(ex.jsonText)
+    void onAnalyze(ex.jsonText)
+  }
+
+  async function onAnalyze(overridePlanText?: string) {
+    const planBody = (overridePlanText ?? input).trim()
     setError(null)
     setLoading(true)
+    setAnalyzeRankedHandoffOrigin('session')
     const nodeHint = searchParams.get('node')
     stripAnalyzeUrlParams()
     loadPersistedSeqRef.current += 1
     setAnalysis(null)
     setSelectedNodeId(null)
+    setGraphPivotFindingId(null)
     try {
       const result = await analyzePlanWithQuery(
-        input,
+        planBody,
         queryText,
         sendExplainMetadata
           ? {
@@ -473,29 +614,49 @@ export default function AnalyzePage() {
     }
   }
 
-  async function onExport(kind: 'md' | 'html' | 'json') {
-    if (!analysis) return
-    try {
-      if (kind === 'md') {
-        const r = await exportMarkdown(analysis)
-        downloadText(`autopsy-${r.analysisId}.md`, r.markdown, 'text/markdown')
-      } else if (kind === 'html') {
-        const r = await exportHtml(analysis)
-        downloadText(`autopsy-${r.analysisId}.html`, r.html, 'text/html')
-      } else {
-        const r = await exportJson(analysis)
-        downloadText(`autopsy-${r.analysisId}.json`, JSON.stringify(r, null, 2), 'application/json')
+  const onExport = useCallback(
+    async (kind: 'md' | 'html' | 'json') => {
+      if (!analysis) return
+      setExportAnalyzeBusyKind(kind)
+      setExportAnalyzeHint(null)
+      const takeaway = analyzeTriageBundle?.takeaway ?? null
+      const fromSavedLink = !input.trim()
+      try {
+        if (kind === 'md') {
+          const r = await exportMarkdown(analysis)
+          downloadText(`autopsy-${r.analysisId}.md`, markdownTriagePreamble(takeaway) + r.markdown, 'text/markdown')
+        } else if (kind === 'html') {
+          const r = await exportHtml(analysis)
+          downloadText(`autopsy-${r.analysisId}.html`, injectTriageIntoHtml(r.html, takeaway), 'text/html')
+        } else {
+          const r = await exportJson(analysis)
+          downloadText(
+            `autopsy-${r.analysisId}.json`,
+            JSON.stringify(jsonExportWithTriageEnvelope(r, takeaway), null, 2),
+            'application/json',
+          )
+        }
+        setExportAnalyzeHint(
+          exportDownloadSuccessHint(fromSavedLink ? 'snapshot' : 'fromPlanText', {
+            restoredFromLink: fromSavedLink && analyzeRankedHandoffOrigin === 'link',
+          }),
+        )
+      } catch (e) {
+        setExportAnalyzeHint(e instanceof Error ? e.message : String(e))
+      } finally {
+        setExportAnalyzeBusyKind(null)
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
+    },
+    [analysis, analyzeTriageBundle, input, analyzeRankedHandoffOrigin],
+  )
 
   function onClear() {
     setInput('')
     setAnalysis(null)
     setError(null)
+    setAnalyzeRankedHandoffOrigin('session')
     setSelectedNodeId(null)
+    setGraphPivotFindingId(null)
     loadPersistedSeqRef.current += 1
     skipAnalyzeEmptyGuideSyncRef.current = true
     setAnalyzeGuideOpen(true)
@@ -511,6 +672,17 @@ export default function AnalyzePage() {
     if (col === 'suggestions') return layout.visibility.suggestions
     return layout.visibility.selectedNode
   })
+
+  /** Narrow view: keep findings → suggestions → selected node in DOM/tab order for continuation reading (Phase 132). */
+  const visibleLowerReadingOrder = useMemo(() => {
+    if (layoutTier !== 'narrow') return visibleLower
+    const rank: Record<AnalyzeLowerBandColumnId, number> = {
+      findings: 0,
+      suggestions: 1,
+      selectedNode: 2,
+    }
+    return [...visibleLower].sort((a, b) => rank[a] - rank[b])
+  }, [layoutTier, visibleLower])
 
   function lowerBandFallback(col: AnalyzeLowerBandColumnId) {
     if (col === 'findings') return <LowerBandPanelSkeleton title="Findings" eyebrow="Loading" lines={6} />
@@ -529,10 +701,14 @@ export default function AnalyzePage() {
           setMinSeverity={setMinSeverity}
           filteredFindings={filteredFindings}
           selectedNodeId={selectedNodeId}
+          primaryTriageFindingId={primaryTriageFindingId}
+          graphPivotFindingId={graphPivotFindingId}
           jumpToNodeId={jumpToNodeId}
           byId={byId}
           copyFinding={copyFinding}
           analysisId={analysis.analysisId}
+          rankedHandoffOrigin={analyzeRankedHandoffOrigin}
+          onGraphPivotFocusArrived={onGraphPivotFocusArrived}
         />
       )
     }
@@ -547,6 +723,9 @@ export default function AnalyzePage() {
           nodeLabel={nodeLabel}
           bottlenecks={analysis.summary.bottlenecks ?? undefined}
           analysisId={analysis.analysisId}
+          primaryTriageFindingId={primaryTriageFindingId}
+          triageFocusNodeId={triageFocusNodeId}
+          primaryFindingNodeIds={primaryFindingNodeIds ?? undefined}
         />
       )
     }
@@ -564,6 +743,13 @@ export default function AnalyzePage() {
           copyNode={copyNode}
           copyShareLink={copyShareLink}
           nodeLabel={nodeLabel}
+          triageFocusNodeId={triageFocusNodeId}
+          triagePrimaryFindingId={primaryTriageFindingId}
+          shareLinkStartHereHeadline={analyzeTriageBundle?.takeaway?.headline ?? null}
+          relatedOptimizationIsTopLeverage={relatedOptimizationIsTopLeverage}
+          relatedOptimizationAlignsTriage={relatedOptimizationAlignsTriage}
+          onFocusFindingInList={focusFindingInList}
+          localEvidencePrimaryInWorkspace={layout.visibility.workspace && layout.visibility.selectedNode}
         />
       )
     }
@@ -597,6 +783,14 @@ export default function AnalyzePage() {
           panelId={ANALYZE_GUIDE_PANEL_ID}
           testId="analyze-workflow-guide-panel"
           keyboardContain={analyzeGuideKeyboardContain}
+          examplePicker={
+            <TryAnalyzeExampleChips
+              variant="help"
+              examples={ANALYZE_PLAN_EXAMPLES}
+              disabled={loading || loadingPersisted}
+              onSelect={loadAnalyzeExampleAndRun}
+            />
+          }
         />
       ) : null}
       {!layout.visibility.capture ? (
@@ -633,19 +827,31 @@ export default function AnalyzePage() {
           setRecordedExplainCommand={setRecordedExplainCommand}
           suggestedExplainSql={suggestedExplainSql}
           copySuggestedExplain={copySuggestedExplain}
-          onAnalyze={onAnalyze}
+          onAnalyze={() => void onAnalyze()}
           onClear={onClear}
           onExport={onExport}
           loading={loading}
           loadingPersisted={loadingPersisted}
           analysis={analysis}
+          exportAnalyzeBusyKind={exportAnalyzeBusyKind}
+          exportAnalyzeHint={exportAnalyzeHint}
+          exportUsesSnapshot={exportUsesSnapshot}
           error={error}
+          examplePicker={
+            <TryAnalyzeExampleChips
+              examples={ANALYZE_PLAN_EXAMPLES}
+              disabled={loading || loadingPersisted}
+              onSelect={loadAnalyzeExampleAndRun}
+            />
+          }
         />
       )}
 
-      {analysis && layout.visibility.summary ? (
+      {analysis && layout.visibility.summary && analyzeTriageBundle ? (
         <AnalyzeSummaryCard
           analysis={analysis}
+          triageBundle={analyzeTriageBundle}
+          stickyTriageNarrow={layoutTier === 'narrow'}
           appConfig={appConfig}
           sendExplainMetadata={sendExplainMetadata}
           selectedNodeId={selectedNodeId}
@@ -668,8 +874,8 @@ export default function AnalyzePage() {
             gridTemplateColumns:
               layoutTier !== 'narrow' && layout.visibility.guide
                 ? layoutTier === 'wide'
-                  ? 'minmax(0, 1.4fr) minmax(280px, min(26vw, 480px))'
-                  : 'minmax(0, 1fr) minmax(240px, 36%)'
+                  ? 'minmax(0, 1.12fr) minmax(280px, min(32vw, 520px))'
+                  : 'minmax(0, 0.95fr) minmax(260px, 38%)'
                 : '1fr',
             gap: 18,
             alignItems: 'stretch',
@@ -693,8 +899,10 @@ export default function AnalyzePage() {
             matchIdx={matchIdx}
             selectGraphHit={selectGraphHit}
             jumpToNodeId={jumpToNodeId}
+            findingsForSelectedNode={findingsForSelectedNode}
+            onSeeFindingInRankedList={focusFindingInList}
             selectedNodeId={selectedNodeId}
-            setSelectedNodeId={setSelectedNodeId}
+            setSelectedNodeId={selectNodeFromTextTree}
             collapsed={collapsed}
             setCollapsed={setCollapsed}
             reframeToken={reframeToken}
@@ -702,6 +910,7 @@ export default function AnalyzePage() {
             childrenById={childrenById}
             rootId={rootId}
             nodeLabel={nodeLabel}
+            showSkipToRankedFindings={layout.visibility.findings && !!selectedNodeId}
           />
           {layout.visibility.guide ? (
             <AnalyzePlanGuideRail
@@ -717,6 +926,26 @@ export default function AnalyzePage() {
               copyHotspot={copyHotspot}
               nodeLabel={nodeLabel}
               railLayout={layoutTier !== 'narrow' ? 'besideWorkspace' : 'stacked'}
+              triageEcho={
+                analyzeTriageBundle?.takeaway
+                  ? {
+                      scanLabels: filterTriageEchoScanLabels(
+                        analyzeTriageBundle.scanSignals.map((s) => s.label),
+                        analyzeTriageBundle.takeaway,
+                      ),
+                      primaryFindingId: primaryTriageFindingId,
+                      triagePrimaryRoute,
+                    }
+                  : null
+              }
+              onScrollToPrimaryFinding={
+                triagePrimaryRoute === 'finding' && primaryTriageFindingId ? scrollToPrimaryFindingRow : undefined
+              }
+              onJumpTriageFocusInPlan={
+                triagePrimaryRoute === 'step' && triageFocusNodeId
+                  ? () => jumpToNodeId(triageFocusNodeId)
+                  : undefined
+              }
             />
           ) : null}
         </div>
@@ -742,7 +971,7 @@ export default function AnalyzePage() {
               Findings, suggestions, and selected-node panels are hidden. Open <b>Customize workspace</b> in Plan workspace to show them again.
             </div>
           ) : (
-            visibleLower.map((col) => (
+            visibleLowerReadingOrder.map((col) => (
               <div key={col} style={{ minWidth: 0 }}>
                 <Suspense fallback={lowerBandFallback(col)}>{renderLowerColumn(col)}</Suspense>
               </div>

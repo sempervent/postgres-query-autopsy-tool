@@ -39,6 +39,8 @@ export type CompareNavigatorPanelProps = {
   setHighlightSuggestionId: (id: string | null) => void
   copyNav: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
   copyFinding: { copy: (text: string, ok: string) => Promise<void>; status: string | null }
+  /** Mapped pair for the highlighted finding diff (Show in list / pin) — marks the matching navigator row. */
+  briefingHighlightPair?: { a: string; b: string } | null
 }
 
 function joinBadgeClass(tone: Badge['tone']) {
@@ -74,6 +76,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
     setHighlightSuggestionId,
     copyNav,
     copyFinding,
+    briefingHighlightPair,
   } = props
 
   const vis = layout.visibility
@@ -96,6 +99,9 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
     const indexCue = pair?.indexDeltaCues?.length
     const label = pair ? pairShortLabel(pair, byIdA, byIdB) : `${d.nodeTypeA} → ${d.nodeTypeB}`
     const subtitle = pair ? pairSubtitle(pair) : null
+    const fromChangeBriefing = Boolean(
+      briefingHighlightPair && d.nodeIdA === briefingHighlightPair.a && d.nodeIdB === briefingHighlightPair.b,
+    )
     const aria = variant === 'worsened' ? `Worsened pair: ${label}` : `Improved pair: ${label}`
     return (
       <ClickableRow
@@ -112,6 +118,11 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
               <div className="pqat-navPairRow__label">{label}</div>
               {indexCue ? <span className="pqat-chipIndexDelta">index Δ</span> : null}
             </div>
+            {fromChangeBriefing ? (
+              <div className="pqat-navPairRow__briefingCue" data-testid="compare-nav-pair-briefing-cue">
+                Same row as Change briefing
+              </div>
+            ) : null}
             {subtitle ? <div className="pqat-navPairRow__subtitle">{subtitle}</div> : null}
           </div>
           {pair ? (
@@ -224,6 +235,11 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                       <div className="pqat-findingsDiffMeta">
                         {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
                       </div>
+                      {rowHighlighted ? (
+                        <div className="pqat-findingsDiffBriefingCue" data-testid="compare-findings-diff-briefing-cue">
+                          Highlighted from Change briefing
+                        </div>
+                      ) : null}
                       <div className="pqat-findingsDiffAnchorRow">
                         <div className="pqat-hint" style={{ fontSize: '0.8125rem', margin: 0 }}>
                           {findingAnchorLabel(i.nodeIdB ?? i.nodeIdA, i.nodeIdB ? byIdB : byIdA)}
@@ -316,6 +332,11 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
                       <div className="pqat-findingsDiffMeta">
                         {i.changeType} · {i.ruleId} · {String(i.severityA)} → {String(i.severityB)}
                       </div>
+                      {rowHighlighted ? (
+                        <div className="pqat-findingsDiffBriefingCue" data-testid="compare-findings-diff-briefing-cue">
+                          Highlighted from Change briefing
+                        </div>
+                      ) : null}
                       <div className="pqat-findingsDiffAnchorRow">
                         <div className="pqat-hint" style={{ fontSize: '0.8125rem', margin: 0 }}>
                           {findingAnchorLabel(i.nodeIdB ?? i.nodeIdA, i.nodeIdB ? byIdB : byIdA)}
@@ -448,7 +469,7 @@ export function CompareNavigatorPanel(props: CompareNavigatorPanelProps) {
               if (first) setSelectedPair({ a: first.nodeIdA, b: first.nodeIdB })
             }}
           >
-            jump to hottest
+            Open top regression
           </button>
         </div>
       ) : null}

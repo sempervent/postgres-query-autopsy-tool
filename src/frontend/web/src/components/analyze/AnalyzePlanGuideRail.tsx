@@ -28,9 +28,16 @@ import { normalizeStoryPropagationBeat } from '../../presentation/planReferenceP
 import { planStorySectionLabels } from '../../presentation/storyPresentation'
 import { TechnicalIdCollapsible } from '../TechnicalIdCollapsible'
 import { operatorBriefingLine } from '../../presentation/briefingReadoutPresentation'
+import { severityLabel } from '../../presentation/localEvidencePresentation'
 
-function severityLabel(sev: number) {
-  return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
+export type AnalyzePlanGuideTriageEcho = {
+  /** Deprecated in rail UI (Phase 113); headline stays in Summary only. */
+  headline?: string
+  scanLabels: string[]
+  /** Present when Start here is finding-ranked — enables jump to the findings list. */
+  primaryFindingId?: string | null
+  /** Which primary path the summary used (Phase 112). */
+  triagePrimaryRoute?: 'finding' | 'step' | 'overview'
 }
 
 export function AnalyzePlanGuideRail(props: {
@@ -47,6 +54,12 @@ export function AnalyzePlanGuideRail(props: {
   nodeLabel: (n: AnalyzedPlanNode) => string
   /** `besideWorkspace`: stretch with Plan workspace row; scroll sections inside the rail. */
   railLayout?: PlanGuideRailLayout
+  /** Echo summary triage without repeating full paragraphs (Phase 109). */
+  triageEcho?: AnalyzePlanGuideTriageEcho | null
+  /** Scroll the lower-band findings list to the Start here row (Phase 111). */
+  onScrollToPrimaryFinding?: () => void
+  /** Jump plan selection to Start here focus when the takeaway is inspect-step–driven (Phase 112). */
+  onJumpTriageFocusInPlan?: () => void
 }) {
   const {
     analysis,
@@ -61,6 +74,9 @@ export function AnalyzePlanGuideRail(props: {
     copyHotspot,
     nodeLabel,
     railLayout = 'stacked',
+    triageEcho,
+    onScrollToPrimaryFinding,
+    onJumpTriageFocusInPlan,
   } = props
 
   const storyLbl = planStorySectionLabels()
@@ -94,10 +110,12 @@ export function AnalyzePlanGuideRail(props: {
               </ul>
             ) : null}
             {selectedNode.operatorInterpretation?.trim() ? (
-              <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, opacity: 0.92 }} aria-label="Selection interpretation">
-                <span style={{ fontWeight: 700 }}>Readout · </span>
-                {selectedNode.operatorInterpretation}
-              </div>
+              <details className="pqat-details pqat-details--muted" style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 12 }}>Plain-language readout</summary>
+                <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, opacity: 0.92 }} aria-label="Selection interpretation">
+                  {selectedNode.operatorInterpretation}
+                </div>
+              </details>
             ) : null}
             {findingsForSelectedNode.filter((f) => f.severity >= 3)[0] ? (
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
@@ -234,8 +252,8 @@ export function AnalyzePlanGuideRail(props: {
         {analysis.planStory?.inspectFirstPath?.trim() ? (
           <div className="pqat-hint" style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.45 }} aria-label="Investigation path pointer">
             <span className="pqat-inlineMeta">{storyLbl.startHere} · </span>
-            The numbered steps live in <strong>Snapshot → Plan briefing</strong> above—use the hotspots below to jump straight into the
-            tree without duplicating that block here.
+            The numbered steps live under <strong>Summary · Plan briefing</strong> above—use the hotspots below to jump into the tree
+            without repeating that block here.
           </div>
         ) : null}
         {(() => {
@@ -426,9 +444,57 @@ export function AnalyzePlanGuideRail(props: {
         >
           Plan guide
         </div>
-        <p className="pqat-help-inline" style={{ marginTop: beside ? 6 : 0, marginBottom: beside ? 8 : 10 }} data-testid="analyze-plan-guide-kicker">
-          <strong>Guide rail:</strong> summarized story and selection context for your click—not raw EXPLAIN text. Cross-check hot nodes on the graph.
+        <p className="pqat-help-inline" style={{ marginTop: beside ? 6 : 0, marginBottom: beside ? 8 : 6 }} data-testid="analyze-plan-guide-kicker">
+          Context for the node you clicked—interpretation, not raw EXPLAIN.
         </p>
+        {triageEcho &&
+        (triageEcho.scanLabels.length > 0 ||
+          (triageEcho.triagePrimaryRoute === 'finding' && onScrollToPrimaryFinding) ||
+          (triageEcho.triagePrimaryRoute === 'step' && onJumpTriageFocusInPlan)) ? (
+          <div className="pqat-planGuideTriageEcho" data-testid="analyze-guide-triage-echo" aria-label="Summary triage echo">
+            <div className="pqat-planGuideTriageEcho__label">Summary</div>
+            {triageEcho.scanLabels.length > 0 ? null : (
+              <div className="pqat-planGuideTriageEcho__head" style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.92 }}>
+                {triageEcho.triagePrimaryRoute === 'overview' ? (
+                  <>Other ranked signals called out in the summary—same deck as <strong>Start here</strong>.</>
+                ) : (
+                  <>
+                    Same <strong>Start here</strong> thread as the summary band above.
+                  </>
+                )}
+              </div>
+            )}
+            {triageEcho.scanLabels.length ? (
+              <ul className="pqat-planGuideTriageEcho__more">
+                {triageEcho.scanLabels.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            ) : null}
+            {triageEcho.primaryFindingId?.trim() && triageEcho.triagePrimaryRoute === 'finding' && onScrollToPrimaryFinding ? (
+              <button
+                type="button"
+                className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                style={{ marginTop: 8 }}
+                data-testid="analyze-guide-jump-primary-finding"
+                onClick={() => onScrollToPrimaryFinding()}
+              >
+                Open Start here finding in list
+              </button>
+            ) : null}
+            {triageEcho.triagePrimaryRoute === 'step' && onJumpTriageFocusInPlan ? (
+              <button
+                type="button"
+                className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+                style={{ marginTop: 8 }}
+                data-testid="analyze-guide-jump-triage-plan"
+                onClick={() => onJumpTriageFocusInPlan()}
+              >
+                Open Start here target in plan
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {selectionPinnedBeside ? (
         <div className="pqat-planGuideRail__stickyBand">{sections.selection}</div>

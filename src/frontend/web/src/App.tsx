@@ -7,6 +7,7 @@ import './help/helpSurface.css'
 import { fetchAppConfig } from './api/client'
 import { ThemeAppearanceSelect } from './components/ThemeAppearanceSelect'
 import { RouteFallback } from './components/RouteFallback'
+import { useStickyTopOffsetSync } from './hooks/useStickyTopOffsetSync'
 import { useThemePreference } from './theme/useThemePreference'
 
 const AnalyzePage = lazy(() => import('./pages/AnalyzePage'))
@@ -31,6 +32,8 @@ export default function App() {
   const { preference, effectiveTheme, setPreference } = useThemePreference({
     serverSyncEnabled: themeServerSync,
   })
+
+  useStickyTopOffsetSync(true)
 
   return (
     <div className="appShell">

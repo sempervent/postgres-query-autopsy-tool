@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 import { waitForAnalyzeAppReady } from './waitForLazyApp'
+import { ANALYZE_PLAN_EXAMPLES } from '../examples/analyzePlanExamples'
 import { AnalysisNotFoundError, analyzePlanWithQuery, PlanParseError } from '../api/client'
 import { ANALYZE_WORKSPACE_LOCAL_STORAGE_KEY } from '../analyzeWorkspace/analyzeWorkspaceStorage'
 import '../components/analyze/AnalyzeOptimizationSuggestionsPanel'
@@ -213,6 +214,36 @@ afterEach(() => {
   vi.mocked(analyzePlanWithQuery).mockImplementation(async () => mockAnalysis)
 })
 
+test('curated analyze examples expose stable try chips', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  for (const ex of ANALYZE_PLAN_EXAMPLES) {
+    expect(screen.getByTestId(`analyze-try-example-${ex.id}-capture`)).toBeInTheDocument()
+  }
+})
+
+test('Try example loads bundled sample JSON and runs analyze', async () => {
+  const spy = vi.mocked(analyzePlanWithQuery)
+  spy.mockImplementation(async (body: string) => {
+    expect(body).toMatch(/Seq Scan/)
+    expect(body).toMatch(/users/)
+    return mockAnalysis
+  })
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  fireEvent.click(screen.getByTestId('analyze-try-example-simple-seq-scan-capture'))
+  await waitFor(() => expect(spy).toHaveBeenCalled())
+  await waitFor(() => expect(screen.getByTestId('analyze-summary-takeaway')).toBeInTheDocument())
+})
+
 test('analyze workflow guide is visible on empty load and toggles', async () => {
   render(
     <MemoryRouter initialEntries={['/']}>
@@ -326,6 +357,19 @@ test('analyze workflow guide announcer reports explicit open and close', async (
   fireEvent.click(screen.getByRole('button', { name: /Hide guide/i }))
   await waitFor(() => {
     expect(screen.getByTestId('analyze-workflow-guide-announcer')).toHaveTextContent(/Analyze workflow guide closed/i)
+  })
+})
+
+test('analyze workflow guide announcer reports open from ?guide=1 after dismiss', async () => {
+  localStorage.setItem('pqat_workflow_guide_v1', JSON.stringify({ v: 1, analyzeDismissed: true }))
+  render(
+    <MemoryRouter initialEntries={['/?guide=1']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+  await waitFor(() => {
+    expect(screen.getByTestId('analyze-workflow-guide-announcer')).toHaveTextContent(/Guided help opened from link/i)
   })
 })
 
@@ -568,6 +612,7 @@ test('Plan source / EXPLAIN metadata section shows planner cost line', async () 
 
   fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
   fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  fireEvent.click(await screen.findByText(/^Plan source & EXPLAIN metadata$/i))
   await screen.findByLabelText('Plan source and EXPLAIN metadata')
   expect(screen.getByText(/Planner costs:/i)).toBeInTheDocument()
 })
@@ -624,6 +669,67 @@ test('auth mode shows Copy artifact link (private) when artifactAccess is privat
   await screen.findByRole('button', { name: 'Finding: Test finding' })
   expect(screen.getAllByRole('button', { name: /Copy artifact link \(private\)/i }).length).toBeGreaterThan(0)
 })
+
+test('graph node click shows in-graph issue summary and demoted shelf without auto-jumping the ranked list', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })
+
+  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="n1"]')).not.toBeNull(), { timeout: 15_000 })
+  const node = document.querySelector('.react-flow__node[data-id="n1"]')
+  expect(node).toBeTruthy()
+  fireEvent.click(node!)
+
+  const issue = await screen.findByTestId('analyze-graph-issue-summary')
+  expect(issue).toHaveTextContent(/What looks wrong here/i)
+  expect(issue).toHaveTextContent('Test finding')
+
+  const shelf = await screen.findByTestId('analyze-graph-local-findings-shelf')
+  expect(shelf).toBeInTheDocument()
+  expect(shelf).toHaveTextContent('More in Ranked')
+  expect(shelf).toHaveTextContent('Test finding')
+  expect(shelf.querySelector('.pqat-localFindingPreview__summary')).toBeNull()
+  expect(within(shelf).getByTestId('analyze-graph-local-findings-shelf-see-f1')).toBeInTheDocument()
+  expect(screen.getByTestId('analyze-local-evidence-bridge')).toBeInTheDocument()
+  expect(screen.queryByTestId('analyze-detail-local-findings-shelf')).toBeNull()
+  expect(screen.queryByText('Continues from plan')).not.toBeInTheDocument()
+
+  fireEvent.click(within(shelf).getByTestId('analyze-graph-local-findings-shelf-see-f1'))
+  await waitFor(() => {
+    expect(screen.getByText('Continues from plan')).toBeInTheDocument()
+  })
+}, 25_000)
+
+test('local evidence bridge opens ranked list with continuation hint (explicit)', async () => {
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitForAnalyzeAppReady()
+
+  fireEvent.change(screen.getAllByPlaceholderText(/QUERY PLAN cell/i)[0], { target: { value: '[]' } })
+  fireEvent.click(screen.getAllByRole('button', { name: /Analyze/i })[0])
+  await screen.findByRole('button', { name: 'Finding: Test finding' }, { timeout: 15_000 })
+
+  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="n1"]')).not.toBeNull(), { timeout: 15_000 })
+  fireEvent.click(document.querySelector('.react-flow__node[data-id="n1"]')!)
+
+  await screen.findByTestId('analyze-graph-local-findings-shelf')
+  expect(screen.queryByText('Continues from plan')).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByTestId('analyze-local-evidence-open-top-in-list'))
+  await waitFor(() => {
+    expect(screen.getByText('Continues from plan')).toBeInTheDocument()
+  })
+}, 25_000)
 
 test(
   'plan workspace: text mode hides React Flow; graph mode shows canvas',
@@ -701,6 +807,6 @@ test('capture panel shows guided empty state before first analysis', async () =>
     </MemoryRouter>,
   )
   await waitForAnalyzeAppReady()
-  expect(screen.getByText('Ready to analyze')).toBeInTheDocument()
-  expect(screen.getByText(/Paste a plan JSON or psql/i)).toBeInTheDocument()
+  expect(screen.getByText(/^Ready$/)).toBeInTheDocument()
+  expect(screen.getByText(/Paste a plan or use a sample above/i)).toBeInTheDocument()
 })

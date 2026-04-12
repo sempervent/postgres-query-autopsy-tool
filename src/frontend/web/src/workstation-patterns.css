@@ -33,7 +33,7 @@
 /* Analyze: text tree participates in the shared paired row like the graph band (Phase 99). */
 .pqat-planTextTreeBand {
   flex: 1 1 0;
-  min-height: clamp(220px, 34vh, 400px);
+  min-height: clamp(200px, 32vh, 380px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--pqat-radius-panel, 14px);
   background: var(--surface-list);
@@ -55,6 +55,7 @@
   gap: 16px;
 }
 
+/* Narrow: Compare stacks navigator before pair in DOM (keyboard + reading order); Analyze lower band uses findings-first order in AnalyzePage. */
 .pqat-mainSplit--narrow {
   grid-template-columns: 1fr;
 }
@@ -408,6 +409,24 @@
   font-size: 0.75rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+.pqat-navPairRow__briefingCue {
+  margin-top: 4px;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent-border);
+}
+
+.pqat-findingsDiffBriefingCue {
+  margin: 4px 0 2px;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent-border);
 }
 
 .pqat-navPairRow__stats {

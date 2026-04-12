@@ -38,8 +38,8 @@ function deltaArrow(delta: number | null | undefined): string {
 
 export function compareEmptyStateCopy() {
   return {
-    title: 'Paste two plans to compare',
-    body: 'Fill Plan A and Plan B, then run Compare. Use How to use Compare (or ?) for a full tour—the guide explains navigator, summary lanes, and copy actions.',
+    title: 'Compare two plans',
+    body: 'Paste Plan A and B, or load a sample pair above, then run Compare. Press ? or open How to use Compare for a short tour.',
   }
 }
 

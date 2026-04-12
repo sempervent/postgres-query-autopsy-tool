@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
+import type { PlanComparisonResult } from '../../api/types'
 import type { CompareWorkspaceLayoutApi } from '../../compareWorkspace/useCompareWorkspaceLayout'
 import { CompareWorkspaceCustomizer } from './CompareWorkspaceCustomizer'
 
@@ -30,6 +31,15 @@ export type CompareCapturePanelProps = {
   loadingPersistedComparison: boolean
   onCompare: () => void
   onClear: () => void
+  examplePicker?: ReactNode
+  /** When set, user has a comparison result (export uses pasted plans when both sides are filled, else the loaded snapshot). */
+  comparison: PlanComparisonResult | null
+  exportCompareBusyKind?: 'md' | 'html' | 'json' | null
+  exportCompareHint?: string | null
+  canExportCompareReports?: boolean
+  /** True when plan inputs are empty but a comparison is loaded (reopen-from-link export path). */
+  exportUsesSnapshot?: boolean
+  onExportCompare?: (kind: 'md' | 'html' | 'json') => void
 }
 
 export function CompareCapturePanel(props: CompareCapturePanelProps) {
@@ -59,9 +69,18 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
     loadingPersistedComparison,
     onCompare,
     onClear,
+    examplePicker,
+    comparison,
+    exportCompareBusyKind = null,
+    exportCompareHint = null,
+    canExportCompareReports = false,
+    exportUsesSnapshot = false,
+    onExportCompare,
   } = props
 
   const compareDisabled = loading || loadingPersistedComparison || planA.trim().length === 0 || planB.trim().length === 0
+  const exportBusy = exportCompareBusyKind !== null
+  const exportDisabled = exportBusy || !canExportCompareReports || !onExportCompare
 
   return (
     <div className="pqat-captureStack">
@@ -69,11 +88,19 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
         <div className="pqat-eyebrow">Workspace</div>
         <h2 className="pqat-captureTitle">Plan inputs</h2>
         <p className="pqat-help-inline" data-testid="compare-capture-guide-hint">
-          <strong>Read this first:</strong> Plan A/B boxes are your captures only. Summary cards and pair readouts below are diff output—reopen{' '}
-          <strong>How to use Compare</strong> anytime for definitions.
+          <strong>Start here:</strong> Plan A/B are your raw captures. Everything below <b>Compare</b> is the diff readout—open{' '}
+          <strong>How to use Compare</strong> when you want definitions.
         </p>
+        {examplePicker ? (
+          <div data-testid="compare-example-entry" style={{ marginBottom: 8 }}>
+            <p className="pqat-hint" style={{ marginBottom: 6 }}>
+              <strong>No plans handy?</strong> Load a paired sample—then read the <b>Change briefing</b> lead line first.
+            </p>
+            {examplePicker}
+          </div>
+        ) : null}
         <p className="pqat-hint pqat-hint--tight">
-          Paste two plans to diff. Layout and visibility follow the same workstation model as Analyze.
+          Paste two plans to diff. Layout matches Analyze (customize panels from the workspace menu).
         </p>
       </div>
       <CompareWorkspaceCustomizer api={workspaceApi} />
@@ -113,7 +140,7 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
         <summary>Optional: source SQL + EXPLAIN metadata (per side)</summary>
         <div className="pqat-detailsBody">
           <p className="pqat-hint">
-            Stored with the comparison on the server (SQLite). Toggle options apply to <b>both</b> sides; recorded commands are separate.
+            Saved with this comparison in the app database. Toggle options apply to <b>both</b> sides; recorded commands are separate per side.
           </p>
           <label className="pqat-checkRow pqat-checkRow--tight">
             <input
@@ -218,6 +245,78 @@ export function CompareCapturePanel(props: CompareCapturePanelProps) {
           </div>
         </details>
       </div>
+
+      {comparison && onExportCompare ? (
+        <div className="pqat-handoffBand" data-testid="compare-export-report-row">
+          <div className="pqat-eyebrow" style={{ marginBottom: 4 }}>
+            Take with you
+          </div>
+          <p className="pqat-hint pqat-hint--tight" style={{ marginBottom: 6 }} data-testid="compare-export-handoff-kicker">
+            Choose a format — each option is a complete handoff from this screen.
+          </p>
+          <p className="pqat-hint pqat-hint--tight" style={{ marginBottom: 6 }} data-testid="compare-export-hint">
+            {exportUsesSnapshot ? (
+              <span data-testid="compare-export-snapshot-cue">
+                From a saved link, the file matches this view — plan boxes can stay empty.
+              </span>
+            ) : (
+              <>Otherwise the server rebuilds from both plan boxes when they’re filled.</>
+            )}
+          </p>
+          <p className="pqat-formatLegend" data-testid="compare-export-format-legend">
+            <strong>Markdown</strong> — narrative & tickets · <strong>HTML</strong> — print or attach ·{' '}
+            <strong>JSON</strong> — full comparison snapshot
+          </p>
+          <div className="pqat-actionRow">
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="compare-export-markdown"
+              title={
+                canExportCompareReports
+                  ? 'Download Markdown compare report'
+                  : 'Run Compare or open a saved comparison first.'
+              }
+              onClick={() => onExportCompare('md')}
+            >
+              {exportCompareBusyKind === 'md' ? 'Preparing…' : 'Markdown'}
+            </button>
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="compare-export-html"
+              title={canExportCompareReports ? 'Download HTML compare report' : undefined}
+              onClick={() => onExportCompare('html')}
+            >
+              {exportCompareBusyKind === 'html' ? 'Preparing…' : 'HTML'}
+            </button>
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="compare-export-json"
+              title={canExportCompareReports ? 'Download JSON comparison snapshot' : undefined}
+              onClick={() => onExportCompare('json')}
+            >
+              {exportCompareBusyKind === 'json' ? 'Preparing…' : 'JSON'}
+            </button>
+          </div>
+          {exportCompareHint ? (
+            <p
+              className="pqat-hint"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{ marginTop: 8, color: 'var(--text-secondary)' }}
+              data-testid="compare-export-status"
+            >
+              {exportCompareHint}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

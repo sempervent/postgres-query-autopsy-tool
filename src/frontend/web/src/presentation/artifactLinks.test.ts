@@ -58,14 +58,14 @@ describe('artifactLinks', () => {
 
   it('formatComparePinnedSummaryLine lists active pins in stable order', () => {
     expect(formatComparePinnedSummaryLine({})).toBeNull()
-    expect(formatComparePinnedSummaryLine({ findingDiffId: 'fd_x' })).toBe('Pinned for link: finding fd_x')
+    expect(formatComparePinnedSummaryLine({ findingDiffId: 'fd_x' })).toBe('Link includes: finding fd_x')
     expect(
       formatComparePinnedSummaryLine({
         findingDiffId: 'fd_a',
         indexInsightDiffId: 'ii_b',
         suggestionId: 'sg_c',
       }),
-    ).toBe('Pinned for link: finding fd_a · index insight ii_b · next step sg_c')
+    ).toBe('Link includes: finding fd_a · index insight ii_b · next step sg_c')
   })
 
   it('copyArtifactShareToast matches label semantics', () => {

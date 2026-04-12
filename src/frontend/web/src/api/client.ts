@@ -140,6 +140,64 @@ function tryParseArtifactGetError(text: string): ArtifactGetErrorJson | null {
   }
 }
 
+/** Phase 116: turn JSON / ProblemDetails-style bodies into a single user-facing line for exports and reports. */
+export function formatApiErrorResponse(status: number, statusText: string, bodyText: string): string {
+  const raw = bodyText.trim()
+  if (!raw) {
+    if (status === 400) {
+      return 'This export did not reach the server intact. Reload and try again, or paste the plan text again before exporting.'
+    }
+    if (status === 401) {
+      return 'Sign-in required for this action. Use the credentials your deployment expects (see docs), or a non-auth setup for local review.'
+    }
+    if (status === 413) {
+      return 'This export is larger than the server accepts. Try a smaller plan or snapshot, or ask your administrator about request size limits.'
+    }
+    return `Request failed (${status} ${statusText}).`
+  }
+  try {
+    const j = JSON.parse(raw) as {
+      error?: string
+      message?: string
+      title?: string
+      detail?: string
+      side?: string
+    }
+    const title = j.title?.trim()
+    const msg = j.message?.trim()
+    const detail = j.detail?.trim()
+    const errCode = j.error?.trim()
+    // Phase 117: server export/report errors — show product message, not error codes.
+    if (errCode === 'request_body_invalid' || errCode === 'export_request_incomplete') {
+      if (msg) return msg
+    }
+    // Phase 118: size limits — prefer server message when JSON includes it (e.g. reverse-proxy payloads).
+    if (status === 413 && (errCode === 'payload_too_large' || errCode === 'request_too_large') && msg) {
+      return msg
+    }
+    // Phase 119: RFC 7807 ProblemDetails on 500 — calm line; skip stack-like detail.
+    if (status >= 500 && title && !msg) {
+      const looksLikeStack = detail && (detail.includes('   at ') || /\bat\s+[^\s()]+\(/i.test(detail))
+      const safeDetail =
+        detail && !looksLikeStack && detail.length <= 200 ? detail : null
+      return safeDetail ? `${title} — ${safeDetail}` : `${title}. Try again in a moment.`
+    }
+    if (title && msg) return `${title} — ${msg}`
+    if (title && detail) return `${title} — ${detail}`
+    if (msg && j.error) return `${j.error}: ${msg}`
+    if (msg) return msg
+    if (detail) return detail
+    if (j.error) return j.error
+  } catch {
+    /* fall through */
+  }
+  return `Request failed: ${status} ${statusText} — ${raw.length > 280 ? `${raw.slice(0, 280)}…` : raw}`
+}
+
+function throwFormattedHttpError(res: Response, text: string): never {
+  throw new Error(formatApiErrorResponse(res.status, res.statusText, text))
+}
+
 /** Phase 40: server-stored JSON preference per authenticated user (`/api/me/preferences/{key}`). */
 export const ANALYZE_WORKSPACE_PREFERENCE_KEY = 'analyze_workspace_v1'
 export const COMPARE_WORKSPACE_PREFERENCE_KEY = 'compare_workspace_v1'
@@ -189,9 +247,7 @@ async function putSharing(
   })
   const text = await res.text().catch(() => '')
   if (res.status === 401) {
-    throw new Error(
-      'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
-    )
+    throw new Error(formatApiErrorResponse(401, res.statusText, text))
   }
   if (res.status === 403) {
     throw new AccessDeniedError(kind, artifactId)
@@ -243,12 +299,7 @@ async function postJson<TResponse>(url: string, payload: unknown): Promise<TResp
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    if (res.status === 401) {
-      throw new Error(
-        'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
-      )
-    }
-    throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+    throwFormattedHttpError(res, text)
   }
 
   return res.json() as Promise<TResponse>
@@ -387,16 +438,21 @@ export async function getComparison(comparisonId: string): Promise<PlanCompariso
   return res.json() as Promise<PlanComparisonResult>
 }
 
-export async function compareWithPlanTexts(args: {
+export type ComparePlanTextsPayload = {
   planAText: string
   planBText: string
   queryTextA?: string | null
   queryTextB?: string | null
   explainMetadataA?: ExplainCaptureMetadata | null
   explainMetadataB?: ExplainCaptureMetadata | null
-  diagnostics?: boolean
-}): Promise<PlanComparisonResult> {
-  const url = args.diagnostics ? '/api/compare?diagnostics=1' : '/api/compare'
+}
+
+/** Report/export: either plan text (rebuild) or full snapshot (reopened comparison). */
+export type CompareExportReportPayload =
+  | (ComparePlanTextsPayload & { comparison?: undefined; diagnostics?: boolean })
+  | { comparison: PlanComparisonResult; diagnostics?: boolean }
+
+export function buildCompareRequestPayload(args: ComparePlanTextsPayload): Record<string, unknown> {
   const body: Record<string, unknown> = {
     planAText: args.planAText,
     planBText: args.planBText,
@@ -413,6 +469,21 @@ export async function compareWithPlanTexts(args: {
   }
   attach('explainMetadataA', args.explainMetadataA)
   attach('explainMetadataB', args.explainMetadataB)
+  return body
+}
+
+export function buildCompareReportRequestBody(args: CompareExportReportPayload): Record<string, unknown> {
+  if ('comparison' in args && args.comparison) {
+    return { comparison: args.comparison }
+  }
+  return buildCompareRequestPayload(args as ComparePlanTextsPayload)
+}
+
+export async function compareWithPlanTexts(
+  args: ComparePlanTextsPayload & { diagnostics?: boolean },
+): Promise<PlanComparisonResult> {
+  const url = args.diagnostics ? '/api/compare?diagnostics=1' : '/api/compare'
+  const body = buildCompareRequestPayload(args)
 
   const res = await fetch(url, {
     method: 'POST',
@@ -422,9 +493,7 @@ export async function compareWithPlanTexts(args: {
   const text = await res.text().catch(() => '')
   if (!res.ok) {
     if (res.status === 401) {
-      throw new Error(
-        'Authentication required: set VITE_AUTH_BEARER_TOKEN (or use non-auth deployment) — see docs.',
-      )
+      throw new Error(formatApiErrorResponse(401, res.statusText, text))
     }
     if (res.status === 400) {
       try {
@@ -448,6 +517,42 @@ export async function compareWithPlanTexts(args: {
     throw new Error(`Request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
   }
   return JSON.parse(text) as PlanComparisonResult
+}
+
+async function postCompareReport<T>(
+  path: '/api/compare/report/markdown' | '/api/compare/report/html' | '/api/compare/report/json',
+  args: CompareExportReportPayload,
+): Promise<T> {
+  const diagnostics = 'comparison' in args && args.comparison ? args.diagnostics : (args as { diagnostics?: boolean }).diagnostics
+  const q = diagnostics ? '?diagnostics=1' : ''
+  const res = await fetch(`${path}${q}`, {
+    method: 'POST',
+    headers: jsonPostHeaders(),
+    body: JSON.stringify(buildCompareReportRequestBody(args)),
+  })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) {
+    throwFormattedHttpError(res, text)
+  }
+  return JSON.parse(text) as T
+}
+
+export async function exportCompareMarkdown(
+  args: CompareExportReportPayload,
+): Promise<{ comparisonId: string; markdown: string }> {
+  return postCompareReport('/api/compare/report/markdown', args)
+}
+
+export async function exportCompareHtml(
+  args: CompareExportReportPayload,
+): Promise<{ comparisonId: string; html: string }> {
+  return postCompareReport('/api/compare/report/html', args)
+}
+
+export async function exportCompareJson(
+  args: CompareExportReportPayload,
+): Promise<PlanComparisonResult> {
+  return postCompareReport('/api/compare/report/json', args)
 }
 
 export async function exportMarkdown(analysis: PlanAnalysisResult): Promise<{ analysisId: string; markdown: string }> {

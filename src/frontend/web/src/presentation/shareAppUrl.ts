@@ -24,9 +24,9 @@ export function compareDeepLinkClipboardPayload(
   const f = pins?.findingDiffId?.trim()
   const ix = pins?.indexInsightDiffId?.trim()
   const s = pins?.suggestionId?.trim()
-  if (f) lines.push(`Pinned finding: ${f}`)
-  if (ix) lines.push(`Pinned index insight: ${ix}`)
-  if (s) lines.push(`Pinned suggestion: ${s}`)
+  if (f) lines.push(`Highlighted finding: ${f}`)
+  if (ix) lines.push(`Highlighted index change: ${ix}`)
+  if (s) lines.push(`Highlighted next step: ${s}`)
   return lines.join('\n')
 }
 
@@ -58,8 +58,11 @@ export function analyzeDeepLinkClipboardPayload(
   absoluteUrl: string,
   analysisId: string,
   nodeId?: string | null,
+  options?: { startHereHeadline?: string | null },
 ): string {
   const lines = [absoluteUrl.trim(), `PQAT analysis: ${analysisId.trim()}`]
+  const sh = options?.startHereHeadline?.trim()
+  if (sh) lines.push(`Start here: ${sh}`)
   const n = nodeId?.trim()
   if (n) lines.push(`Node: ${n}`)
   return lines.join('\n')

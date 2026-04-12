@@ -2369,3 +2369,992 @@ Verified (agent run, 2026-04-04):
 - **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
 - **Backend:** unchanged (no **`dotnet test`**).
 
+## Phase 105 — Help landmarks, guided-link clarity, browser announcer proof (2026-04-08)
+
+**Frontend**
+
+- **`WorkflowGuideShell`**: explicit **`role="region"`** (with **`aria-labelledby`**); footer **`role="group"`** **`aria-label="Guided link sharing"`**.
+- **`WorkflowGuideCopyGuidedRow`**: **Copy merged guided link** + **Copy entry guided link**; **`data-testid`** **`*-merged`** / **`*-entry`**; shared hint distinguishes merged vs entry vs workspace share actions.
+- **`ComparePage.tsx`**: initial guide open no longer reads **`?guide=`** in **`useState`** (matches **`AnalyzePage`** so URL-driven opens use the same transition + announcer path).
+- **`CompareWorkflowGuide`**, **`CompareSelectedPairPanel`**: copy-hint and pins bullet aligned with dual guided links; **Copy reference** **`aria-label`** / **`title`** for trio clarity.
+
+**Tests**
+
+- **`workflowGuide.test.tsx`**: region + footer group; two guided buttons.
+- **`AnalyzePage.interaction.test.tsx`**: announcer for **`/?guide=1`** after dismiss.
+- Playwright **`persisted-flows.spec.ts`**: Analyze merged + Analyze/Compare entry clipboard; Analyze + Compare announcer lifecycle (explicit open/close + **`?guide=1`** after dismiss).
+- **`ComparePage.ux.test.tsx`**: **Copy reference** query uses accessible name pattern.
+
+**Docs**
+
+- **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**222** Vitest tests, **`fixtures:check`**, production **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**45** **`e2e-smoke`** tests).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 106 — Guided-link parity, first-frame guide polish, help-shell protection (2026-04-08)
+
+**Frontend**
+
+- **`workflowGuideOpenFromUrl.ts`**: **`openWorkflowGuideWhenUrlRequests`** + **`GUIDE_OPENED_FROM_LINK_MESSAGE`**; **Analyze** + **Compare** invoke it from **`useLayoutEffect`** (first paint matches open guide; announcer false→open unchanged).
+- **`WorkflowGuideShell`**: **`data-pqat-help-visual-contract="1"`** for visual/semantic contract.
+- **`WorkflowGuideCopyGuidedRow`**: tighter **merged** vs **entry** **`title`** / **`aria-label`** / footer hint.
+
+**Tests**
+
+- **`workflowGuideOpenFromUrl.test.ts`**: unit coverage for URL-open helper.
+- **`workflowGuide.test.tsx`**: asserts **`data-pqat-help-visual-contract`**.
+- Playwright **`persisted-flows.spec.ts`**: **Compare** merged guided link + **`goto`** round-trip (guide visible).
+- **`e2e/visual/canonical.spec.ts`**: **`analyze-workflow-guide-shell.png`** on **`analyze-workflow-guide-panel`**.
+
+**Docs**
+
+- **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, **`docs/contributing.md`**, **`e2e/visual/README.md`**.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**48** files, **225** Vitest tests, **`fixtures:check`**, **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**46** **`e2e-smoke`** tests; **1** flaky retry on **Analyze: Copy for ticket on optimization suggestion**, passed on retry).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**5** tests). Baselines: new **`analyze-workflow-guide-shell-e2e-visual-linux.png`**; **`--update-snapshots`** also refreshed existing canonical PNGs (**~1px** region sizing drift vs prior committed baselines — keep Docker-updated set aligned with CI).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 107 — Guided output, example-driven onboarding, cognitive-load reduction (2026-04-09)
+
+**Frontend**
+
+- **`src/examples/plans/*.json`** + **`analyzePlanExamples.ts`** / **`comparePlanExamples.ts`** — curated samples (**`?raw`** bundle); **`TryPlanExampleChips`** in **Analyze**/**Compare** capture (no result yet) + workflow guides; test ids **`*-capture`** / **`*-help`**.
+- **`AnalyzePage`**: **`onAnalyze(overridePlanText?)`**, **`loadAnalyzeExampleAndRun`**.
+- **`ComparePage`**: **`onCompare(overridePlanA?, overridePlanB?)`**, **`loadCompareExampleAndRun`**.
+- **`analyzeOutputGuidance.ts`** / **`compareOutputGuidance.ts`** — **`analyzeTakeawayFromResult`**, **`compareLeadTakeaway`**.
+- **`AnalyzeSummaryCard`**: **`pqat-takeawayBand`** (**`analyze-summary-takeaway`**), eyebrow **At a glance**, shorter briefing hint + **details** for flow/index shape and “why sections differ”; **Plan source & EXPLAIN metadata** in **`<details>`**; user-facing persistence copy.
+- **`CompareSummaryColumn`**: **Start here** band (**`compare-summary-takeaway`**), duplicate runtime overview row removed, long subtitle → **details**, next-steps hint tightened + pinning **details**, meta line wording.
+- **`AnalyzeCapturePanel`** / **`CompareCapturePanel`**, guides, **`compareEmptyStateCopy`**, persisted-loading banners, **`AnalyzePlanGuideRail`** pointer (**Summary → Plan briefing**), **`workstation.css`** (takeaway + chip layout).
+
+**Tests**
+
+- **`analyzeOutputGuidance.test.ts`**, **`compareOutputGuidance.test.ts`**.
+- **`workflowGuide.test.tsx`** (example slot).
+- **`AnalyzePage.interaction.test.tsx`**, **`ComparePage.ux.test.tsx`** (try-example flows; plan metadata **details** open).
+- Playwright **`persisted-flows.spec.ts`**: **Try example** **Analyze** + **Compare**.
+- **`e2e-visual`**: regenerated baselines (**takeaway** + Compare summary triage + incidental drift).
+
+**Docs**
+
+- **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, **`docs/contributing.md`**, **`src/examples/README.md`**, **`e2e/visual/README.md`**.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**50** Vitest files, **232** tests, **`fixtures:check`**, **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**48** **`e2e-smoke`** tests total — **persisted-flows** + **theme-appearance**; **1** flaky retry: **Analyze: Copy for ticket on optimization suggestion**, passed on retry).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**5** tests).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 108 — Scan-first output, lighter reading paths, example-guided UX (2026-04-08)
+
+**Frontend**
+
+- **`src/examples/plans/`**: **`sort-pressure-shipments.json`**, **`index-ordered-shipments.json`**, **`compare-bitmap-access-plan-a.json`**, **`compare-index-scan-plan-b.json`** (copies of **`e2e/fixtures`** rewrites); **`analyzePlanExamples.ts`** (3 Analyze samples), **`comparePlanExamples.ts`** (2 Compare pairs); **`src/examples/README.md`** fixture map.
+- **`analyzeOutputGuidance.ts`**: **`primaryFindingId`** on takeaway; **`analyzeFollowUpScanSignals`** → **`analyze-scan-signals`** (**Also scan**).
+- **`compareOutputGuidance.ts`**: **`compareFollowUpDiffSignals`**; lead headline **Change at a glance**; **`compare-scan-signals`** in **`CompareSummaryColumn`**; walkthrough + structural readout behind **`<details>`**; takeaway uses **`pqat-takeawayBand--hero`**.
+- **`AnalyzeSummaryCard`**: **`analyze-summary-heading`** (**Summary**); hero takeaway; metrics under **Analysis id & plan counts**; plan briefing reordered (inspect **Start here** first; overview/work/drivers collapsed); shorter hints.
+- **`AnalyzeFindingsPanel`**: **`primaryTriageFindingId`**, **Matches summary** cue, rule-letter wall behind **details**; **`AnalyzePage`** derives id from takeaway.
+- **`AnalyzeOptimizationSuggestionsPanel`**: **`data-testid="analyze-optimization-suggestions-panel"`** (E2E stability).
+- **`workstation.css`**: **`pqat-takeawayBand--hero`**, **`pqat-scanSignals*`**, **`pqat-storyLane--triageLead`**, **`pqat-listRow--triagePrimary`**.
+- **Guides / chips:** **`AnalyzeWorkflowGuide`**, **`CompareWorkflowGuide`**, **`TryPlanExampleChips`** aria + copy; **`AnalyzePlanGuideRail`** pointer tweak.
+
+**Tests**
+
+- Vitest: **`analyzeOutputGuidance.test.ts`**, **`compareOutputGuidance.test.ts`**, **`AnalyzePage.interaction.test.tsx`**, **`ComparePage.ux.test.tsx`**, **`workflowGuide.test.tsx`**.
+- Playwright **`persisted-flows.spec.ts`**: **`analyze-summary-heading`**; **Copy for ticket** panel test id; extra sample smokes.
+
+**Docs**
+
+- **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, **`docs/contributing.md`**, **`e2e/visual/README.md`**.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**50** Vitest files, **236** tests, **`fixtures:check`**, **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**50** **`e2e-smoke`** tests; **Copy for ticket** stable via **`analyze-optimization-suggestions-panel`**).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**5** tests); **`docker compose … playwright`** with **`PLAYWRIGHT_CLI_ARGS='--project=e2e-visual --update-snapshots'`** refreshed **Linux** PNG baselines under **`e2e/visual/canonical.spec.ts-snapshots/`**.
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 109 — First-screen triage, summary continuity, lighter Compare scanning (2026-04-08)
+
+**Frontend**
+
+- **`analyzeOutputGuidance.ts`**: **`buildAnalyzeTriageBundle`**, **`AnalyzeTriageBundle`** — single source for takeaway + scan ordering.
+- **`AnalyzePage.tsx`**: memoized bundle; **`stickyTriageNarrow`**; **`primaryTriageFindingId`**; **`triageEcho`** to **Plan guide**; continuity props to **selected node**.
+- **`AnalyzeSummaryCard.tsx`**: **`analyze-triage-deck`**; primary **Open in plan** on **Start here**; ranked **Then scan** strip; optional sticky shell on narrow tier.
+- **`AnalyzeFindingsPanel.tsx`**: **`data-finding-id`**; **`useEffect`** scrolls primary triage row when not virtualized (**`typeof scrollIntoView === 'function'`** guard for jsdom).
+- **`AnalyzeSelectedNodePanel.tsx`**: continuity strip when selection aligns with triage (**`analyze-selected-triage-cue`**).
+- **`AnalyzePlanGuideRail.tsx`**: **`triageEcho`**; operator readout behind **Plain-language readout** **`<details>`**.
+- **`artifactLinks.ts`**: **`scrollArtifactIntoView`** default **`block: 'center'`**.
+- **`CompareSummaryColumn.tsx`**: **`compare-triage-deck`**; **Show row** + **`requestAnimationFrame`** + scroll; **`summaryStickyNarrow`**; more dense hints behind **`<details>`**.
+- **`ComparePage.tsx`**: **`summaryStickyNarrow`** when **`layoutTier === 'narrow'`**.
+- **`workstation.css`**: triage deck, sticky narrow, continuity cue, ranked scan grid.
+- **Examples:** fourth Analyze id **`nl-join-inner-heavy`**; fixture **`nl_inner_seq_heavy.json`**; **`scripts/sync-e2e-fixtures.sh`**, **`scripts/check-e2e-fixtures.mjs`**, **`src/examples/README.md`**.
+
+**Tests**
+
+- Vitest: **`analyzeOutputGuidance.test.ts`** (**`buildAnalyzeTriageBundle`**).
+- Playwright **`persisted-flows.spec.ts`**: **`analyze-triage-deck`** smoke (nested-loop sample).
+
+**Docs**
+
+- **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-08)**
+
+- **`node scripts/check-e2e-fixtures.mjs`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**50** Vitest files, **237** tests, **`fixtures:check`**, **`vite build`**). **Findings** primary-row scroll uses **`typeof el.scrollIntoView === 'function'`** so Vitest/jsdom does not throw after tests complete.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**51** **`e2e-smoke`** tests, non-auth stack).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**5** tests); **Linux** PNG baselines under **`e2e/visual/canonical.spec.ts-snapshots/`** updated for triage-deck UI (Analyze summary + Compare summary/navigator/pair regions).
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 110 — Decision-surface refinement, continuity under load, calmer tone (2026-04-09)
+
+**Frontend**
+
+- **`VirtualizedListColumn`**: **`forwardRef`** + **`scrollToIndex`** (TanStack Virtual + **`preferredScrollBehavior`**).
+- **`motionPreferences.ts`**: **`preferredScrollBehavior`**, **`scrollIntoViewOptionsForUser`**; **`scrollArtifactIntoView`** uses them.
+- **`AnalyzeFindingsPanel`**: triage primary row scrolls when findings are **virtualized** (ref **`scrollToIndex`**).
+- **`compareTriagePairBridgeLine`**: bridge from pins / top worsened-improved → **selected pair**; **`CompareSelectedPairPanel`** **`triageBridgeLine`** (**`compare-selected-pair-triage-bridge`**).
+- **`AnalyzeOptimizationSuggestionsPanel`**: **`primaryTriageFindingId`**; **Same finding as Start here** cue; shorter intro.
+- **Sticky narrow**: **`--pqat-sticky-top-offset`** (**`index.css`**); summary/triage sticky shells use it.
+- **Copy / chrome**: **`CompareSummaryColumn`**, **`AnalyzeSummaryCard`**, **`ArtifactSharingPanel`**, **`AnalyzeFindingsPanel`**, pair heavy loading line.
+- **CSS**: **`pqat-comparePairTriageBridge`**, **`pqat-triageSuggestionCue`**.
+
+**Tests**
+
+- Vitest: **`compareOutputGuidance`**, **`motionPreferences`**, **`VirtualizedListColumn`**, **`CompareSelectedPairPanel`**, **`AnalyzeOptimizationSuggestionsPanel`**, **`ComparePage.ux`** updates.
+- Playwright: **`Compare: Show row from triage strip highlights finding diff in viewport`**.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**52** Vitest files, **245** tests, **`fixtures:check`**, **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**52** **`e2e-smoke`** tests).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**5** tests); **`compare-happy-navigator`** + **`compare-happy-pair`** baselines updated.
+- **`mkdocs build --strict`** — **OK** (host **`docs/.venv`**).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 111 — Guided-path cohesion, Compare decision rhythm, product copy (2026-04-09)
+
+**Frontend**
+
+- **`analyzeOutputGuidance.ts`**: **`suggestionAlignsWithAnalyzeTriage`** (finding id, focus node, or target / primary-finding node overlap).
+- **`AnalyzeOptimizationSuggestionsPanel`**: **Aligned with Start here** from expanded triage context; props **`triageFocusNodeId`**, **`primaryFindingNodeIds`**.
+- **`AnalyzePage`**: wires triage context + **`scrollToPrimaryFindingRow`**; **selected node** **`relatedOptimizationIsTopLeverage`** + **`relatedOptimizationAlignsTriage`**.
+- **`AnalyzePlanGuideRail`**: **`onScrollToPrimaryFinding`**, **`analyze-guide-jump-primary-finding`** when finding-driven takeaway.
+- **`AnalyzeSelectedNodePanel`**: top-next cue (**`analyze-selected-node-top-next-cue`**); **Suggested next step for this node** heading.
+- **`useStickyTopOffsetSync`**: **`App.tsx`** measures **`.topBar`**, sets **`--pqat-sticky-top-offset`** (**resize** + **`ResizeObserver`**).
+- **`compareOutputGuidance.ts`**: **`compareTriagePairBridgeLine`** + **change story** beat pair match; softer index/suggestion bridge lines.
+- **`CompareNavigatorPanel`**: **`briefingHighlightPair`** cues on worsened/improved + finding-diff rows; **Open top regression** button label.
+- **`CompareSelectedPairPanel`**: bridge label **Context**; **Suggested follow-up** + **`pqat-comparePairNextStep`**.
+- **`CompareSummaryColumn`**, **`ArtifactSharingPanel`**: calmer user-facing strings (**Show in list**, sharing scope labels, summary meta).
+- **CSS**: **`pqat-navPairRow__briefingCue`**, **`pqat-findingsDiffBriefingCue`**, **`pqat-comparePairNextStep`**, **`pqat-triageSuggestionCue--inline`**.
+
+**Tests**
+
+- Vitest: **`analyzeOutputGuidance`** (**`suggestionAlignsWithAnalyzeTriage`**), **`compareOutputGuidance`** (story-beat bridge), **`AnalyzeOptimizationSuggestionsPanel`** (node-overlap triage), scoped triage **`within`** card.
+- Playwright: **`persisted-flows`** **Show in list** button name.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (**`vitest run`**) in **`src/frontend/web`** — **OK** (**52** files, **251** tests).
+- **`npm run build`** (**`tsc -b && vite build`**) — **OK**.
+- **`mkdocs build`** (repo root) — **OK**.
+- **Docker verify scripts:** not re-run in this agent session (environment-dependent).
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 112 — Triage continuity everywhere, calmer system surfaces, UI/export parity (2026-04-09)
+
+**Frontend**
+
+- **`analyzeOutputGuidance.ts`**: **`firstVirtualRowIndexAlignedWithAnalyzeTriage`** for virtualized suggestion rows aligned with **Start here**.
+- **`AnalyzeOptimizationSuggestionsPanel`**: list ref + **`scrollToIndex`** when virtual + aligned row exists (hooks ordered before empty-state return).
+- **`AnalyzePage`**: **`triagePrimaryRoute`**; guide rail **`onJumpTriageFocusInPlan`** / gated **`onScrollToPrimaryFinding`**; export path uses **`analyzeExportTriage`**; **`shareLinkStartHereHeadline`** to selected node panel.
+- **`AnalyzePlanGuideRail`**: finding vs step primary-route CTAs (**`analyze-guide-jump-triage-plan`**).
+- **`analyzeExportTriage.ts`**: Markdown preamble, HTML injection, JSON **`pqatExportTriage`** wrapper.
+- **`shareAppUrl.ts`**, **`artifactLinks.ts`**, **`artifactErrorPresentation.ts`**, **`AnalyzeCapturePanel.tsx`**, **`AnalyzeSummaryCard.tsx`**, **`ComparePage.tsx`**, **`CompareSelectedPairPanel.tsx`**, **`CompareSummaryColumn.tsx`**, **`compareOutputGuidance.ts`**: bridge fallback, **Reading thread** / **Link includes:** / calmer errors and loading.
+- **`workstation.css`**, **`index.css`**: sticky **`safe-area-inset-top`** + comment on offset vars.
+
+**Tests**
+
+- Vitest: **`analyzeExportTriage.test.ts`**, **`analyzeOutputGuidance`** (**`firstVirtualRowIndexAlignedWithAnalyzeTriage`**), **`artifactErrorPresentation`**, **`artifactLinks`**, **`shareAppUrl`**, **`compareOutputGuidance`**, **`CompareSelectedPairPanel`** (cleanup between tests), **`ComparePage.ux`** (**Reading thread**).
+- Playwright: **`persisted-flows`**, **`jwt-auth-smoke`** — **Reading thread ·** summary cue; **Link includes:** pin-context; **Copy link** asserts **Highlighted finding / index change / next step** lines (replacing legacy **Pinned …** strings).
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (**`vitest run`**) in **`src/frontend/web`** — **OK** (**53** files, **261** tests).
+- **`npm run build`** — **OK**.
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**fixtures:check**, Vitest, Vite build in Node image).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**`e2e-smoke`**, **52** tests) after clipboard assertions aligned with **Highlighted …** deep-link lines.
+- **Backend:** unchanged (no **`dotnet test`**).
+
+## Phase 113 — Guided-flow cohesion, Compare export parity, calmer system surfaces (2026-04-10)
+
+**Frontend**
+
+- **`compareExportTriage.ts`**: **`buildCompareExportTriageSummary`**, **`markdownCompareTriagePreamble`**, **`injectCompareTriageIntoHtml`**, **`jsonCompareExportWithTriageEnvelope`** (**`pqatExportCompareTriage`**).
+- **`api/client.ts`**: **`exportCompareMarkdown`**, **`exportCompareHtml`**, **`exportCompareJson`**, **`buildCompareRequestPayload`** (shared with **`compareWithPlanTexts`**).
+- **`ComparePage.tsx`**: **`onExportCompare`**, **`downloadCompareText`**; **`pairFallbackDisplay`** via **`resolveComparePairFallbackDisplay`**.
+- **`CompareCapturePanel.tsx`**: export row (**`compare-export-report-row`**) when a comparison exists.
+- **`compareOutputGuidance.ts`**: **`compareContinuityCueIsSpecific`**, **`resolveComparePairFallbackDisplay`**.
+- **`CompareSelectedPairPanel.tsx`**: **`continuityPairFallback`** `{ label, body }`.
+- **`AnalyzePlanGuideRail.tsx`**: triage echo without repeating **Start here** headline.
+- **`AnalyzeSelectedNodePanel.tsx`**: lighter continuity + top-next cue copy; drop **`triageHeadline`** echo.
+- **`VirtualizedListColumn.tsx`**: **`scrollContainerTestId`** → **`analyze-suggestions-virtual-scroller`** on suggestions.
+- **`artifactErrorPresentation.ts`**: **`artifactErrorBannerNextStep`**; **`ArtifactErrorBanner.tsx`** renders next-step line.
+- **`ArtifactSharingPanel.tsx`**, **`CompareSummaryColumn.tsx`**: product-language tweaks.
+
+**Tests**
+
+- Vitest: **`compareExportTriage.test.ts`**, **`compareOutputGuidance`** (fallback + specificity), **`artifactErrorPresentation`** (next-step), **`CompareSelectedPairPanel`**.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-10)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**54** Vitest files, **269** tests, **`fixtures:check`**, **`vite build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**`e2e-smoke`**, **53** tests including **Analyze: long suggestions surface…**).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged for export triage (compare report endpoints unchanged; client augments downloads).
+
+## Phase 114 — Reopen/export cohesion, stronger landing proof, lower-noise guidance (2026-04-10)
+
+**Backend**
+
+- **`CompareRequestDto`**: optional **`Comparison`** (**`PlanComparisonResultV2`**).
+- **`CompareExecution.RunForReportAsync`**: if **`comparison`** is set, validate **`comparisonId`** and return that snapshot for **`/api/compare/report/*`**; otherwise **`RunAsync`** from plan inputs. **`Program.cs`**: three compare report routes use **`RunForReportAsync`**.
+- **Tests:** **`CompareReportSnapshotApiTests`** — POST compare then POST report markdown with **`{ comparison: … }`** only (no plan text).
+
+**Frontend**
+
+- **`api/client.ts`**: **`CompareExportReportPayload`**, **`buildCompareReportRequestBody`**, **`postCompareReport`** snapshot vs plans; **`exportCompare*`** accept union payload.
+- **`ComparePage.tsx`**: export uses plans when both filled, else **`{ comparison, diagnostics }`**; **`exportCompareBusyKind`** per format; **`canExportCompareReports`** when **`comparison`** exists.
+- **`CompareCapturePanel.tsx`**: per-button **Preparing…**, download hint, **`data-testid`** on export buttons.
+- **`AnalyzeOptimizationSuggestionsPanel`**: **`data-testid="analyze-suggestion-card-triage-aligned"`** on aligned cards.
+- **`compareOutputGuidance.ts`**: vague cues → **`resolveComparePairFallbackDisplay`** returns **null** (no filler panel).
+- **`AnalyzePlanGuideRail.tsx`**: overview-route echo copy vs finding/step.
+- **`ArtifactSharingPanel.tsx`**: calmer sharing/auth strings.
+
+**Tests**
+
+- Vitest: **`compareOutputGuidance.test.ts`** (vague fallback **null**).
+- Playwright **`persisted-flows`**: long suggestions — **`toBeInViewport`**, scroller intersection **`evaluate`**.
+
+**Docs**
+
+- **`docs/api-and-reports.md`**, **`docs/compare-workflow.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-10)**
+
+- **`dotnet build`** **`tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/PostgresQueryAutopsyTool.Tests.Unit.csproj`** — **OK** (runtime **`dotnet test`** not executed here: local machine lacks **.NET 8** test host; CI expected to run full suite).
+- **`npm install`** (as needed for optional bindings) + **`npm test`** (**`vitest run`**) in **`src/frontend/web`** — **OK** (**54** files, **269** tests).
+- **`npm run build`** — **OK** (**`tsc -b && vite build`**).
+- **`mkdocs build --strict`** (repo root) — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**fixtures:check**, Vitest **54** / **269**, Vite build in Node **20** image).
+- **`./scripts/e2e-playwright-docker.sh`** (default **e2e-smoke**) — **OK** (**53** tests).
+
+## Phase 115 — Reopen→export confidence, server reading thread, calmer trust states (2026-04-10)
+
+**Backend**
+
+- **`Program.ConfigureHttpJsonOptions`**: register **`RelaxedOptimizationSuggestionJsonConverter`** + camelCase **`JsonStringEnumConverter`** (and case-insensitive names) so **`POST /api/compare/report/*`** bodies that embed a full **`comparison`** snapshot deserialize the same shapes as **`ArtifactPersistenceJson`** / API responses. Without this, snapshot-only export requests could fail model binding (**400**) even though **`POST /api/compare`** + plan text worked.
+- **`PlanAnalysisService`**: **`BuildCompareReadingThreadLead`**, **`FormatCompareReadingThreadMarkdown`**, HTML **Reading thread** `<h2>`; **`RenderCompareMarkdownReport`** / **`RenderCompareHtmlReport`** include compact guided lead before **`ComparisonId`**.
+- **Tests:** **`CompareReportHtmlTests`** assert **`## Reading thread`** / **`**Change at a glance**`** in markdown and **Reading thread** in HTML.
+
+**Frontend**
+
+- **`compareExportTriage.ts`**: **`markdownCompareExportSupplement`**, **`injectCompareExportSupplementIntoHtml`** (selection-only); legacy **`markdownCompareTriagePreamble`** → supplement.
+- **`ComparePage.tsx`**: uses supplements; post-export hint; loading/compare-running copy; **`exportUsesSnapshot`**.
+- **`CompareCapturePanel.tsx`**: export hint + **`compare-export-snapshot-cue`** / **`compare-export-hint`**.
+- **`nginx.conf`**: **`client_max_body_size 32m`** on **`/api/`** so large snapshot exports are not rejected by the default 1 MB limit.
+- **`AnalyzeCapturePanel.tsx`**, **`artifactErrorPresentation.ts`**: calmer loading + error titles.
+- **`AnalyzePlanGuideRail.tsx`**: triage echo only when **Also scan** list or a primary jump action exists.
+
+**Tests**
+
+- Vitest: **`compareExportTriage.test.ts`**, **`artifactErrorPresentation.test.ts`**.
+- Playwright **`persisted-flows`**: **`Compare: reopen with empty plan inputs exports markdown using snapshot payload`** — uses **`waitForRequest`** / **`waitForResponse`** (not **`page.route`**) so large JSON bodies are not mishandled by route **`postData`** limits.
+
+**Docs**
+
+- **`docs/api-and-reports.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`dotnet build`** **`PostgresQueryAutopsyTool.Core`** — **OK**.
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**Vitest** **271** tests, **`npm run build`** in **Node 20** Alpine).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**54** **`e2e-smoke`** tests).
+- **`dotnet test`** (full unit suite) — **not run** on this machine (local host lacks **.NET 8** runtime; CI should run **`CompareReportSnapshotApiTests`** + **`CompareReportHtmlTests`**).
+
+## Phase 116 — Export trust, Analyze parity, clearer failure states (2026-04-11)
+
+**Backend**
+
+- **`ArtifactPersistenceJson.ApplyToHttpSerializerOptions`**: copies **`ArtifactPersistenceJson.Options`** onto **`ConfigureHttpJsonOptions.SerializerOptions`** (skip custom converters already present by type). **`Program.cs`** uses this instead of hand-registering converters.
+- **`ArtifactPersistenceJsonOptionsTests`**: asserts relaxed suggestion converter is not duplicated when **ApplyTo** runs twice.
+
+**Frontend**
+
+- **`api/client.ts`**: **`formatApiErrorResponse`**, **`throwFormattedHttpError`**; **`postJson`** / **`postCompareReport`** use formatted errors for non-**401** failures.
+- **`AnalyzePage`**: **`exportAnalyzeBusyKind`**, **`exportAnalyzeHint`**, **`exportUsesSnapshot`**, **`onExport`** `useCallback` with success/failure hints (export errors no longer overwrite the main **`error`** banner).
+- **`AnalyzeCapturePanel`**: **Download** section (**`analyze-export-report-row`**, **`analyze-export-markdown`**, **`analyze-export-hint`**, **`analyze-export-snapshot-cue`**).
+- **`analyzeOutputGuidance`**: **`filterTriageEchoScanLabels`**.
+- **`compareOutputGuidance`**: stricter **`compareContinuityCueIsSpecific`** for vague short tokens.
+
+**Tests**
+
+- Vitest: **`formatApiErrorResponse.test.ts`**, **`analyzeOutputGuidance`** (filter), **`compareOutputGuidance`** (continuity).
+- Playwright: **`Analyze: reopen with empty plan input exports markdown using snapshot payload`**.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/api-and-reports.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`dotnet build`** **`PostgresQueryAutopsyTool.Api`** — **OK**.
+- **`dotnet test`** (**.NET 8 SDK Docker image**) **`ArtifactPersistenceJsonOptionsTests`** — **OK** (full **`dotnet test`** on host not available — missing **.NET 8** runtime).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**Vitest** **276** tests, **55** test files).
+- **`mkdocs build --strict`** — **OK** (run after doc edits).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**55** **`e2e-smoke`** tests).
+
+## Phase 117 — Clearer export failures, stronger Compare parity, quieter trust surfaces (2026-04-09)
+
+**Backend**
+
+- **`Program.cs`**: **`UseExceptionHandler`** — **`BadHttpRequestException`** on **`/api/report/*`** and **`/api/compare/report/*`** returns **400** JSON **`request_body_invalid`** (unreadable body) or **`export_request_incomplete`** (parsed **`{}`** / missing analysis+plan); other unhandled exceptions on the pipeline path return **500** JSON **`internal_error`**. **`Program.IsReportExportPath`** scopes structured responses to those routes.
+- **`ReportExportInvalidBodyApiTests`**: malformed JSON and **`{}`** bodies assert non-empty JSON and expected **`error`** codes.
+
+**Frontend**
+
+- **`formatApiErrorResponse`**: maps **`request_body_invalid`** and **`export_request_incomplete`** to the server **`message`** (no **`error:`** prefix).
+- **`ComparePage`**: export success hint matches Analyze (**Saved result exported…** vs **Download started…**) when using snapshot-only export args.
+- **`AnalyzeCapturePanel`** / **`CompareCapturePanel`**: **`analyze-export-status`** / **`compare-export-status`** — **`aria-live="polite"`**, **`aria-atomic="true"`**; tighter Download hint copy.
+- **`AnalyzePlanGuideRail`**: overview triage echo hides the headline strip when **Also scan** labels are already shown.
+
+**Docs**
+
+- **`docs/api-and-reports.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`docker run` `mcr.microsoft.com/dotnet/sdk:8.0` `dotnet test`** — **`ReportExportInvalidBodyApiTests`** — **OK** (**3** tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**Vitest** **278** tests, **`npm run build`** in **Node 20** Alpine).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**55** **`e2e-smoke`** tests; Docker image rebuild includes API **`UseExceptionHandler`** change).
+
+## Phase 118 — Stable export contracts, browser-proven trust states, calmer support surfaces (2026-04-11)
+
+**Backend**
+
+- **`ReportExportValidation`**: **`TryAnalyzeReportRequest`** — **`export_request_incomplete`** via **`Results.BadRequest`** (analyze report routes no longer **`throw`** for empty **`{}`**).
+- **`ReportExportBadRequestExceptionHandler`**: **`IExceptionHandler`** — **`request_body_invalid`** for **`BadHttpRequestException`** on **`/api/report/*`** and **`/api/compare/report/*`** only.
+- **`Program.cs`**: **`AddProblemDetails`**, **`AddExceptionHandler<ReportExportBadRequestExceptionHandler>`**, **`UseExceptionHandler()`** — removes bespoke catch-all **500** JSON from Phase 117 middleware.
+- **`ReportExportValidationTests`**: empty vs plan-present cases.
+
+**Frontend**
+
+- **`formatApiErrorResponse`**: **413** JSON with **`payload_too_large`** / **`request_too_large`** prefers **`message`** without code prefix.
+- **`ArtifactSharingPanel`**: calmer **Sharing** / auth-help copy.
+
+**Tests**
+
+- Playwright: **`Compare: reopen with empty plan inputs exports HTML using snapshot payload`**; **`Analyze: export failure shows calm status line without error-code prefix`** (mocked **400**).
+- Vitest: **413** JSON case in **`formatApiErrorResponse.test.ts`**.
+
+**Docs**
+
+- **`docs/api-and-reports.md`**, **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`docker run` `mcr.microsoft.com/dotnet/sdk:8.0` `dotnet test`** **`PostgresQueryAutopsyTool.Tests.Unit`** — **OK** (**175** tests).
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**Vitest** **279** tests, **`npm run build`**).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**57** **`e2e-smoke`** tests).
+
+## Phase 119 — Export parity, quieter guidance, and clearer “take this with you” UX (2026-04-11)
+
+**Export parity (browser)**
+
+- Playwright: **`Analyze: reopen with empty plan input exports HTML using snapshot payload`** (**`POST /api/report/html`** + **`analysis`** body).
+- Playwright: **`Compare: reopen with empty plan inputs exports JSON using snapshot payload`** (**`POST /api/compare/report/json`** + **`comparison`** body; asserts **`planA`** / **`planB`**).
+
+**“Take with you” + trust copy**
+
+- **`AnalyzeCapturePanel`** / **`CompareCapturePanel`**: eyebrow **Take with you**; shorter snapshot vs paste hints; **`title`** on format buttons clarifies what each file is for.
+- **`AnalyzePage`** / **`ComparePage`**: export success lines — **Export ready** / **Export started** (calmer, outcome-focused).
+- **`ArtifactSharingPanel`**: success **`Sharing updated.`** (replaces **`Saved.`**).
+
+**Guidance + failures**
+
+- **`AnalyzePlanGuideRail`**: hide **Summary** echo headline whenever **Also scan** chips are present (all routes), not only overview.
+- **`formatApiErrorResponse`**: **500** JSON with **`title`** only (ProblemDetails-style) — calm line; **`detail`** skipped when it looks like a stack trace.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/api-and-reports.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`docker run` `node:20-alpine`** **`npm test`** (`src/frontend/web`) — **OK** (**Vitest** **281** tests).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**59** **`e2e-smoke`** tests).
+- **Backend:** unchanged this phase (Phase **118** **`dotnet test`** suite still applies).
+
+## Phase 120 — Final export parity, clearer handoff UX, quieter guidance (2026-04-09)
+
+**Export parity (browser)**
+
+- Playwright: **`Analyze: reopen with empty plan input exports JSON using snapshot payload`** — **`POST /api/report/json`** with **`{ analysis: … }`**, response includes **`analysisId`**, **`nodes`**.
+
+**Take with you + sharing**
+
+- **`AnalyzeCapturePanel`** / **`CompareCapturePanel`**: per-format legend line (**`analyze-export-format-legend`** / **`compare-export-format-legend`**); tighter snapshot vs paste hints; export success **Ready** / **Started** (download-focused).
+- **`ArtifactSharingPanel`**: **`artifact-sharing-effect-note`** (scope applies on next link open); success **Sharing saved. New access rules apply the next time someone opens this link.**
+
+**Guidance + trust**
+
+- **`filterTriageEchoScanLabels`**: drops **Also scan** chips that repeat the headline’s opening phrase (not only exact headline match).
+- **`compareContinuityCueIsSpecific`**: short cues with **worsened** / **improved** / **Plan A|B** vocabulary count as specific for pair fallback display.
+- **`formatApiErrorResponse`**: empty-body **400** — clearer reload + re-paste plan guidance.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/api-and-reports.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**283** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **not run** (Docker unavailable in this environment). Expected **`e2e-smoke`** count after merge: **60** tests (**+1** Analyze reopen→JSON). Run before release: **`./scripts/e2e-playwright-docker.sh`**; optional **`./scripts/e2e-playwright-docker.sh --visual`** to add Take-with-you **`e2e-visual`** baselines when convenient.
+- **Backend:** unchanged.
+
+## Phase 121 — Stronger action surfaces, calmer trust copy, tighter continuity cues (2026-04-09)
+
+**Take with you**
+
+- **`pqat-handoffBand`** + **`analyze-export-handoff-kicker`** / **`compare-export-handoff-kicker`**; **`pqat-formatLegend`** with format labels; button **`title`**s shortened to **Download …**.
+- **`exportDownloadSuccessHint`** (`src/presentation/exportStatusCopy.ts`) — shared **Analyze** + **Compare** post-export status.
+
+**Sharing**
+
+- **`ArtifactSharingPanel`**: effect note + post-save line refined; **`aria-label`** and auth card title **How access is checked**.
+
+**Trust / API copy**
+
+- **`formatApiErrorResponse`**: empty **401**; calmer empty **413** (aligned with **400** tone); **`throwFormattedHttpError`**, **`putSharing`**, **`compareWithPlanTexts`** use **`formatApiErrorResponse`** for **401** (no duplicate hard-coded dev message).
+
+**Guidance**
+
+- **`compareContinuityCueIsSpecific`**: short **faster/slower** + plan/root/scan vocabulary path.
+- Tests: **`resolveComparePairFallbackDisplay`** (whitespace bridge, faster cue); **`filterTriageEchoScanLabels`** keep-non-echo case; **`formatApiErrorResponse`** **401**/**413** empty bodies.
+
+**Docs**
+
+- **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/api-and-reports.md`**, **`docs/architecture.md`**, **`src/frontend/web/e2e/visual/README.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**291** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **not run** (Docker unavailable here). Run **`e2e-smoke`** before merge; add **`e2e-visual`** Take-with-you snapshots via **`--update-snapshots`** when the handoff band is stable.
+- **Backend:** unchanged.
+
+## Phase 122 — Readability-first result flow, reduced graph dominance, graph-to-finding continuity (2026-04-09)
+
+**Layout / graph**
+
+- **`AnalyzePlanGraphCore`** / **`PlanGraphSkeleton`**: default height **`clamp(260px, 34vh, 460px)`**, **`minHeight` 240**; **`pqat-planTextTreeBand`** min-height slightly reduced.
+- **`AnalyzePage`** paired grid: workspace vs guide column ratios adjusted (guide gets a bit more horizontal room).
+
+**Graph → findings**
+
+- **`presentation/analyzeFindingPivot.ts`**: **`topRankedFindingForNode`** (severity, then confidence).
+- **`jumpToNodeId`** optional **`scrollRelatedFindings`**; graph + graph-search hits pass **`true`**; text tree uses **`selectNodeFromTextTree`** (clears pivot).
+- **`graphPivotFindingId`** state → **`AnalyzeFindingsPanel`** scroll + **`pqat-listRow--graphPivot`** + **From graph** cue; timeout clears highlight.
+
+**Selected node / findings**
+
+- **`AnalyzeSelectedNodePanel`**: **`analyze-related-findings-bridge`**, **`onFocusFindingInList`**; **`analyze-no-findings-for-node`** when empty.
+- **`AnalyzeSelectedNodeHeavySections`**: removed duplicate findings bullet list.
+
+**Copy / scan**
+
+- **`AnalyzePlanWorkspacePanel`**, **`AnalyzeFindingsPanel`**: shorter helper copy.
+
+**Tests**
+
+- **`analyzeFindingPivot.test.ts`**; **`AnalyzePage.interaction.test.tsx`** graph click on **`[data-id="n1"]`**.
+
+**Docs:** **`README.md`** (What you get), **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**294** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK** (run after edits).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**60** passed).
+- **Backend:** unchanged.
+
+## Phase 123 — Graph-local findings, less forced jumping, tighter investigation surface (2026-04-09)
+
+**Local explanation**
+
+- **`components/analyze/AnalyzeLocalFindingsShelf.tsx`**: ranked previews (2 + **`+N more`** expander), **`See in ranked list`** per finding; empty state when no citations.
+- **`AnalyzePlanWorkspacePanel`**: shelf below graph and below text tree — **`analyze-graph-local-findings-shelf`**; props **`findingsForSelectedNode`**, **`onSeeFindingInRankedList`**.
+- **`AnalyzeSelectedNodePanel`**: shelf **`analyze-detail-local-findings-shelf`** after operator title/briefing (replaces chip bridge).
+
+**No default scroll on graph select**
+
+- **`jumpToNodeId(id)`** — single arg; clears **`graphPivotFindingId`** on plan navigation; graph/search matches no longer pass **`scrollRelatedFindings`**.
+
+**Pivot / list**
+
+- **`focusFindingInList`** → **`graphPivotFindingId`** → **`AnalyzeFindingsPanel`** scroll + row cue **Opened from detail** (CSS class **`pqat-listRow--graphPivot`** unchanged).
+
+**Pivot logic**
+
+- **`rankedFindingsForNode`** in **`analyzeFindingPivot.ts`**; **`findingsForSelectedNode`** on **AnalyzePage** uses ranked order.
+
+**Copy**
+
+- **`AnalyzeFindingsPanel`** intro shortened; plan workspace graph/text hint shortened.
+
+**Tests**
+
+- **`rankedFindingsForNode`** unit test; **`AnalyzePage.interaction.test.tsx`** — graph click shows local shelf without **Opened from detail** until **See in ranked list**.
+
+**Docs:** **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**295** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK** (run after edits).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**60** passed); **`persisted-flows`** long-suggestions test updated to **`scrollIntoViewIfNeeded`** before viewport assert (taller Plan workspace band).
+- **Backend:** unchanged.
+
+## Phase 124 — Cleaner local evidence, less duplication, stronger graph-local navigation (2026-04-09)
+
+**Dedupe**
+
+- **`AnalyzeLocalFindingsBridge`**: when **`layout.visibility.workspace && layout.visibility.selectedNode`**, selected node shows bridge (**`analyze-local-evidence-bridge`**) instead of **`AnalyzeLocalFindingsShelf`** detail variant.
+- Full shelf remains under graph/text tree in **`AnalyzePlanWorkspacePanel`**.
+
+**Navigator / a11y**
+
+- **`AnalyzeLocalFindingsShelf`**: **`Related evidence`** (`h3`), **`Top here`** lead + secondary item, **`Also ranked here (N)`** `<details>`, **`role="region"`**, screen-reader **`aria-live="polite"`** finding count, button **`aria-label`s**.
+
+**Copy**
+
+- **`AnalyzePlanWorkspacePanel`** graph/text hint; **`AnalyzeFindingsPanel`** intro; selected-node kicker **Operator**.
+
+**Tests**
+
+- **`AnalyzeLocalFindingsBridge.test.tsx`**; **`AnalyzePage.interaction.test.tsx`** expects bridge + no **`analyze-detail-local-findings-shelf`** when both regions on.
+- **E2E** **`Analyze: graph click shows local shelf without auto-focusing the ranked list row`** (no **Opened from detail** until explicit list open).
+
+**Docs:** **`README.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**297** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK** (run after edits).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**61** passed).
+- **Backend:** unchanged.
+
+## Phase 125 — Stronger workspace reading path, smarter local evidence, clearer go-deeper cues (2026-04-09)
+
+**Workspace band**
+
+- **`AnalyzeSelectedNodePanel`**: **`pqat-investigationThread`** wraps the operator readout + bridge/shelf block.
+- **`AnalyzeLocalFindingsShelf`**: heading **Why this operator matters**; lead **Strongest match**; actions **Full write-up in list**; **`More findings here (N)`** details; optional **`analyze-local-evidence-truncation-cue`** when **`findings.length > 2`**.
+- **`AnalyzeLocalFindingsBridge`**: single-finding compact row (**`pqat-localEvidenceBridge--single`**) + **Open full finding in list**; multi: **Up to \<severity\>** + **Open top in full list**; test id **`analyze-local-evidence-open-top-in-list`** (distinct from bridge root).
+- **`localEvidencePresentation`**: **`maxSeverityInFindings`**, **`severityLabel`**, **`severityChipClass`**, **`severityWord`** (shared with shelf).
+
+**Findings column**
+
+- **`AnalyzeFindingsPanel`**: shorter intro referencing **Full write-up in list**.
+
+**Tests**
+
+- **`AnalyzeLocalFindingsBridge.test.tsx`**, **`AnalyzeLocalFindingsShelf.test.tsx`**; **`AnalyzePage.interaction.test.tsx`** — shelf heading + explicit bridge pivot test.
+- **E2E** **`Analyze: bridge Open full finding shows Opened from detail in ranked list`**.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**307** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**62** passed).
+- **Backend:** unchanged.
+
+## Phase 126 — Smoother investigation flow, unified evidence language, multi-finding clarity (2026-04-09)
+
+**Navigation**
+
+- **`SkipToRankedFindingsLink`** (`src/frontend/web/src/components/analyze/SkipToRankedFindingsLink.tsx`): anchor **`analyze-ranked-findings`** on **`AnalyzeFindingsPanel`**; shown from **`AnalyzePlanWorkspacePanel`** when **`showSkipToRankedFindings`** (Ranked on + node selected).
+
+**Evidence language**
+
+- **`localEvidencePresentation`**: **`evidenceNavCopy`**, **`ariaLabelFullWriteUpInRankedList`**, **`ariaLabelOpenStrongestInRankedList`**; shelf/bridge wired; **`AnalyzeFindingsPanel`** drops duplicate severity helpers; **`AnalyzePlanGuideRail`** imports **`severityLabel`**.
+
+**Multi-finding / shelf**
+
+- Truncation line + **`Other titles (N)`** summary; hint for full rows in Ranked.
+
+**Layout**
+
+- **`workstation.css`**: **`pqat-skipToRanked`** focus-visible styling; **`@media (max-width: 720px)`** for investigation band + shelf/bridge.
+
+**Tests / E2E**
+
+- Vitest: presentation copy + updated bridge/shelf tests (**309** total).
+- Playwright: skip-link test; bridge test title **Open in ranked list** (**63** smoke tests total).
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **OK** (**309** tests).
+- **`npm run build`** (`src/frontend/web`) — **OK**.
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**63** passed).
+- **Backend:** unchanged.
+
+## Phase 127 — Focus arrival, navigation landmarks, evidence language parity (2026-04-09)
+
+**Focus / arrival**
+
+- **`SkipToRankedFindingsLink`**: `preventDefault` + **`scrollIntoView`** + **`focus()`** on **`#analyze-ranked-findings`** (Phase 127).
+- **`AnalyzeFindingsPanel`**: after **`graphPivotFindingId`** scroll, **`focus()`** on the ranked finding row with **retry** (`setInterval` until **`document.activeElement`** matches or cap; extra startup delay when virtualized). Scroll + focus queries are scoped to **`#analyze-ranked-findings [data-finding-id][role="button"]`** so plan-band shelf preview **`<li data-finding-id>`** does not shadow the ranked **`ClickableRow`** (same **`data-finding-id`** in two places broke **`querySelector`**).
+- **`AnalyzePage` `scrollToPrimaryFindingRow`**: same scoped selector for **Matches summary** scroll-into-view.
+- **`aria-labelledby`** + **`h2`** id; finding row **`aria-label`** when pivot includes **Opened from plan detail**.
+
+**Evidence language**
+
+- **`findingConfidenceLabel`** in **`localEvidencePresentation`** (findings list).
+- Shelf: preview **`<ol>`** label; **Strongest match** **`title`**; truncation **Previews … · Full rows stay in Ranked**; multi-bridge group **`aria-label`** clarification.
+
+**Chrome**
+
+- **`nav.pqat-planEvidenceShortcuts`** around skip link; **`pqat-rankedFindingsPanel:focus-visible`**.
+
+**Tests / E2E**
+
+- Vitest: **`findingConfidenceLabel`**; shelf truncation regex update.
+- Playwright: skip → **`focus` + `Enter`** → Ranked panel focused (avoids pointer hit-test overlap); bridge → **`expect.poll`** on **`document.activeElement.classList.contains('pqat-listRow--graphPivot')`**.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npm test`** (`src/frontend/web`, Vitest) — **not re-run** in this session (local optional binding issue); Docker image **`npm run build`** exercises **`tsc`**.
+- **`npm run build`** (`src/frontend/web`) — **OK** (Docker web image build).
+- **`mkdocs build --strict`** — **OK** (run after doc edits).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**63** passed).
+- **Backend:** unchanged.
+
+## Phase 128 — Preview vs ranked DOM semantics, settled virtual scroll, pivot timer + focus polish (2026-04-09)
+
+**Semantics**
+
+- **`AnalyzeLocalFindingsShelf`**: preview **`<li>`** uses **`data-pqat-preview-finding-id`** (ranked **`ClickableRow`** keeps **`data-finding-id`**).
+- **`presentation/analyzeEvidenceDom.ts`**: **`PQAT_PREVIEW_FINDING_ID_ATTR`**, **`queryRankedFindingRow(root, id)`**; Vitest **`analyzeEvidenceDom.test.ts`** (preview node + ranked row same id → ranked wins).
+
+**Arrival**
+
+- **`VirtualizedListColumn`**: optional third arg **`onSettled`** after **`scrollToIndex`** — waits until **`getVirtualItems()`** includes the index (rAF loop, cap), then invokes (with extra rAF for paint).
+- **`AnalyzeFindingsPanel`**: graph-pivot path uses scroll completion + **rAF focus retries** (no **`setInterval`**); **`onGraphPivotFocusArrived`** callback.
+- **`AnalyzePage`**: clears **`graphPivotFindingId`** **4.2s after** focus callback; **8s** fallback if focus never arrives.
+
+**Chrome / navigation**
+
+- **`.pqat-listRow--graphPivot`**: hairline outer ring + **`focus-visible`** outline; **`pqat-planEvidenceShortcuts:focus-within`** **`z-index`**; **`.pqat-localEvidenceBridge__actions`** slight **`z-index`**.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`npx tsc -b`** (`src/frontend/web`) — **OK**.
+- **`npm run build`** (`src/frontend/web`, Docker web image) — **OK** (`tsc` + **Vite**).
+- **`mkdocs build --strict`** — **OK** (after doc edits).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**63** passed).
+- **Vitest:** not executed in this session (local optional-binding issue); **`analyzeEvidenceDom.test.ts`** typechecks.
+- **Backend:** unchanged.
+
+## Phase 129 — Arrival cue, virtual settled tests, skip pointer proof, graph legend layout (2026-04-09)
+
+**Arrival UX**
+
+- **`AnalyzeFindingsPanel`**: when graph-pivot focus lands, **`signalRankedArrivalFromPlan`** shows a short **`pqat-rankedArrivalCue`** (**`role="status"`**, **`aria-live="polite"`**) for ~3.2s; **`h2`** gains **`aria-describedby`** while visible; panel **`pqat-rankedFindingsPanel--arrivalCue`** hairline emphasis.
+
+**Virtualized settlement**
+
+- **`virtualizedScrollSettled.ts`**: extracted **`scheduleVirtualScrollSettled`** (shared with **`VirtualizedListColumn`**); **`virtualizedScrollSettled.test.ts`** (success path, maxFrames fallback, cancel).
+
+**Navigation / layout**
+
+- **`SkipToRankedFindingsLink`**: **`data-testid="analyze-skip-to-ranked-findings"`**; Playwright asserts **`HTMLElement.click()`** path + **`document.activeElement`** on Ranked panel (clipped skip: pointer **`force`** is unreliable for React).
+- **`AnalyzePlanWorkspacePanel`**: graph legend (**hot ex / hot reads**) moved **above** the graph canvas so it no longer overlaps the skip link hit area.
+- **`AnalyzePage`**: graph-pivot **fallback** clear **6s** (was 8s) if focus never arrives.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** (`npm ci`, **`fixtures:check`**, **`npm test`**, **`npm run build`**) — **OK** (**314** Vitest tests).
+- **`./scripts/e2e-playwright-docker.sh`** (non-auth **e2e-smoke**) — **OK** (**64** passed, including skip pointer test).
+- **`mkdocs build --strict`** — **OK** (after doc edits).
+- **Backend:** unchanged.
+
+## Phase 130 — Ranked continuation, calmer arrival, skip pointer E2E, Vitest SVG noise (2026-04-09)
+
+**Ranked UX**
+
+- **`AnalyzeFindingsPanel`**: **`graphPivotOperatorShortLabel`** from **`AnalyzePage`** (`nodeShortLabel` on pivot finding’s anchor); **`pqat-rankedFindingsPanel__head`** + **`pqat-rankedThreadHint`** (**From plan · …**); **`pqat-rankedFindingsPanel--pivotContinuity`**; **`h2`** **`aria-describedby`** merges continuity + arrival cue ids.
+- **Arrival cue:** **“On the matching row — full write-up below.”** (~**2.8s**); left-accent **`pqat-rankedArrivalCue`**; inset panel shadow; **`prefers-reduced-motion`**.
+- **`.pqat-listRow--graphPivot`**: faint background wash (post-cue legibility).
+
+**Navigation**
+
+- **`#analyze-ranked-findings`**: **`scroll-margin-top`**.
+- **Skip E2E:** **`focus()`** then **`click()`** (real pointer on expanded skip).
+
+**Frontend signal**
+
+- **`src/test/setup.ts`**: **`SVGGraphicsElement.getBBox`** shim for **`.react-flow`**; **Vitest-only** **`console.error`** filter matching React **`Received NaN for the \`…\` attribute`** (jsdom + React Flow).
+- **`AnalyzePlanGraphCore`**: **dots** **`Background`** only (drops test-only **Lines** branch).
+
+**Tests:** **`AnalyzeFindingsPanel.virtual.test.tsx`** — continuity hint.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, **`docs/contributing.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**315** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**64** passed).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+
+## Phase 131 — Compare continuation parity, visual contracts, continuity trim (2026-04-11)
+
+**Compare handoff**
+
+- **`ComparePage`**: **`comparePairHandoffKind`** (`summary` | `briefing` | `pinned` | `navigator`) from triage bridge, continuity fallback, pins, else navigator.
+- **`CompareSelectedPairPanel`**: **`pairHandoffKind`** → eyebrow **Pair** + compact hint (**From summary** / **From briefing** / **Pinned focus** / **From lists**); **`data-testid="compare-visual-pair-continuation-contract"`**; **`h2`** **`aria-describedby`** for thread hint id.
+
+**Analyze continuity trim**
+
+- Ranked thread: **Continues from plan** (drops repeated operator mono in header + **Opened from detail** row cue when the ranked continuation band is active); **`data-testid="analyze-visual-ranked-continuation-contract"`** wraps ranked head + **Findings** **`h2`** when **`graphPivotFindingId`** is set.
+
+**CSS:** **`pqat-rankedContinuationContract`**; Compare pair thread band (**`.pqat-comparePairThreadHint`**).
+
+**Visual regression:** **`e2e/visual/canonical.spec.ts`** — tight crops **`analyze-ranked-continuation-contract`**, **`compare-pair-continuation-contract`** (Linux baselines).
+
+**Frontend signal:** **`src/test/setup.ts`** — React Flow **NaN** **`console.error`** filter only when **`document.querySelector('.react-flow')`** is present (stricter than unconditional filter).
+
+**Tests:** **`CompareSelectedPairPanel.test.tsx`**, **`AnalyzeFindingsPanel.virtual.test.tsx`**, **`AnalyzePage.interaction.test.tsx`**, **`e2e/persisted-flows.spec.ts`** aligned; visual README updated.
+
+**Docs:** **`docs/compare-workflow.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, **`docs/contributing.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**315** Vitest tests, **`npm run build`**).
+- **`mkdocs build --strict`** — **OK**.
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**64** passed).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**6** passed; **Compare** pair continuation crop is part of the **Compare happy path** region set).
+- **Backend:** unchanged.
+
+## Phase 132 — Responsive continuity, restored-link handoff, structural contracts (2026-04-11)
+
+**Compare**
+
+- **`compareHandoffOrigin`** (**`link`** after **`getComparison`**, **`session`** after **`onCompare`** / **Clear**).
+- **`comparePairHandoffCopy.ts`**: **`comparePairHandoffDisplayText`** — **From the summary** / **From the briefing** / **Saved link focus** / **Pinned focus** / **Saved link view** / **From the lists**.
+- **`CompareSelectedPairPanel`**: **`data-pqat-handoff-origin`** on handoff hint; continuation **`role="region"`** + **`aria-labelledby`**.
+- **Narrow:** **`layoutTier === 'narrow'`** always stacks **navigator** → **pair** in the DOM (reading + tab order).
+
+**Analyze**
+
+- **`visibleLowerReadingOrder`**: narrow **findings → suggestions → selected node**.
+- **`AnalyzeFindingsPanel`**: continuation **`role="region"`** + **`aria-labelledby`**; **`data-testid="analyze-ranked-handoff-hint"`**.
+
+**Signal:** **`setup.ts`** — clarified NaN **`console.error`** filter comment (geometry patches first).
+
+**Tests:** **`comparePairHandoffCopy.test.ts`**; **`CompareSelectedPairPanel`**, **`AnalyzeFindingsPanel.virtual`** structural assertions; **`e2e/persisted-flows`** **`data-pqat-handoff-origin`** on reopen; **`AnalyzeFindingsPanel.virtual`** **`afterEach(cleanup)`**.
+
+**Docs:** **`docs/compare-workflow.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**318** Vitest tests, **`npm run build`**).
+- **`mkdocs build --strict`** — **OK** (after doc edits).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**64** passed).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**6** passed).
+- **Backend:** unchanged.
+
+## Phase 133 — Legible Compare reopen provenance, narrow skip-to-pair, continuation a11y (2026-04-11)
+
+**Compare provenance (human-visible)**
+
+- **`comparePairHandoffCopy.ts`**: **`summary`**/**`briefing`** + **`link`** → **Summary — reopened** / **Briefing — reopened**; session strings unchanged.
+- **`data-pqat-handoff-origin`** unchanged for tests.
+
+**Narrow keyboard / focus**
+
+- **`SkipToPairInspectorLink`**: **Skip to pair inspector** (`#compare-pair-inspector-region`), **`ComparePage`** inserts it **navigator → skip → pair** when **`layoutTier === 'narrow'`** and branch strip or selected pair visible.
+- **`workstation.css`**: **`.pqat-compareNarrowShortcuts`**, **`.pqat-skipToComparePair`** (mirror Analyze skip styling).
+
+**Continuation a11y**
+
+- **`CompareSelectedPairPanel`**: region **`aria-describedby`** → handoff hint id; **`h2`** no duplicate **`aria-describedby`** for that hint.
+- **`AnalyzeFindingsPanel`**: pivot inner contract **`aria-describedby`** → **`analyze-ranked-handoff-hint`**; **`h2`** not doubly tied when arrival cue is off.
+
+**Flake hardening**
+
+- **`e2e/visual/canonical.spec.ts`**: **retry loop** (up to **5**) on **`POST /api/e2e/seed/corrupt-analysis`** before corrupt banner snapshot.
+
+**Tests**
+
+- **`comparePairHandoffCopy.test.ts`**, **`CompareSelectedPairPanel.test.tsx`**, **`AnalyzeFindingsPanel.virtual.test.tsx`**, **`SkipToPairInspectorLink.test.tsx`**.
+- **`e2e/persisted-flows.spec.ts`**: **`toContainText(/Summary — reopened/)`** on reopen + deep link (Playwright API).
+
+**Docs:** **`docs/compare-workflow.md`**, **`docs/analyze-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**321** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**64** passed).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**6** passed).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+
+## Phase 134 — Analyze reopen parity, narrow Compare keyboard proof, handoff matrix (2026-04-11)
+
+**Analyze ranked continuity**
+
+- **`analyzeRankedHandoffOrigin`** on **`AnalyzePage`**: **`link`** after **`getAnalysis`** success, **`session`** on **`onAnalyze`** start, **`Clear`**, and persisted load failure.
+- **`analyzeRankedContinuityCopy.ts`**: **`analyzeRankedPivotThreadLabel`**, **`ANALYZE_RANKED_BAND_RESTORED_HINT`** (**Ranked — reopened**).
+- **`AnalyzeFindingsPanel`**: restored band hint + pivot **Continues from plan — reopened** when **`link`**; **`data-pqat-ranked-handoff-origin`**; **`#analyze-ranked-findings`** **`aria-describedby`** when restored band hint visible.
+
+**Compare copy harmonization**
+
+- **`comparePairHandoffCopy`**: **`link`** + **pinned** / **navigator** → **Pinned — reopened** / **From the lists — reopened**.
+
+**E2E**
+
+- Narrow **800×960**: **Skip to pair inspector** **`focus()`** + **`Enter`** → **`#compare-pair-inspector-region`** focused.
+- **Analyze:** reopen export + dedicated reopen→pivot path assert **Ranked — reopened** and **Continues from plan — reopened**.
+
+**Vitest**
+
+- **`analyzeRankedContinuityCopy.test.ts`**; **`AnalyzeFindingsPanel.virtual`** (**link** pivot + restored root **`aria-describedby`**); **`CompareSelectedPairPanel`** (**briefing** / **pinned** / **navigator** + **`link`**); **`comparePairHandoffCopy.test`** expectations updated.
+
+**Docs:** **`docs/analyze-workflow.md`**, **`docs/compare-workflow.md`**, **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**329** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**66** passed).
+- **`./scripts/e2e-playwright-docker.sh --visual`** — **OK** (**6** passed).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+
+## Phase 135 — handoff proof closure (2026-04-11)
+
+**Briefing — reopened (browser)**
+
+- **Playwright:** **`rewrite_nl_orders_lineitems`** + **`rewrite_hash_orders_lineitems`** — multi-pair compare; select a non–top-worsened pair whose **`regionContinuitySummaryCue`** drives **`briefing`**; assert **`compare-selected-pair-continuity-fallback`**, **`From the briefing`**, saved URL reopen → **`Briefing — reopened`**.
+- **Fixtures:** **`scripts/sync-e2e-fixtures.sh`** / **`check-e2e-fixtures.mjs`** now include the two **NL→hash** JSON files.
+
+**Continuity cue specificity**
+
+- **`compareOutputGuidance.compareContinuityCueIsSpecific`**: treat **strategy shift** / **join strategy** substrings as specific so the pair **Reading thread** panel matches engine join-rewrite one-liners.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**332** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**66** passed, **1** flaky retry: Analyze reopen snapshot URL assertion).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+
+## Phase 136 — Analyze reopen stability, lists handoff proof, cue table (2026-04-11)
+
+**Analyze**
+
+- **`AnalyzePage`:** deep-link **`setSearchParams`** sync moved to **`useLayoutEffect`** so **`?analysis=`** is committed with the analysis shell before paint.
+- **Playwright:** **`persisted-flows`** — **`expect(page).toHaveURL(/[?&]analysis=/)`** before **`page.url()`** on paste→persist→reopen and ranked-reopen tests; **`toHaveURL(/comparison=/)`** before persisting Compare URLs where missing.
+
+**Compare**
+
+- **E2E:** **From the lists — reopened** — **`nested_loop_amplification`** + **`nested_loop_misestimation`** (synced to **`e2e/fixtures`**); scan **Worsened**/**Improved** until **`From the lists`**, reopen **`?comparison=`** → **`From the lists — reopened`**, **`data-pqat-handoff-origin="link"`**.
+
+**Continuity cue gating**
+
+- **`compareContinuityCueSpecificity.ts`** implements **`compareContinuityCueIsSpecific`**; exported golden rows **`COMPARE_CONTINUITY_CUE_CLASSIFICATION_FIXTURES`** + **`compareContinuityCueSpecificity.test.ts`**; **`compareOutputGuidance`** imports and re-exports for existing call sites.
+
+**Docs:** **`docs/compare-workflow.md`** (Phase **136** + handoff-kind footnote), **`docs/analyze-workflow.md`**, **`docs/architecture.md`**.
+
+**Verified (agent run, 2026-04-11)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**67** files, **330** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**68** passed).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+
+## Phase 137 — graph-first issue explanation, lower cognitive load (2026-04-09)
+
+**Analyze**
+
+- **`AnalyzeGraphIssueSummary`** (**`analyze-graph-issue-summary`**) — in-place **What looks wrong here** / **Why it matters** / **Inspect next** from strongest local finding (**`buildGraphNodeIssueSummary`** in **`graphNodeIssueSummaryPresentation.ts`**).
+- **`AnalyzePlanWorkspacePanel`:** **`pqat-graphInvestigationStack`** (+ **`--fillsColumn`** when paired with guide); graph default height **`clamp(240px, 30vh, 420px)`**; plan-mode hint tightened.
+- **`AnalyzeLocalFindingsShelf`:** optional **`compactWorkspacePreview`** for workspace — **More in Ranked**, shorter previews, **Full write-up in Ranked** CTA, no duplicate summary when a single finding already appears in the issue band.
+- **`AnalyzeLocalFindingsBridge`:** less repeated title/severity; Ranked CTAs read as optional depth.
+
+**Tests**
+
+- **`graphNodeIssueSummaryPresentation.test.ts`**; shelf/bridge Vitest updates; **`AnalyzePage.interaction.test.tsx`** graph-click issue summary; **`persisted-flows.spec.ts`** — issue band visible + Ranked not focused after graph-only click.
+
+**Docs:** **`docs/analyze-workflow.md`** (Phase **137** + graph height note in **122**), **`docs/architecture.md`**, this log.
+
+**Verified (agent run, 2026-04-09)**
+
+- **`./scripts/verify-frontend-docker.sh`** — **OK** (**335** Vitest tests, **`npm run build`**).
+- **`./scripts/e2e-playwright-docker.sh`** — **OK** (**68** passed).
+- **`mkdocs build --strict`** — **OK**.
+- **Backend:** unchanged.
+

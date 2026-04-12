@@ -32,9 +32,9 @@ describe('shareAppUrl', () => {
       'https://pqat.test/compare?comparison=c1&indexDiff=ii_x',
       'PQAT compare: c1',
       'Pair ref: pair_7',
-      'Pinned finding: fd_a',
-      'Pinned index insight: ii_x',
-      'Pinned suggestion: sg_y',
+      'Highlighted finding: fd_a',
+      'Highlighted index change: ii_x',
+      'Highlighted next step: sg_y',
     ])
   })
 
@@ -48,7 +48,7 @@ describe('shareAppUrl', () => {
     expect(block).not.toContain('http')
     expect(block).toContain('PQAT compare: c1')
     expect(block).toContain('Pair ref: pair_9')
-    expect(block).toContain('Pinned for link:')
+    expect(block).toContain('Link includes:')
     expect(block).toContain('index insight ii_x')
     expect(block).toContain('Rewrite outcome: Faster here.')
   })
@@ -57,5 +57,16 @@ describe('shareAppUrl', () => {
     const block = analyzeDeepLinkClipboardPayload('https://pqat.test/?analysis=a1&node=n2', 'a1', 'n2')
     expect(block).toContain('PQAT analysis: a1')
     expect(block).toContain('Node: n2')
+  })
+
+  test('analyzeDeepLinkClipboardPayload optional Start here headline after analysis id', () => {
+    const block = analyzeDeepLinkClipboardPayload('https://pqat.test/?analysis=a1', 'a1', null, {
+      startHereHeadline: 'Heavy seq scan',
+    })
+    expect(block.split('\n')).toEqual([
+      'https://pqat.test/?analysis=a1',
+      'PQAT analysis: a1',
+      'Start here: Heavy seq scan',
+    ])
   })
 })

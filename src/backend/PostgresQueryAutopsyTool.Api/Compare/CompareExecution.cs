@@ -6,6 +6,34 @@ namespace PostgresQueryAutopsyTool.Api.Compare;
 
 internal static class CompareExecution
 {
+    /// <summary>
+    /// Report/export path: use an embedded snapshot when provided; otherwise run compare from plan inputs.
+    /// </summary>
+    internal static Task<(IResult? Error, PlanComparisonResultV2? Comparison)> RunForReportAsync(
+        CompareRequestDto request,
+        bool diagnostics,
+        IPlanAnalysisService analysisService,
+        CancellationToken ct)
+    {
+        if (request.Comparison is not null)
+        {
+            var c = request.Comparison;
+            if (string.IsNullOrWhiteSpace(c.ComparisonId))
+            {
+                return Task.FromResult<(IResult?, PlanComparisonResultV2?)>((Results.BadRequest(new
+                {
+                    error = "comparison_invalid",
+                    message = "comparison.comparisonId is required when providing a comparison snapshot.",
+                }), null));
+            }
+
+            // Diagnostics are fixed in the snapshot; ?diagnostics=1 does not re-materialize matcher diagnostics.
+            return Task.FromResult<(IResult?, PlanComparisonResultV2?)>((null, c));
+        }
+
+        return RunAsync(request, diagnostics, analysisService, ct);
+    }
+
     internal static async Task<(IResult? Error, PlanComparisonResultV2? Comparison)> RunAsync(
         CompareRequestDto request,
         bool diagnostics,

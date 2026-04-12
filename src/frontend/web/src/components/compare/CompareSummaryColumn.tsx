@@ -7,6 +7,8 @@ import { CompareCaptureContextColumn } from './CompareCaptureContextColumn'
 import { CompareIndexInsightRows } from './CompareIndexInsightRows'
 import { CompareNextStepsList } from './CompareNextStepsList'
 import { prefetchCompareSelectedPairHeavySections } from './prefetchCompareSelectedPairHeavySections'
+import { ArtifactDomKind, scrollArtifactIntoView } from '../../presentation/artifactLinks'
+import { compareFollowUpDiffSignals, compareLeadTakeaway } from '../../presentation/compareOutputGuidance'
 import { normalizeComparisonStoryBeat } from '../../presentation/planReferencePresentation'
 import { comparisonStorySectionLabels } from '../../presentation/storyPresentation'
 
@@ -36,6 +38,8 @@ export type CompareSummaryColumnProps = {
   copyCompareSuggestion: ReturnType<typeof useCopyFeedback>
   shareCompareUi: { label: string; toast: string }
   onSharingSaved: () => Promise<void>
+  /** Narrow viewports: keep summary triage visible while scrolling the workspace. */
+  summaryStickyNarrow?: boolean
 }
 
 function metricToneClass(tone: 'good' | 'bad' | 'neutral' | undefined) {
@@ -68,6 +72,7 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
     copyCompareSuggestion,
     shareCompareUi,
     onSharingSaved,
+    summaryStickyNarrow,
   } = props
 
   const vis = layout.visibility
@@ -80,10 +85,9 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         return (
           <>
             <div className="pqat-summaryMetaLine">
-              ComparisonId {comparison.comparisonId} · stored in server SQLite (survives restart if the DB file is kept)
-              {appConfig?.authEnabled
-                ? ' · in auth mode, opening may require identity; link access depends on sharing settings.'
-                : ''}
+              Saved as <span className="pqat-monoMuted">{comparison.comparisonId}</span>. Keep the URL to reopen while this snapshot is still
+              stored.
+              {appConfig?.authEnabled ? ' When signed in, use Sharing below to control who can open it.' : ''}
             </div>
             <ArtifactSharingPanel
               authEnabled={appConfig?.authEnabled ?? false}
@@ -124,10 +128,15 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
         return (
           <div className="pqat-callout pqat-callout--accent" data-testid="compare-index-changes-callout">
             <div className="pqat-callout__title">Index changes</div>
-            <div className="pqat-hint pqat-pinHint" style={{ fontSize: '0.8125rem', marginBottom: 8, color: 'var(--text-secondary)' }}>
-              Click or keyboard (Arrow keys between rows, Enter to pin) sets the index insight for Copy link; pinning replaces any other
-              active pin.
-            </div>
+            <p className="pqat-hint" style={{ fontSize: '0.8125rem', margin: '0 0 8px', color: 'var(--text-secondary)' }}>
+              Select a row to choose what Copy link includes.
+            </p>
+            <details className="pqat-details pqat-details--muted" style={{ marginBottom: 8 }}>
+              <summary>Keyboard shortcuts</summary>
+              <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
+                Arrow keys move between rows; Enter selects one pin at a time.
+              </p>
+            </details>
             {indexSection.headlineResolved ? (
               <div className="pqat-hint" style={{ fontSize: '0.8125rem', marginBottom: 6, color: 'var(--text)' }}>
                 <span className="pqat-inlineMeta">Resolved highlight · </span>
@@ -158,10 +167,12 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
               />
             ) : null}
             {indexSection.chunkedNuance ? (
-              <div className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
-                Timescale-style chunked bitmap plans: indexes may already be in play; heavy I/O can still be a pruning/selectivity/shape
-                problem—not only “add an index.”
-              </div>
+              <details className="pqat-details pqat-details--muted" style={{ marginTop: 8 }}>
+                <summary>Chunked / Timescale nuance</summary>
+                <div className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
+                  Indexes may already be in play; heavy I/O can still be pruning, selectivity, or shape—not only “add an index.”
+                </div>
+              </details>
             ) : null}
           </div>
         )
@@ -182,12 +193,13 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
               Next steps after this change
             </h2>
             <div className="pqat-callout__hint">
-              Ranked compare-scoped next steps (Plan B + diff context)—not the full Analyze suggestion list. Chips show whether a row
-              targets the same Plan B node as the selected pair.
-              <span className="pqat-hint pqat-pinHint" style={{ display: 'block', marginTop: 6, marginBottom: 0 }}>
-                Pinning one next step (or a finding / index insight elsewhere) replaces the prior pin for Copy link — only one primary pin at
-                a time.
-              </span>
+              Scoped to Plan B and this comparison. Chips call out rows that line up with the selected pair&apos;s Plan B node.
+              <details className="pqat-details pqat-details--muted" style={{ marginTop: 8 }}>
+                <summary>Copy link</summary>
+                <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
+                  One selection at a time across next steps, finding changes, and index rows.
+                </p>
+              </details>
             </div>
             <CompareNextStepsList
               comparison={comparison}
@@ -209,18 +221,78 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
             {comparison.comparisonStory?.overview?.trim() ? (
               <div className="pqat-callout pqat-callout--accent" style={{ marginBottom: 12 }} aria-label="Change briefing">
                 <div className="pqat-callout__title">{comparisonStorySectionLabels().deck}</div>
-                <p className="pqat-callout__subtitle">
-                  Lead line is wall-clock posture; beats below explain where pressure moved. A faster root can still hide a worse subtree,
-                  and a slower root can still show localized wins—treat both as signals, not a single headline judgment.
-                </p>
+                <div className="pqat-triageDeck" data-testid="compare-triage-deck">
+                  {(() => {
+                    const lead = compareLeadTakeaway(comparison)
+                    return lead ? (
+                      <div
+                        className="pqat-takeawayBand pqat-takeawayBand--hero pqat-takeawayBand--primary"
+                        style={{ marginBottom: 12 }}
+                        data-testid="compare-summary-takeaway"
+                      >
+                        <p className="pqat-takeawayBand__eyebrow">Start here</p>
+                        <p className="pqat-takeawayBand__headline">{lead.headline}</p>
+                        <p className="pqat-takeawayBand__support" style={{ fontSize: '0.9375rem', color: 'var(--text-h)', fontWeight: 600 }}>
+                          {lead.line}
+                        </p>
+                      </div>
+                    ) : null
+                  })()}
+                  {(() => {
+                    const signals = compareFollowUpDiffSignals(comparison, 2)
+                    if (!signals.length) return null
+                    return (
+                      <div
+                        className="pqat-scanSignals pqat-scanSignals--compact"
+                        data-testid="compare-scan-signals"
+                        style={{ marginBottom: 12 }}
+                        aria-label="Next finding diffs to open"
+                      >
+                        <div className="pqat-scanSignals__label">Also worth opening below</div>
+                        <ol className="pqat-scanSignals__list pqat-scanSignals__list--ranked">
+                          {signals.map((s, i) => (
+                            <li key={`${s.title}-${s.diffId ?? 'x'}`} className="pqat-scanSignals__item">
+                              <span className="pqat-scanSignals__rank" aria-hidden="true">
+                                {i + 2}
+                              </span>
+                              <span className="pqat-scanSignals__title">{s.title}</span>
+                              {s.diffId ? (
+                                <button
+                                  type="button"
+                                  className="pqat-btn pqat-btn--sm pqat-btn--primary pqat-scanSignals__jump"
+                                  data-testid={`compare-scan-open-diff-${s.diffId}`}
+                                  onClick={() => {
+                                    setHighlightFindingDiffId(s.diffId!)
+                                    window.requestAnimationFrame(() =>
+                                      scrollArtifactIntoView(ArtifactDomKind.findingDiff, s.diffId!),
+                                    )
+                                  }}
+                                >
+                                  Show in list
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )
+                  })()}
+                </div>
+                <details className="pqat-details pqat-details--muted" style={{ marginBottom: 10 }}>
+                  <summary>How to read wall-clock vs structure</summary>
+                  <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
+                    The lead line is wall-clock posture; beats below show where work moved. A faster root can still hide a worse subtree, and
+                    a slower root can still show localized wins—treat them as signals, not one headline verdict.
+                  </p>
+                </details>
                 {continuitySummaryCue?.trim() ? (
                   <div
                     className="pqat-continuitySummaryCue"
                     style={{ marginTop: 8 }}
-                    aria-label="Continuity cue for the selected mapped pair or primary story beat"
+                    aria-label="Reading thread for the selected pair or primary story beat"
                   >
                     <span className="pqat-inlineMeta" id="compare-continuity-summary-label">
-                      Continuity ·{' '}
+                      Reading thread ·{' '}
                     </span>
                     <span
                       className="pqat-chip pqat-chip--suggestionMeta"
@@ -231,10 +303,6 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
                     </span>
                   </div>
                 ) : null}
-                <div className="pqat-storyLane pqat-storyLane--orientation pqat-changeStoryLead" style={{ marginTop: 8 }}>
-                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().runtime}</div>
-                  <div className="pqat-storyLane__body pqat-changeStoryLead__body">{comparison.comparisonStory.overview}</div>
-                </div>
                 {comparison.comparisonStory.changeBeats?.length ? (
                   <div className="pqat-storyLane pqat-storyLane--pressure" style={{ marginTop: 10 }}>
                     <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().structure}</div>
@@ -245,9 +313,12 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
                           <div key={`cb-${i}-${b.text.slice(0, 20)}`} className="pqat-changeStoryBeat">
                             <div className="pqat-changeStoryBeat__text">{b.text}</div>
                             {b.beatBriefing?.trim() ? (
-                              <div className="pqat-changeStoryBeat__briefing" aria-label="Plan B operator briefing">
-                                {b.beatBriefing}
-                              </div>
+                              <details className="pqat-details pqat-details--muted" style={{ marginTop: 6 }}>
+                                <summary>Plan B detail</summary>
+                                <div className="pqat-changeStoryBeat__briefing" style={{ marginTop: 8 }} aria-label="Plan B operator briefing">
+                                  {b.beatBriefing}
+                                </div>
+                              </details>
                             ) : null}
                             {b.focusNodeIdA && b.focusNodeIdB ? (
                               <button
@@ -268,16 +339,21 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
                     </div>
                   </div>
                 ) : null}
-                <div className="pqat-storyLane pqat-storyLane--action" style={{ marginTop: 10 }}>
-                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().walkthrough}</div>
-                  <div className="pqat-storyLane__body">{comparison.comparisonStory.investigationPath}</div>
-                </div>
-                <div className="pqat-storyLane pqat-storyLane--flow" style={{ marginTop: 8 }}>
-                  <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().readout}</div>
-                  <div className="pqat-storyLane__body" style={{ opacity: 0.9 }}>
-                    {comparison.comparisonStory.structuralReading}
+                <details className="pqat-details pqat-details--muted" style={{ marginTop: 10 }}>
+                  <summary>Walkthrough and structural readout</summary>
+                  <div className="pqat-detailsBody">
+                    <div className="pqat-storyLane pqat-storyLane--action" style={{ marginTop: 8 }}>
+                      <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().walkthrough}</div>
+                      <div className="pqat-storyLane__body">{comparison.comparisonStory.investigationPath}</div>
+                    </div>
+                    <div className="pqat-storyLane pqat-storyLane--flow" style={{ marginTop: 8 }}>
+                      <div className="pqat-storyLane__eyebrow">{comparisonStorySectionLabels().readout}</div>
+                      <div className="pqat-storyLane__body" style={{ opacity: 0.9 }}>
+                        {comparison.comparisonStory.structuralReading}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </details>
               </div>
             ) : null}
             {comparison.bottleneckBrief?.lines?.length ? (
@@ -311,21 +387,30 @@ export function CompareSummaryColumn(props: CompareSummaryColumnProps) {
   if (!hasAny) return null
 
   return (
-    <div className="pqat-summaryShell pqat-workspaceReveal" aria-labelledby="compare-summary-heading">
+    <div
+      className={`pqat-summaryShell pqat-workspaceReveal${summaryStickyNarrow ? ' pqat-summaryShell--stickyNarrow' : ''}`}
+      aria-labelledby="compare-summary-heading"
+    >
       <div className="pqat-summaryHeader">
         <h2 id="compare-summary-heading" className="pqat-sectionHeadline">
           Summary
         </h2>
-        <p className="pqat-help-inline" style={{ margin: '0 0 12px' }} data-testid="compare-summary-lanes-hint">
-          <strong>Summary column:</strong> <strong>Change briefing</strong> narrates the diff; <strong>Index changes</strong> and <strong>Next steps</strong> are separate—pin rows there to shape <strong>Copy link</strong> / share URL.
+        <p className="pqat-help-inline" style={{ margin: '0 0 8px' }} data-testid="compare-summary-lanes-hint">
+          Start with <strong>Change briefing</strong>, then use Index changes and Next steps to shape what <strong>Copy link</strong> carries.
         </p>
+        <details className="pqat-details pqat-details--muted" style={{ marginBottom: 10 }}>
+          <summary>How this page fits together</summary>
+          <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
+            Briefing orients you; index and next-step panels are where you pick focus for sharing.
+          </p>
+        </details>
         {vis.summaryCards ? (
           <div className="pqat-shareRow">
             {coverage ? <div className="pqat-monoMuted">{coverage}</div> : null}
             <button
               type="button"
               className="pqat-btn pqat-btn--sm"
-              title="Copies the current page URL (comparison id and query params as shown in the address bar)."
+              title="Copy this page’s URL, including comparison id and any pins in the address bar."
               onClick={() => void copyShareCompare.copy(window.location.href, shareCompareUi.toast)}
             >
               {shareCompareUi.label}

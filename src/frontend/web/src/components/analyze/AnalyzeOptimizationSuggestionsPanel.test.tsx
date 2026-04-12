@@ -122,6 +122,51 @@ describe('AnalyzeOptimizationSuggestionsPanel grouped + virtual rows', () => {
     expect(screen.getByLabelText('Jump to bottleneck rank 1 in plan')).toBeInTheDocument()
   })
 
+  it('shows triage match cue when a suggestion links to the primary triage finding', () => {
+    const s = baseSuggestion({
+      suggestionId: 'sg-triage',
+      title: 'Aligned suggestion',
+      relatedFindingIds: ['finding-top'],
+    })
+    render(
+      <AnalyzeOptimizationSuggestionsPanel
+        sortedOptimizationSuggestions={[s]}
+        expandedOptimizationId={null}
+        setExpandedOptimizationId={() => {}}
+        jumpToNodeId={() => {}}
+        byId={new Map()}
+        nodeLabel={(n) => n.nodeId}
+        primaryTriageFindingId="finding-top"
+      />,
+    )
+    expect(screen.getByTestId('analyze-suggestion-triage-match')).toHaveTextContent(/Aligned with Start here/i)
+  })
+
+  it('shows triage match when targets overlap primary finding nodes without relatedFindingIds', () => {
+    const s = baseSuggestion({
+      suggestionId: 'sg-node',
+      title: 'Node overlap',
+      relatedFindingIds: [],
+      targetNodeIds: ['n-anchor'],
+    })
+    render(
+      <AnalyzeOptimizationSuggestionsPanel
+        sortedOptimizationSuggestions={[s]}
+        expandedOptimizationId={null}
+        setExpandedOptimizationId={() => {}}
+        jumpToNodeId={() => {}}
+        byId={new Map()}
+        nodeLabel={(n) => n.nodeId}
+        primaryTriageFindingId="finding-top"
+        triageFocusNodeId={null}
+        primaryFindingNodeIds={['n-anchor', 'n2']}
+      />,
+    )
+    const card = screen.getByText('Node overlap').closest('.pqat-listRow--suggestion')
+    expect(card).toBeTruthy()
+    expect(within(card as HTMLElement).getByTestId('analyze-suggestion-triage-match')).toBeInTheDocument()
+  })
+
   it('Copy for ticket invokes clipboard helper with structured payload', async () => {
     const spy = vi.spyOn(copyModule, 'copyToClipboard').mockResolvedValue(undefined)
     const s = baseSuggestion({

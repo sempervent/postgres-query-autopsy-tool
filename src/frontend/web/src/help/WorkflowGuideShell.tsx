@@ -37,19 +37,25 @@ export function WorkflowGuideShell(props: WorkflowGuideShellProps) {
   return (
     <section
       ref={shellRef}
+      role="region"
       className="pqat-help-shell"
       id={panelId}
       data-testid={testId}
       data-pqat-help-surface="1"
+      data-pqat-help-visual-contract="1"
       aria-labelledby={titleId}
     >
-        <p className="pqat-help-shell__kicker">{kicker}</p>
-        <h2 className="pqat-help-shell__title" id={titleId} tabIndex={0}>
-          {title}
-        </h2>
-        {lede ? <p className="pqat-help-shell__lede">{lede}</p> : null}
-        <div className="pqat-help-shell__body">{children}</div>
-      {footer ? <div className="pqat-help-shell__footer">{footer}</div> : null}
+      <p className="pqat-help-shell__kicker">{kicker}</p>
+      <h2 className="pqat-help-shell__title" id={titleId} tabIndex={0}>
+        {title}
+      </h2>
+      {lede ? <p className="pqat-help-shell__lede">{lede}</p> : null}
+      <div className="pqat-help-shell__body">{children}</div>
+      {footer ? (
+        <div className="pqat-help-shell__footer" role="group" aria-label="Guided link sharing">
+          {footer}
+        </div>
+      ) : null}
     </section>
   )
 }

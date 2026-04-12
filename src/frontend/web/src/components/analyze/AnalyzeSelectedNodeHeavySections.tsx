@@ -1,19 +1,14 @@
 import type { CSSProperties } from 'react'
-import type { AnalysisFinding, AnalyzedPlanNode, PlanAnalysisResult } from '../../api/types'
+import type { AnalyzedPlanNode, PlanAnalysisResult } from '../../api/types'
 import { joinSideContextLineForNode } from '../../presentation/joinPainHints'
 import { bufferCounterRowsForApiNode, planNodeApiHasAnyBufferCounter } from '../../presentation/bufferFieldsPresentation'
 import { getWorkersFromPlanNode, workerTableRows } from '../../presentation/workerPresentation'
 
-function severityLabel(sev: number) {
-  return ['Info', 'Low', 'Medium', 'High', 'Critical'][sev] ?? String(sev)
-}
-
 export function AnalyzeSelectedNodeHeavySections(props: {
   analysis: PlanAnalysisResult
   selectedNode: AnalyzedPlanNode
-  findingsForSelectedNode: AnalysisFinding[]
 }) {
-  const { analysis, selectedNode, findingsForSelectedNode } = props
+  const { analysis, selectedNode } = props
 
   return (
     <>
@@ -124,16 +119,6 @@ export function AnalyzeSelectedNodeHeavySections(props: {
         <pre style={{ marginTop: 6, overflow: 'auto', fontSize: 11 }}>{JSON.stringify(selectedNode.metrics, null, 2)}</pre>
       </details>
 
-      <div style={{ marginTop: 10 }}>
-        <b>Findings for this node ({findingsForSelectedNode.length})</b>
-        <ul style={{ marginTop: 6 }}>
-          {findingsForSelectedNode.slice(0, 12).map((f) => (
-            <li key={f.findingId}>
-              [{severityLabel(f.severity)}] {f.title} <span style={{ opacity: 0.8 }}>({f.ruleId})</span>
-            </li>
-          ))}
-        </ul>
-      </div>
     </>
   )
 }

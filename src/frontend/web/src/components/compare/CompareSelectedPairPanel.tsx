@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useId } from 'react'
 import type { AnalyzedPlanNode, NodePairDetail, OptimizationSuggestion, PlanComparisonResult } from '../../api/types'
 import {
   buildCompareDeepLinkSearchParams,
@@ -11,10 +11,17 @@ import { appUrlForPath, compareCompactPinContextPayload, compareDeepLinkClipboar
 import { TechnicalPairIdsCollapsible } from '../TechnicalIdCollapsible'
 import { pairBriefingLines } from '../../presentation/briefingReadoutPresentation'
 import { pairContinuitySectionTitle } from '../../presentation/compareContinuityPresentation'
+import {
+  comparePairHandoffDisplayText,
+  type ComparePairHandoffKind,
+  type ComparePairHandoffOrigin,
+} from './comparePairHandoffCopy'
 
 const CompareSelectedPairHeavySections = lazy(() =>
   import('./CompareSelectedPairHeavySections').then((m) => ({ default: m.CompareSelectedPairHeavySections })),
 )
+
+export type { ComparePairHandoffKind, ComparePairHandoffOrigin }
 
 export type CompareSelectedPairPanelProps = {
   comparison: PlanComparisonResult
@@ -31,6 +38,14 @@ export type CompareSelectedPairPanelProps = {
   highlightSuggestionId: string | null
   compareOptForPair: OptimizationSuggestion | null
   pairSubtitle: (pair: NodePairDetail) => string | null
+  /** Compact handoff from summary / pins / navigator ranking (Phase 110). */
+  triageBridgeLine?: string | null
+  /** When the bridge is empty, carry summary continuity into the pair (e.g. URL-opened highlights — Phase 112–113). */
+  continuityPairFallback?: { label: string; body: string } | null
+  /** Compact thread hint beside the pair heading (Phase 131). */
+  pairHandoffKind?: ComparePairHandoffKind | null
+  /** Saved artifact link vs comparison run this session — refines handoff wording (Phase 132). */
+  pairHandoffOrigin?: ComparePairHandoffOrigin
 }
 
 function PairHeavyFallback() {
@@ -43,7 +58,7 @@ function PairHeavyFallback() {
       style={{ marginTop: 12 }}
     >
       <p className="pqat-hint pqat-panelHintDense" style={{ margin: '0 0 8px', color: 'var(--text-secondary)' }}>
-        Loading metrics, evidence, and finding context for this pair…
+        Loading metrics and evidence for this pair…
       </p>
       {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="pqat-panelSkeleton__row" style={{ width: `${68 + (i % 4) * 7}%` }} />
@@ -67,7 +82,16 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
     highlightSuggestionId,
     compareOptForPair,
     pairSubtitle,
+    triageBridgeLine,
+    continuityPairFallback,
+    pairHandoffKind: pairHandoffKindProp,
+    pairHandoffOrigin = 'session',
   } = props
+
+  const pairContinuityId = useId()
+  const pairHandoffKind = selectedDetail ? (pairHandoffKindProp ?? 'navigator') : null
+  /** Region carries supplementary text once (Phase 133); avoid duplicating on the heading. */
+  const pairRegionDescribedBy = pairHandoffKind ? pairContinuityId : undefined
 
   const pinnedSummaryLine = formatComparePinnedSummaryLine({
     findingDiffId: highlightFindingDiffId,
@@ -77,9 +101,55 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
 
   return (
     <>
-      <h2 id="compare-selected-pair-heading" style={{ marginTop: 0, color: 'var(--text-h)', fontSize: '1.05rem', fontWeight: 700 }}>
-        Selected node pair
-      </h2>
+      {pairHandoffKind ? (
+        <div
+          data-testid="compare-visual-pair-continuation-contract"
+          className="pqat-comparePairContinuityBand"
+          role="region"
+          aria-labelledby="compare-selected-pair-heading"
+          aria-describedby={pairRegionDescribedBy}
+        >
+          <div className="pqat-comparePairContinuityBand__head">
+            <div className="pqat-eyebrow">Pair</div>
+            <span
+              data-testid="compare-pair-handoff-hint"
+              data-pqat-handoff-origin={pairHandoffOrigin}
+              id={pairContinuityId}
+              className="pqat-comparePairThreadHint"
+            >
+              {comparePairHandoffDisplayText(pairHandoffKind, pairHandoffOrigin)}
+            </span>
+          </div>
+          <h2 id="compare-selected-pair-heading" style={{ marginTop: 0, color: 'var(--text-h)', fontSize: '1.05rem', fontWeight: 700 }}>
+            Selected node pair
+          </h2>
+        </div>
+      ) : (
+        <h2 id="compare-selected-pair-heading" style={{ marginTop: 0, color: 'var(--text-h)', fontSize: '1.05rem', fontWeight: 700 }}>
+          Selected node pair
+        </h2>
+      )}
+      {selectedDetail && triageBridgeLine?.trim() ? (
+        <div
+          className="pqat-comparePairTriageBridge"
+          data-testid="compare-selected-pair-triage-bridge"
+          role="note"
+          aria-label="How this pair connects to the summary"
+        >
+          <div className="pqat-comparePairTriageBridge__label">Context</div>
+          <div>{triageBridgeLine.trim()}</div>
+        </div>
+      ) : selectedDetail && continuityPairFallback?.body?.trim() ? (
+        <div
+          className="pqat-comparePairTriageBridge pqat-comparePairTriageBridge--soft"
+          data-testid="compare-selected-pair-continuity-fallback"
+          role="note"
+          aria-label="How this pair relates to the change briefing"
+        >
+          <div className="pqat-comparePairTriageBridge__label">{continuityPairFallback.label.trim() || 'Reading thread'}</div>
+          <div>{continuityPairFallback.body.trim()}</div>
+        </div>
+      ) : null}
       {selectedDetail ? (
         <div className="pqat-readoutShell" style={{ marginTop: 4 }} aria-label="Pair readout">
           <div className="pqat-readoutKicker">Matched operators</div>
@@ -167,7 +237,7 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
                 data-testid="compare-copy-pin-context"
                 className="pqat-btn pqat-btn--sm pqat-btn--ghost"
                 aria-label="Copy pin context: ticket text without URL"
-                title="Pin context: short block for chat/tickets (no URL). Not a shareable deep link—use Copy link for that, or Copy guided link in the workflow guide for onboarding (?guide=1)."
+                title="Pin context: short block for chat/tickets (no URL). Not a shareable deep link—use Copy link for that, or the guide footer’s merged/entry guided links for onboarding (?guide=1)."
                 onClick={async () => {
                   const text = compareCompactPinContextPayload(
                     comparison.comparisonId,
@@ -193,13 +263,15 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
           ) : null}
           <p className="pqat-help-inline" style={{ marginTop: 10 }} data-testid="compare-copy-actions-hint">
             <strong>Copy reference</strong> = human pair summary. <strong>Copy link</strong> = shareable URL for this comparison (plus pins when set).{' '}
-            <strong>Copy pin context</strong> = ticket/chat text only (no URL). For onboarding, use <strong>Copy guided link</strong> in the workflow guide (merges{' '}
-            <code>guide=1</code> into the address bar)—not these snapshot copy actions.
+            <strong>Copy pin context</strong> = ticket/chat text only (no URL). For onboarding, use the guide’s <strong>Copy merged guided link</strong> (keeps this view’s query) or{' '}
+            <strong>Copy entry guided link</strong> (<code>?guide=1</code> only)—not these snapshot actions.
           </p>
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
               data-testid="compare-copy-pair-reference"
+              aria-label="Copy reference: human-readable pair summary for tickets"
+              title="Human-readable pair summary (PQAT compare line, operators, rewrite outcome). Not the shareable URL—use Copy link for that."
               onClick={async () => {
                 const text = pairReferenceText(selectedDetail, byIdA, byIdB, {
                   comparisonId: comparison.comparisonId,
@@ -215,7 +287,7 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
               type="button"
               data-testid="compare-copy-deep-link"
               aria-label="Copy link: shareable URL and pinned compare state"
-              title="Shareable link: URL + PQAT compare line + Pair ref + pinned finding/index/suggestion when set. Different from Copy guided link in the guide (merges ?guide=1 for onboarding)."
+              title="Shareable link: URL + PQAT compare line + Pair ref + pinned finding/index/suggestion when set. Different from the guide’s merged/entry guided links (?guide=1 onboarding only)."
               onClick={async () => {
                 const params = buildCompareDeepLinkSearchParams({
                   comparisonId: comparison.comparisonId,
@@ -253,8 +325,12 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>{pairSubtitle(selectedDetail)}</div>
           ) : null}
           {compareOptForPair ? (
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.92 }} aria-label="Compare suggestion for this pair">
-              <b>Related compare next step</b>
+            <div
+              className="pqat-comparePairNextStep"
+              style={{ marginTop: 10, fontSize: 12, opacity: 0.92 }}
+              aria-label="Suggested follow-up for this pair"
+            >
+              <b>Suggested follow-up</b>
               <div style={{ marginTop: 4, fontWeight: 700 }}>{compareOptForPair.title}</div>
               <div style={{ marginTop: 4 }}>{compareOptForPair.summary}</div>
               {compareOptForPair.recommendedNextAction ? (
@@ -289,7 +365,9 @@ export function CompareSelectedPairPanel(props: CompareSelectedPairPanelProps) {
           </Suspense>
         </>
       ) : (
-        <p style={{ opacity: 0.85, marginTop: 8 }}>Select an improved/worsened node or diff finding to inspect a matched pair.</p>
+        <p style={{ opacity: 0.85, marginTop: 8 }}>
+          Pick a row in the navigator — worsened, improved, or a finding change — to open the matched pair here.
+        </p>
       )}
     </>
   )

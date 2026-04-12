@@ -13,6 +13,11 @@ FILES=(
   rewrite_index_ordered_shipments.json
   rewrite_access_idx_shipments.json
   rewrite_access_bitmap_shipments.json
+  nl_inner_seq_heavy.json
+  rewrite_nl_orders_lineitems.json
+  rewrite_hash_orders_lineitems.json
+  nested_loop_amplification.json
+  nested_loop_misestimation.json
 )
 for f in "${FILES[@]}"; do
   cp "$SRC/$f" "$DST/$f"

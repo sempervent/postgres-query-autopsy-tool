@@ -7,6 +7,9 @@ import { applyGraphView, shouldAutoFitOnVisibilityChange, toggleCollapsed } from
 import { AnalyzePlanTextTree } from './AnalyzePlanTextTree'
 import type { AnalyzeWorkspaceLayoutApi } from '../../analyzeWorkspace/useAnalyzeWorkspaceLayout'
 import { AnalyzeWorkspaceCustomizer } from './AnalyzeWorkspaceCustomizer'
+import { AnalyzeGraphIssueSummary } from './AnalyzeGraphIssueSummary'
+import { AnalyzeLocalFindingsShelf } from './AnalyzeLocalFindingsShelf'
+import { SkipToRankedFindingsLink } from './SkipToRankedFindingsLink'
 
 export function AnalyzePlanWorkspacePanel(props: {
   layoutApi: AnalyzeWorkspaceLayoutApi
@@ -26,6 +29,8 @@ export function AnalyzePlanWorkspacePanel(props: {
   matchIdx: number
   selectGraphHit: (i: number) => void
   jumpToNodeId: (id: string) => void
+  findingsForSelectedNode: import('../../api/types').AnalysisFinding[]
+  onSeeFindingInRankedList: (findingId: string) => void
   selectedNodeId: string | null
   setSelectedNodeId: (id: string | null) => void
   collapsed: Set<string>
@@ -35,6 +40,8 @@ export function AnalyzePlanWorkspacePanel(props: {
   childrenById: Map<string, string[]>
   rootId: string | null
   nodeLabel: (n: AnalyzedPlanNode) => string
+  /** When Ranked column is visible, offer skip link after local evidence (Phase 126). */
+  showSkipToRankedFindings?: boolean
 }) {
   const {
     layoutApi,
@@ -52,6 +59,8 @@ export function AnalyzePlanWorkspacePanel(props: {
     matchIdx,
     selectGraphHit,
     jumpToNodeId,
+    findingsForSelectedNode,
+    onSeeFindingInRankedList,
     selectedNodeId,
     setSelectedNodeId,
     setCollapsed,
@@ -61,9 +70,12 @@ export function AnalyzePlanWorkspacePanel(props: {
     rootId,
     nodeLabel,
     analysis,
+    showSkipToRankedFindings = false,
   } = props
 
   const byId = new Map(analysis.nodes.map((n) => [n.nodeId, n]))
+  const selectedPlanNode = selectedNodeId ? (byId.get(selectedNodeId) ?? null) : null
+  const operatorLabel = selectedPlanNode ? nodeLabel(selectedPlanNode) : null
 
   useEffect(() => {
     if (treeMode !== 'graph' || !graph) return
@@ -103,7 +115,7 @@ export function AnalyzePlanWorkspacePanel(props: {
         </div>
       </div>
       <p className="pqat-hint">
-        Narrative and inspect-next sit beside the graph on wide screens; narrow view stacks the guide under the graph. Use <b>Customize workspace</b> to show, hide, or reorder panels—preferences persist locally; with auth + API credentials they also sync to your account.
+        <b>Customize workspace</b> controls which panels appear and in what order (saved per device; syncs with account when signed in).
       </p>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
         <div className="pqat-seg" role="group" aria-label="Plan view mode">
@@ -125,10 +137,7 @@ export function AnalyzePlanWorkspacePanel(props: {
           </button>
         </div>
         <div className="pqat-help-inline" style={{ margin: 0, flex: '1 1 200px' }} data-testid="analyze-plan-view-mode-hint">
-          <strong>Graph</strong> = spatial view with hotspots. <strong>Text</strong> = the same tree, compact. Both drive the same selection.
-        </div>
-        <div className="pqat-hint" style={{ margin: 0 }}>
-          Tip: inspect-next and findings jump the graph selection.
+          <strong>Graph</strong> or <strong>Text</strong> — same selection; the readout under the plan shows what matters for the node you pick.
         </div>
       </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
@@ -172,6 +181,10 @@ export function AnalyzePlanWorkspacePanel(props: {
               next
             </button>
           </div>
+          <p className="pqat-hint pqat-graphLegendHint" style={{ marginTop: 0, marginBottom: 8 }}>
+            <span style={{ fontFamily: 'var(--mono)' }}>hot ex</span> exclusive time ·{' '}
+            <span style={{ fontFamily: 'var(--mono)' }}>hot reads</span> buffer read pressure
+          </p>
           {graphSearch.trim().length && graphHits.length ? (
             <div
               className="pqat-panel pqat-panel--tool"
@@ -182,7 +195,7 @@ export function AnalyzePlanWorkspacePanel(props: {
                 overflow: 'auto',
               }}
             >
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 6 }}>Matches (click to jump)</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 6 }}>Matches (click to select)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {graphHits.slice(0, 25).map((h, i) => (
                   <button
@@ -210,8 +223,12 @@ export function AnalyzePlanWorkspacePanel(props: {
               </div>
             </div>
           ) : null}
-          <AnalyzePlanGraphLazy
+          <div
+            className={`pqat-graphInvestigationStack${pairedWithGuide ? ' pqat-graphInvestigationStack--fillsColumn' : ''}`}
+          >
+            <AnalyzePlanGraphLazy
             graphFillColumn={pairedWithGuide}
+            graphHeight="clamp(240px, 30vh, 420px)"
             nodes={(graphView?.nodes ?? graph.nodes).map((n) => ({
               ...n,
               data: { ...n.data, hasChildren: (childrenById.get(n.id)?.length ?? 0) > 0 },
@@ -231,11 +248,24 @@ export function AnalyzePlanWorkspacePanel(props: {
               })
             }}
             reframeToken={reframeToken}
-          />
-          <p className="pqat-hint" style={{ marginTop: 8, marginBottom: 0 }}>
-            Legend: <span style={{ fontFamily: 'var(--mono)' }}>hot ex</span> = exclusive runtime hotspot,{' '}
-            <span style={{ fontFamily: 'var(--mono)' }}>hot reads</span> = shared-read hotspot.
-          </p>
+            />
+            {selectedNodeId ? (
+              <>
+                <AnalyzeGraphIssueSummary
+                  findingsForSelectedNode={findingsForSelectedNode}
+                  operatorLabel={operatorLabel}
+                />
+                <AnalyzeLocalFindingsShelf
+                  variant="workspace"
+                  compactWorkspacePreview
+                  findings={findingsForSelectedNode}
+                  onSeeInRankedList={onSeeFindingInRankedList}
+                  testId="analyze-graph-local-findings-shelf"
+                />
+              </>
+            ) : null}
+          </div>
+          <SkipToRankedFindingsLink visible={Boolean(selectedNodeId && showSkipToRankedFindings)} />
         </div>
       ) : rootId ? (
         pairedWithGuide ? (
@@ -249,17 +279,51 @@ export function AnalyzePlanWorkspacePanel(props: {
               nodeSearch={nodeSearch}
               nodeLabel={nodeLabel}
             />
+            {selectedNodeId ? (
+              <>
+                <AnalyzeGraphIssueSummary
+                  findingsForSelectedNode={findingsForSelectedNode}
+                  operatorLabel={operatorLabel}
+                />
+                <AnalyzeLocalFindingsShelf
+                  variant="workspace"
+                  compactWorkspacePreview
+                  findings={findingsForSelectedNode}
+                  onSeeInRankedList={onSeeFindingInRankedList}
+                  testId="analyze-graph-local-findings-shelf"
+                />
+              </>
+            ) : null}
+            <SkipToRankedFindingsLink visible={Boolean(selectedNodeId && showSkipToRankedFindings)} />
           </div>
         ) : (
-          <AnalyzePlanTextTree
-            rootId={rootId}
-            byId={byId}
-            childrenById={childrenById}
-            selectedNodeId={selectedNodeId}
-            setSelectedNodeId={setSelectedNodeId}
-            nodeSearch={nodeSearch}
-            nodeLabel={nodeLabel}
-          />
+          <>
+            <AnalyzePlanTextTree
+              rootId={rootId}
+              byId={byId}
+              childrenById={childrenById}
+              selectedNodeId={selectedNodeId}
+              setSelectedNodeId={setSelectedNodeId}
+              nodeSearch={nodeSearch}
+              nodeLabel={nodeLabel}
+            />
+            {selectedNodeId ? (
+              <>
+                <AnalyzeGraphIssueSummary
+                  findingsForSelectedNode={findingsForSelectedNode}
+                  operatorLabel={operatorLabel}
+                />
+                <AnalyzeLocalFindingsShelf
+                  variant="workspace"
+                  compactWorkspacePreview
+                  findings={findingsForSelectedNode}
+                  onSeeInRankedList={onSeeFindingInRankedList}
+                  testId="analyze-graph-local-findings-shelf"
+                />
+              </>
+            ) : null}
+            <SkipToRankedFindingsLink visible={Boolean(selectedNodeId && showSkipToRankedFindings)} />
+          </>
         )
       ) : null}
     </div>

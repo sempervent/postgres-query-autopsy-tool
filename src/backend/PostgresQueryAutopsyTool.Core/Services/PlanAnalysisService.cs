@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using PostgresQueryAutopsyTool.Core.Analysis;
 using PostgresQueryAutopsyTool.Core.Comparison;
 using PostgresQueryAutopsyTool.Core.Domain;
@@ -393,6 +394,41 @@ AnalysisId: {analysis.AnalysisId}
 </html>";
     }
 
+    /// <summary>Phase 115: compact guided lead for exports (mirrors in-app “Change at a glance” intent).</summary>
+    private static string? BuildCompareReadingThreadLead(PlanComparisonResultV2 comparison)
+    {
+        var overview = comparison.ComparisonStory?.Overview?.Trim();
+        if (!string.IsNullOrEmpty(overview))
+            return ClipCompareExportLine(overview, 360);
+
+        var hot = comparison.FindingsDiff.Items
+            .Where(i => i.ChangeType is FindingChangeType.New or FindingChangeType.Worsened)
+            .OrderByDescending(i => i.ChangeType == FindingChangeType.New ? 2 : 1)
+            .ThenByDescending(i => (int)(i.SeverityB ?? FindingSeverity.Info))
+            .FirstOrDefault();
+        if (hot is null) return null;
+        var line = $"{hot.Title}: {hot.Summary}".Trim();
+        return ClipCompareExportLine(line, 360);
+    }
+
+    private static string ClipCompareExportLine(string s, int max)
+    {
+        var collapsed = Regex.Replace(s, @"\s+", " ").Trim();
+        if (collapsed.Length <= max) return collapsed;
+        return collapsed[..(max - 1)] + "…";
+    }
+
+    private static string FormatCompareReadingThreadMarkdown(PlanComparisonResultV2 comparison)
+    {
+        var lead = BuildCompareReadingThreadLead(comparison);
+        if (lead is null) return "";
+        return $@"## Reading thread
+
+**Change at a glance** — {lead}
+
+";
+    }
+
     public string RenderCompareMarkdownReport(PlanComparisonResultV2 comparison)
     {
         string FormatTop(NodeDelta d)
@@ -428,9 +464,11 @@ AnalysisId: {analysis.AnalysisId}
         var sideA = PlanCaptureMarkdownFormatter.FormatSideHeaderMarkdown("Plan A (baseline)", comparison.PlanA);
         var sideB = PlanCaptureMarkdownFormatter.FormatSideHeaderMarkdown("Plan B (changed)", comparison.PlanB);
 
+        var readingThreadMd = FormatCompareReadingThreadMarkdown(comparison);
+
         return $@"# Postgres Query Autopsy Compare Report
 
-ComparisonId: {comparison.ComparisonId}
+{readingThreadMd}ComparisonId: {comparison.ComparisonId}
 
 ## Plan capture & EXPLAIN context (per side)
 {sideA}
@@ -585,6 +623,12 @@ ComparisonId: {comparison.ComparisonId}
 <p><b>Investigation path:</b> {System.Net.WebUtility.HtmlEncode(story.InvestigationPath)}</p>
 <p><b>Structural read:</b> {System.Net.WebUtility.HtmlEncode(story.StructuralReading)}</p>{beatsSection}";
 
+        var readingThreadLead = BuildCompareReadingThreadLead(comparison);
+        var readingThreadHtml = readingThreadLead is null
+            ? ""
+            : "<h2>Reading thread</h2>\n<p><b>Change at a glance</b> — " +
+              System.Net.WebUtility.HtmlEncode(readingThreadLead) + "</p>\n";
+
         var planCaptureHtml =
             "<h2>Plan capture &amp; EXPLAIN context (per side)</h2>\n" +
             PlanCaptureMarkdownFormatter.FormatSideHeaderHtml("Plan A (baseline)", comparison.PlanA) +
@@ -632,6 +676,7 @@ ComparisonId: {comparison.ComparisonId}
 </head>
 <body>
   <h1>Postgres Query Autopsy — Compare</h1>
+  {readingThreadHtml}
   <p><b>ComparisonId:</b> {System.Net.WebUtility.HtmlEncode(comparison.ComparisonId)}</p>
   {planCaptureHtml}
   <h2>Summary</h2>

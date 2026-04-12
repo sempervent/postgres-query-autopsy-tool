@@ -3,7 +3,7 @@
 ## Input
 
 1. Paste plan output: **plain EXPLAIN JSON** or typical **`psql` QUERY PLAN** cell text (header, separators, `(N rows)`, `+` wraps—see [Capturing EXPLAIN JSON](capturing-explain-json.md)). Prefer `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON)` when you need forensic evidence; planner **`COSTS`** are optional.
-2. Optionally paste the source SQL query text (stored on the server with the analysis when provided).
+2. Optionally paste the source SQL query text (saved with the analysis when provided).
 3. Optionally expand **Suggested EXPLAIN command** to generate copy-paste SQL (toggles for `ANALYZE`, `VERBOSE`, `BUFFERS`, and explicit `COSTS true`/`false`) and, if **Send EXPLAIN options with analyze request** is checked, attach declared options plus an optional “recorded command” to the API payload (`explainMetadata`).
 4. Click **Analyze**.
 
@@ -22,16 +22,231 @@
 
 ## Help lifecycle, focus, and support entry (Phase 103)
 
-- **Focus:** When the guide opens from **How to use…**, **`?`**, or **`?guide=1`**, focus moves to the guide **`h2`** (programmatic focus, **`tabIndex={-1}`**). Auto-open on first empty visit and **Clear** do **not** steal focus from the plan field.
+- **Focus:** When the guide opens from **How to use…**, **`?`**, or **`?guide=1`**, focus moves to the guide **`h2`** (programmatic focus, **`tabIndex={0}`**). Auto-open on first empty visit and **Clear** do **not** steal focus from the plan field.
 - **Close:** **Esc** closes the guide when the event target is **not** an **`input` / `textarea` / `select` / `contenteditable`** (same ignore rule as **`?`**). After an explicit close (**Hide guide** or **Esc**), focus returns to the bar toggle.
-- **Support:** **Copy guided link** (guide footer) copies **`{origin}{path}?guide=1`** only—distinct from **Copy share link** on a saved analysis.
-- **E2E:** Playwright proves **`localStorage`** dismissal survives **reload** and that **`?guide=1`** still reopens; clipboard + **Esc** + focus return are covered in **`persisted-flows.spec.ts`**.
+- **Support:** Guide footer **Copy merged guided link** / **Copy entry guided link**—**merged** uses **`buildCopyGuidedLinkUrlFromLocation`** (keeps query + hash); **entry** uses **`buildWorkflowGuideAbsoluteUrl(pathname)`** (**`?guide=1`** only). Both are distinct from **Copy share link** on a saved analysis.
+- **E2E:** Playwright proves **`localStorage`** dismissal survives **reload** and that **`?guide=1`** still reopens; merged/entry guided clipboard + guide announcer lifecycle + **Esc** + focus return are covered in **`persisted-flows.spec.ts`**.
 
 ## Help accessibility and guided-link merge (Phase 104)
 
 - **Screen readers:** **`data-testid="analyze-workflow-guide-announcer"`** ( **`aria-live="polite"`**, **`aria-atomic="true"`** ) announces explicit open (**“Analyze workflow guide opened”**), close (**“…closed”**), and **“Guided help opened from link”** when **`?guide=`** opens the panel. Auto-open on first empty visit does not announce. Copy is cleared after a few seconds to limit noise.
 - **Tab loop:** After an **explicit** open (**How to use…**, **`?`**, **`?guide=`**), **Tab** / **Shift+Tab** wrap between the first and last focusable inside **`pqat-help-shell`** (capture listener on the section). **Clear** / empty-state auto-open does not enable the loop. **Esc** and non-modal behavior unchanged.
-- **Copy guided link:** **`buildCopyGuidedLinkUrlFromLocation`** sets **`guide=1`** on the live **`window.location`** (path + search + hash), preserving other params—distinct from **Copy share link** on a saved analysis.
+- **Merged guided URL:** **`buildCopyGuidedLinkUrlFromLocation`** sets **`guide=1`** on the live **`window.location`** (path + search + hash), preserving other params—distinct from **Copy share link** on a saved analysis.
+
+## Help landmarks, dual guided links, and browser announcer proof (Phase 105)
+
+- **Landmarks:** **`WorkflowGuideShell`** is **`role="region"`** with **`aria-labelledby`** on the guide title; the footer wrapper is **`role="group"`** **`aria-label="Guided link sharing"`**.
+- **Guided links:** Footer **Copy merged guided link** + **Copy entry guided link** (see **Support** above). Playwright asserts clipboard shape for each; Vitest covers **`?guide=`** announcer via **`MemoryRouter`**.
+- **E2E announcer:** **`persisted-flows.spec.ts`** asserts **`analyze-workflow-guide-announcer`** / **`compare-workflow-guide-announcer`** text for explicit open/close and **“Guided help opened from link”** after dismiss + **`?guide=1`** navigation.
+
+## Example entry, triage-first summary, lighter copy (Phase 107)
+
+- **Try a sample:** **`TryAnalyzeExampleChips`** (capture when no result yet + **Analyze** guide) loads bundled JSON from **`src/examples/plans/`** (kept in sync with **`e2e/fixtures`**). **`onAnalyze(overridePlanText?)`** avoids stale state when running immediately after load.
+- **Triage:** **`analyzeTakeawayFromResult`** drives **`analyze-summary-takeaway`** (**Start here**): top finding → else first inspect step → else plan overview. **Plan briefing** keeps primary lanes; **flow / index shape** and long “why sections differ” text move behind **`<details>`**; **Plan source & EXPLAIN metadata** is collapsed by default.
+- **Copy:** Fewer “server / artifact” phrases on the primary path; persistence lines describe **saved in this app’s database** and **share links** in user terms.
+- **Tests:** Vitest (example flow, takeaway helper); Playwright **`persisted-flows`** **Try example** smoke; **`data-testid`** `*-capture` / `*-help` suffixes avoid duplicate id collisions.
+
+## Scan-first summary, expanded samples, findings cascade (Phase 108)
+
+- **Examples:** Three **Analyze** samples at ship (**simple seq scan**, **sort pressure**, **index + ordering**) plus two **Compare** pairs — see **`src/examples/README.md`**. Phase **109** adds a fourth Analyze sample (**join-heavy nested loop**).
+- **Triage strip:** **`analyzeFollowUpScanSignals`** renders **`analyze-scan-signals`** (**Also scan**) with jump buttons; heading **`analyze-summary-heading`** (**Summary**); **Plan metrics** live under **Analysis id & plan counts** **`<details>`**; **Plan briefing** shows **Start here** inspect lane first, with **overview / work / drivers** collapsed.
+- **Cascade:** **`primaryTriageFindingId`** from the takeaway highlights the matching **Findings** row (**Matches summary** cue).
+- **E2E:** **`analyze-optimization-suggestions-panel`** stabilizes **Copy for ticket**; Analyze flow waits on **`analyze-summary-heading`** instead of the old longer title string.
+
+## Virtualized findings + suggestions tied to triage (Phase 110)
+
+- **Findings:** Long lists still scroll the **Matches summary** row into view via **`VirtualizedListColumn`** **`scrollToIndex`** (same primary finding as **Start here**).
+- **Suggestions:** Evidence alignment with **Start here** (Phase **111** expands this—see below).
+- **Motion:** Programmatic scroll respects **`prefers-reduced-motion`** (**`motionPreferences`**); **`scrollArtifactIntoView`** uses the same helper.
+- **Narrow:** Sticky summary/triage uses **`--pqat-sticky-top-offset`** so bands sit below the app top bar.
+
+## Guided-path cohesion + triage suggestion expansion (Phase 111)
+
+- **Suggestions:** **`suggestionAlignsWithAnalyzeTriage`** marks cards **Aligned with Start here** when **`relatedFindingIds`** matches, **`triageFocusNodeId`** is in **`targetNodeIds`**, or suggestion targets overlap the primary finding’s **`nodeIds`**.
+- **Plan guide:** **`analyze-guide-jump-primary-finding`** scrolls the **Findings** list to the **Start here** row when the takeaway is finding-driven.
+- **Selected node:** When the node-scoped suggestion is the **top-ranked** experiment **and** aligns with triage, a compact cue (**`analyze-selected-node-top-next-cue`**) ties **Next steps** to **Start here**.
+- **Sticky:** **`useStickyTopOffsetSync`** (in **`App`**) measures **`.topBar`** and sets **`--pqat-sticky-top-offset`** on resize so narrow sticky bands track real chrome height.
+
+## Triage continuity, exports, calmer system surfaces (Phase 112)
+
+- **Virtualized suggestions:** When the list is virtualized and a row aligns with **Start here**, **`AnalyzeOptimizationSuggestionsPanel`** scrolls that row into view via **`VirtualizedListColumn`** **`scrollToIndex`** (**`firstVirtualRowIndexAlignedWithAnalyzeTriage`** in **`analyzeOutputGuidance.ts`**).
+- **Plan guide:** **`triagePrimaryRoute`** — finding-driven takeaways keep **Open Start here finding in list**; step-driven takeaways get **Jump to plan focus** (**`analyze-guide-jump-triage-plan`**) instead of a no-op finding jump.
+- **Exports / share parity:** Client-side **`analyzeExportTriage.ts`** augments downloaded **Markdown** (preamble), **HTML** (injected block), and **JSON** (**`pqatExportTriage`** envelope) with compact **Start here** + primary finding id when known. **Copy share link** / deep-link clipboard payloads can include a **Start here** headline line (**`shareAppUrl.analyzeDeepLinkClipboardPayload`**).
+- **System copy:** **`artifactErrorPresentation`** tightens error titles; capture panels use calmer reopen/loading lines; summary persistence hint is slightly less mechanical.
+- **Sticky:** Narrow sticky shells add **`env(safe-area-inset-top)`** on top of **`--pqat-sticky-top-offset`** (**`workstation.css`**) for notched / inset layouts.
+
+## Guided-flow cohesion, error next steps, virtual proof (Phase 113)
+
+- **Plan guide echo:** **`analyze-guide-triage-echo`** no longer repeats the **Start here** headline—one line points back to the summary band; jump buttons unchanged.
+- **Selected node:** Continuity strip references the summary headline without duplicating it; top-next cue shortened.
+- **Errors:** **`artifactErrorBannerNextStep`** adds a single actionable line under **`ArtifactErrorBanner`** when the pattern is known (not found, corrupt, schema, plan parse, network).
+- **Virtual scroller test id:** **`analyze-suggestions-virtual-scroller`** on long suggestion lists; Playwright **`persisted-flows`** pads **`/api/analyze`** responses to force virtualization, targets the **single** scroll-target row **`analyze-suggestion-card-triage-aligned`** (first triage-aligned virtual row), and asserts **viewport visibility** plus **intersection with the scroll container** (Phase **114**), not only DOM presence of **Aligned with Start here**.
+- **Plan guide echo (Phase 114):** When the summary path is **overview** + **Also scan** (not a finding/step **Start here** thread), the rail uses wording that matches that path.
+
+## Export trust, reopen parity, clearer failures (Phase 116)
+
+- **Reopen → export:** With **`analysis=`** in the URL and an empty plan box, exports call **`POST /api/report/markdown`** (and siblings) with **`{ analysis: <PlanAnalysisResult> }`**—the same snapshot the UI already loaded. The capture panel shows **`analyze-export-snapshot-cue`** and per-format **Preparing…** busy text; success/error status lines are separate from global analyze errors. Playwright **`Analyze: reopen with empty plan input exports markdown using snapshot payload`** asserts the POST JSON and a substantive markdown body (same pattern as Compare reopen→export).
+- **Guide echo:** **`filterTriageEchoScanLabels`** removes **Also scan** lines that only repeat the **Start here** headline (case/space normalized).
+- **API errors:** The SPA **`formatApiErrorResponse`** helper maps structured **`4xx`** JSON (including empty bodies) to a single actionable sentence for export failures.
+- **Backend:** **`ArtifactPersistenceJson.ApplyToHttpSerializerOptions`** applies persistence **`JsonSerializerOptions`** to **`ConfigureHttpJsonOptions`** so snapshot/report deserialization cannot drift from SQLite artifact JSON (converters are not registered twice if applied repeatedly).
+
+## Clearer export failures, Compare parity, quieter guidance (Phase 117)
+
+- **Report API errors:** Malformed or unusable bodies on **`/api/report/*`** return compact JSON (**`request_body_invalid`** or **`export_request_incomplete`**) instead of an empty **400**; **`formatApiErrorResponse`** shows the **`message`** line without prefixing technical **`error`** codes for those.
+- **Export status:** **`analyze-export-status`** announces success/failure with **`aria-live="polite"`** and **`aria-atomic="true"`** (same pattern as Compare).
+- **Guide echo:** When the summary path is **overview** and **Also scan** chips are present, the rail echo drops the extra headline paragraph so the list is not framed twice.
+
+## Stable export validation, visible failure proof, trust copy (Phase 118)
+
+- **Semantics:** **`export_request_incomplete`** for empty **`{}`** analyze report bodies is decided in **`ReportExportValidation`** (explicit **`Results.BadRequest`**). Malformed JSON still maps to **`request_body_invalid`** via **`IExceptionHandler`**.
+- **Playwright:** **`Compare: reopen with empty plan inputs exports HTML using snapshot payload`**; **`Analyze: export failure shows calm status line without error-code prefix`** (mocked **400** on **`/api/report/markdown`**, assert **`analyze-export-status`**).
+- **Sharing panel:** Calmer **ArtifactSharingPanel** titles and local-dev hints (**`artifact-sharing-details`** unchanged).
+
+## Take-with-you export, format parity, quieter echo (Phase 119)
+
+- **Capture:** Eyebrow **Take with you** (replaces **Download**); shorter snapshot vs paste hints; button **`title`**s name format role (Markdown / HTML / JSON).
+- **Success:** **Export ready** / **Export started** status copy after export (outcome-focused).
+- **Parity:** Playwright **`Analyze: reopen with empty plan input exports HTML using snapshot payload`** (**`POST /api/report/html`**).
+- **Guide echo:** **Summary** rail headline hidden whenever **Also scan** chips exist (finding/step/overview), not only overview.
+- **Failures:** **`formatApiErrorResponse`** maps ProblemDetails-style **500** JSON (**`title`** / safe **`detail`**) without echoing stack traces in **`detail`**.
+
+## Final export parity, handoff clarity, quieter triage echo (Phase 120)
+
+- **Parity:** Playwright **`Analyze: reopen with empty plan input exports JSON using snapshot payload`** (**`POST /api/report/json`**) — request body includes **`analysis`** snapshot; response **`analysisId`** matches **`POST`** body and includes **`nodes`**.
+- **Take with you:** Compact per-format legend (**`analyze-export-format-legend`**) under the snapshot/paste hint; success status uses **Ready** / **Started** (short, download-focused).
+- **Sharing:** **`artifact-sharing-effect-note`** — saving changes who can use the link next, not offline copies; post-save line **Sharing saved. New access rules apply the next time someone opens this link.**
+- **Guidance:** **`filterTriageEchoScanLabels`** also drops **Also scan** chips that duplicate the headline’s opening phrase (not only exact matches); **`compareContinuityCueIsSpecific`** treats short outcome cues (**worsened** / **improved** / **Plan A**/**B**) as specific enough for the pair panel.
+- **Trust:** Empty-body **400** on export — **`formatApiErrorResponse`** suggests reload and re-pasting the plan before retrying.
+- **Visual follow-up:** **`analyze-export-report-row`** / **`analyze-export-format-legend`** are stable targets for a future **`e2e-visual`** crop (run Linux **`--update-snapshots`** when ready).
+
+## Action handoff polish, unified export voice, continuity tests (Phase 121)
+
+- **Take with you:** **`pqat-handoffBand`** top border separates the export block; **`analyze-export-handoff-kicker`** states the decision; **`pqat-formatLegend`** uses **Markdown** / **HTML** / **JSON** labels with roles (notes, print, tools); snapshot hint distinguishes saved-link vs plan-box rebuild.
+- **Export success:** **`exportDownloadSuccessHint`** (`snapshot` \| `fromPlanText`) shared by **Analyze** and **Compare** status lines.
+- **Failures:** **`formatApiErrorResponse`** — empty **401** and calmer empty **413**; **`throwFormattedHttpError`** and other **401** paths use the same formatter (no duplicate dev-token string for report posts).
+- **Sharing:** **`artifact-sharing-effect-note`** + post-save line tightened; auth card title **How access is checked**.
+- **Guidance:** **`compareContinuityCueIsSpecific`** adds a short **faster/slower** + plan-vocabulary path; more **`resolveComparePairFallbackDisplay`** tests; **`filterTriageEchoScanLabels`** regression test for non-echo chips.
+
+## Readability-first flow, graph de-emphasis, graph→finding continuity (Phase 122)
+
+- **Graph footprint:** Default graph height **`clamp(240px, 30vh, 420px)`** (Phase **137** retune; was **`clamp(260px, 34vh, 460px)`** in **122**); paired workspace grid gives the plan guide column slightly more width on medium/wide breakpoints; text-tree band min-height aligned.
+- **Graph → findings:** **`jumpToNodeId(id, { scrollRelatedFindings: true })`** from graph clicks and graph search matches; **`topRankedFindingForNode`** picks the scroll target; **`graphPivotFindingId`** drives **`AnalyzeFindingsPanel`** scroll + **`pqat-listRow--graphPivot`** / **From graph** cue; auto-clear after a few seconds.
+- **Selected node:** **`analyze-related-findings-bridge`** — chips (up to 4) to refocus the ranked list; calm line when no findings cite the node; **`onFocusFindingInList`** for chip clicks.
+- **Text tree:** **`selectNodeFromTextTree`** clears graph pivot (no findings scroll).
+- **Copy trim:** Plan workspace intro, graph/text hints, findings intro, rule-reference blurb, graph legend — shorter; duplicate finding list removed from heavy sections (use Ranked list + bridge).
+
+## Graph-local findings, no default scroll-jump (Phase 123)
+
+- **Local shelf:** **`AnalyzeLocalFindingsShelf`** under the graph (and under the text tree) — top **2** ranked findings with title + summary snippet, **more** `<details>` with links; explicit per-finding action → sets **`graphPivotFindingId`** and scrolls the lower **Findings** list (UI copy: **Phase 125**).
+- **Graph clicks:** **`jumpToNodeId(id)`** — no automatic pivot/scroll; selection updates local shelf in the **Plan workspace** band.
+- **Selected node:** Same shelf (**`analyze-detail-local-findings-shelf`**) after operator title/briefing; **`rankedFindingsForNode`** sorts citations.
+- **Ranked list cue:** Header **Continues from plan** + **`pqat-listRow--graphPivot`** when opened via an explicit plan-band / detail action (sets **`graphPivotFindingId`**); row subtitle **Opened from detail** removed when the header band is present (**Phase 131**).
+
+## Cleaner local evidence, dedupe, keyboard/a11y (Phase 124)
+
+- **Dedupe:** When **Plan workspace** and **Selected node** are both visible, the full **`AnalyzeLocalFindingsShelf`** stays in the workspace band; the selected-node column uses **`AnalyzeLocalFindingsBridge`** (**`analyze-local-evidence-bridge`**). If workspace is hidden, the selected-node column still gets the **full shelf** (`analyze-detail-local-findings-shelf`).
+- **Shelf navigator:** Two preview slots + `<details>` for additional ranked titles; `role="region"`, polite **`aria-live`** count; per-finding actions set **`graphPivotFindingId`** (visible labels refined in **Phase 125**).
+- **Selected node:** Readout kicker **Operator** (was “Operator in focus”).
+- **Copy trim:** Plan workspace graph/text hint; **Findings** intro.
+- **E2E (Phase 137 name):** graph click shows **`analyze-graph-issue-summary`** + local shelf; **`#analyze-ranked-findings`** is not focused until an explicit open/skip; no **Continues from plan** until pivot.
+
+## Stronger workspace band, smarter bridge, go-deeper cues (Phase 125)
+
+- **Reading path:** Selected-node readout sits in **`pqat-investigationThread`** (one band with the **Operator** block). Workspace shelf heading **Why this operator matters**; lead card **Strongest match**; per-preview **Full write-up in list** (explicit deeper step).
+- **Bridge:** **`analyze-local-evidence-bridge`** — single finding: compact severity + title + **Open full finding in list**; multiple: **Up to \<severity\>** chip + short count line + **Open top in full list** (does not outshine the shelf).
+- **Truncation:** When more findings exist than the two preview slots, **`analyze-local-evidence-truncation-cue`** states **Showing 2 of N** and points to the full ranked list for complete evidence.
+- **Findings column:** Intro names **Full write-up in list** as the deliberate jump from the plan band.
+- **Tests / E2E:** Vitest bridge + shelf; interaction test for bridge-only pivot; Playwright **`Analyze: bridge Open full finding shows Opened from detail in ranked list`**.
+
+## Smoother investigation flow, unified evidence language (Phase 126)
+
+- **Navigation:** After local evidence in the plan band, **`Skip to Ranked findings`** (**`pqat-skipToRanked`**, `href="#analyze-ranked-findings"`) when the Ranked column is visible; target **`id`** on **`AnalyzeFindingsPanel`**.
+- **Unified CTAs:** **`evidenceNavCopy`** + **`ariaLabelFullWriteUpInRankedList`** / **`ariaLabelOpenStrongestInRankedList`** in **`localEvidencePresentation`** — shelf + bridge use **Open in ranked list**; multi-bridge uses **Open strongest in ranked list**; **`AnalyzeFindingsPanel`** imports **`severityLabel` / `severityChipClass`** from the same module; plan guide rail uses **`severityLabel`** from there.
+- **Multi-finding shelf:** Truncation + **`Other titles (N)`** disclosure; compact hint **— full rows in Ranked** when previews are capped.
+- **Bridge (multi):** Copy **strongest first in the band above** (ties shelf ordering).
+- **Narrow:** **`@media (max-width: 720px)`** eases **`pqat-investigationThread`**, shelf, and bridge padding.
+- **E2E:** Skip link presence; bridge pivot test renamed to **Open in ranked list**.
+
+## Focus flow, confidence parity, clearer previews (Phase 127)
+
+- **Arrival:** Skip link uses explicit **`scrollIntoView`** + **`focus()`** on **`#analyze-ranked-findings`** (not hash-only). **`Open in ranked list`** / shelf actions still set **`graphPivotFindingId`**; **`AnalyzeFindingsPanel`** scrolls the ranked **`ClickableRow`** then retries **`focus()`** on it (interval until **`document.activeElement`** matches or cap; virtual lists get more time after **`scrollToIndex`**).
+- **Scoped DOM:** Scroll/focus targets **`#analyze-ranked-findings [data-finding-id][role="button"]`** so plan-band preview **`<li data-finding-id>`** rows in **`AnalyzeLocalFindingsShelf`** do not win **`querySelector`** first. **`scrollToPrimaryFindingRow`** (Analyze) uses the same scope.
+- **Ranked region:** **`aria-labelledby`** on the panel + **`h2`** **`analyze-ranked-findings-heading`**; **`pqat-rankedFindingsPanel:focus-visible`** outline.
+- **Evidence language:** **`findingConfidenceLabel`** shared from **`localEvidencePresentation`**; shelf preview list **`aria-label`** clarifies **preview**; **Strongest match** **`title`** tooltip; multi-bridge **`aria-label`** ties strongest to plan band; pivot finding row **`aria-label`** includes **Opened from plan detail**.
+- **Multi-finding:** Truncation **Previews N of M · +K under Other titles · Full rows stay in Ranked.**
+- **Shortcuts nav:** Skip link wrapped in **`nav.pqat-planEvidenceShortcuts`**.
+- **E2E:** Skip link **`focus()` + `Enter`** (avoids overlapping hit-test flakes); bridge open asserts **`document.activeElement`** matches **`.pqat-listRow--graphPivot`** (DOM focus contract).
+
+## Preview vs ranked semantics, deterministic arrival, focus polish (Phase 128)
+
+- **DOM:** Plan-band preview list items use **`data-pqat-preview-finding-id`** only; ranked rows keep **`data-finding-id`** on **`ClickableRow`**. Shared helper **`queryRankedFindingRow`** in **`analyzeEvidenceDom.ts`** (tests cover preview + ranked with the same logical id).
+- **Arrival:** **`VirtualizedListColumn.scrollToIndex`** accepts optional **`onSettled`** (row index appears in **`getVirtualItems()`**, then rAF). Graph-pivot focus uses scroll completion + short **rAF retries** (no **`setInterval`**). Pivot cue clears **4.2s after focus lands** (**`onGraphPivotFocusArrived`**); **6s** fallback if focus never lands (Phase 129).
+- **Chrome:** **`.pqat-listRow--graphPivot`** hairline ring + **`focus-visible`** outline; **`nav.pqat-planEvidenceShortcuts:focus-within`** raises stacking for skip-link pointer use; bridge actions **`z-index`** nudge.
+
+## Ranked arrival cue, virtual settlement tests, skip proof (Phase 129)
+
+- **Arrival:** After **open-from-plan** focus lands on the ranked row, a compact **status** line (**`pqat-rankedArrivalCue`**) confirms the landing; **`Findings`** **`h2`** uses **`aria-describedby`** while the cue is visible; panel gets **`pqat-rankedFindingsPanel--arrivalCue`** emphasis (**Phase 130** refines copy, ~**2.8s** dwell, and styling — see below).
+- **Virtual list:** **`scheduleVirtualScrollSettled`** in **`virtualizedScrollSettled.ts`** backs **`VirtualizedListColumn.scrollToIndex(..., onSettled)`**; unit tests cover success, bounded fallback, and cancel.
+- **Plan workspace:** Graph legend (**hot ex** / **hot reads**) sits **above** the canvas so it does not overlap **Skip to Ranked findings**; skip link has **`data-testid="analyze-skip-to-ranked-findings"`**; E2E covers keyboard (**Enter**) and **native `click()`** on the anchor (same handler path as an intentional activation).
+- **Pivot fallback:** If focus never arrives, **`graphPivotFindingId`** clears after **6s** (safety net).
+
+## Calmer ranked continuation, skip pointer E2E, Vitest SVG noise (Phase 130)
+
+- **Thread hint:** While **`graphPivotFindingId`** is set, the Ranked band shows **Continues from plan** beside the **Ranked** eyebrow (**`pqat-rankedThreadHint`**), **`pqat-rankedFindingsPanel--pivotContinuity`** tint, and **`Findings`** **`h2`** **`aria-describedby`** includes that hint’s id (plus the transient arrival cue when active). **Phase 131** drops repeated operator mono + row **Opened from detail** when this header is shown (anchor stays in the row body).
+- **Arrival cue:** Copy **“On the matching row — full write-up below.”** (~2.8s); **`pqat-rankedArrivalCue`** is a left-accent stripe (not a full card); panel emphasis uses a light **inset** shadow; **`prefers-reduced-motion`** drops the transition.
+- **Pivot row:** **`.pqat-listRow--graphPivot`** keeps a faint wash after the cue fades so the row stays legible.
+- **Scroll:** **`#analyze-ranked-findings`** has **`scroll-margin-top`** for skip / in-page focus.
+- **Skip E2E:** **`focus()`** then **`click()`** — skip is off-screen until focus expands it, so the test uses a real pointer path on the revealed control.
+- **Vitest:** **`SVGGraphicsElement.getBBox`** shim for **`.react-flow`** + narrow **`console.error`** filter for React DOM’s **“Received NaN for the \`…\` attribute”** (jsdom + React Flow); **`AnalyzePlanGraphCore`** uses **dots** background everywhere (lines were test-only before and still noisy under jsdom).
+
+### Phase 132 — narrow lower-band order, ranked region labeling
+
+- **Narrow:** **`AnalyzePage`** renders **`visibleLowerReadingOrder`** — **findings → suggestions → selected node** when **`layoutTier === 'narrow'`** (stacked grid), so ranked + continuation stay ahead of selected-node detail in tab order.
+- **Ranked continuation:** Contract **`role="region"`** + **`aria-labelledby`** (thread hint + **Findings** **`h2`**); **`data-testid="analyze-ranked-handoff-hint"`** for structural tests.
+
+### Phase 133 — ranked region description (pivot band)
+
+- **Pivot continuity:** Inner **`analyze-visual-ranked-continuation-contract`** uses **`aria-labelledby`** on the **Findings** **`h2`** id and **`aria-describedby`** on the **Continues from plan** hint id so the thread line is not announced twice via both region and **`h2`** when the arrival cue is absent. **`h2`** still uses **`aria-describedby`** for the transient **arrival** status when **`showRankedArrivalCue`** is on (Phase 129–130 behavior).
+
+### Phase 134 — reopened ranked continuity (saved `?analysis=`)
+
+- **`analyzeRankedHandoffOrigin`:** **`link`** after persisted **`getAnalysis`** success, **`session`** when running **Analyze** from plan text or **Clear**.
+- **Copy:** **`analyzeRankedContinuityCopy`** — **`Ranked — reopened`** beside **Ranked** when restored and not in graph-pivot band; pivot band **Continues from plan — reopened** when restored + **`graphPivotFindingId`** (sibling rhythm to Compare **Summary — reopened**).
+- **a11y:** **`#analyze-ranked-findings`** gains **`aria-describedby`** pointing at the restored band hint id when that hint is visible.
+- **Tests:** Vitest + Playwright reopen / pivot / export paths (see **`docs/compare-workflow.md`** Phase **134** for cross-route E2E notes).
+
+### Phase 135 — shared reopened suffix + export parity
+
+- **`withReopenedSuffix`** (**`reopenedContinuityCopy.ts`**) backs **Ranked — reopened** / **Continues from plan — reopened** with the same convention as Compare pair handoffs.
+- **Export success:** **`exportDownloadSuccessHint`** optional **`restoredFromLink`** when exporting a snapshot after **`getAnalysis`** (see **`docs/compare-workflow.md`** handoff matrix).
+
+### Phase 136 — stable `?analysis=` for reopen + E2E
+
+- **`AnalyzePage`:** **`buildAnalyzeDeepLinkSearchParams`** sync uses **`useLayoutEffect`** (not **`useEffect`**) so **`?analysis=`** is present in the same paint cycle as the summary shell—reduces flake when tests capture **`page.url()`** right after **Analyze** succeeds.
+- **Playwright:** **`persisted-flows`** uses **`expect(page).toHaveURL(/[?&]analysis=/)`** before persisting the URL on paste→analyze→reopen and ranked-reopen paths.
+
+### Phase 137 — graph-first issue explanation (in-band readout)
+
+- **`AnalyzeGraphIssueSummary`** (**`analyze-graph-issue-summary`**) sits **under the graph / text tree** in **`AnalyzePlanWorkspacePanel`**, inside **`pqat-graphInvestigationStack`**: **What looks wrong here** (severity + strongest local title), **Why it matters** (first clause from the finding summary), **Inspect next** (Selected node + Ranked as optional depth).
+- **Presentation:** **`graphNodeIssueSummaryPresentation.ts`** (**`buildGraphNodeIssueSummary`**, **`firstWhyClause`**) — Vitest unit tests.
+- **Workspace shelf demotion:** **`AnalyzeLocalFindingsShelf`** **`compactWorkspacePreview`** — heading **More in Ranked**, no **Strongest match** badge, shorter snippets, single-finding workspace omits the duplicate summary paragraph (issue band already states it), CTA **Full write-up in Ranked**.
+- **Bridge:** **`AnalyzeLocalFindingsBridge`** — fewer repeated titles; Ranked actions read as **next step**, not the primary decode path.
+- **Layout:** **`pqat-graphInvestigationStack--fillsColumn`** lets the graph frame share flex height with the new readout in paired mode; default graph min-height slightly lower so the investigation band balances text vs canvas.
+- **E2E:** Graph click asserts **`analyze-graph-issue-summary`** + **`#analyze-ranked-findings`** is **not** **`document.activeElement`** until an explicit open/skip.
+
+## First-screen triage deck + downstream continuity (Phase 109)
+
+- **Bundle:** **`buildAnalyzeTriageBundle`** feeds **`analyze-triage-deck`**: hero **Start here**, ranked **Then scan** (1–2–3), primary **Open in plan** when the takeaway names a node.
+- **Narrow:** **`stickyTriageNarrow`** keeps the triage shell near the top when the workstation stacks.
+- **Continuity:** **Findings** scrolls the **Matches summary** row into view when it is off-screen (skipped for virtualized long lists); **Selected node** and **Plan guide** show a short cue when the selection matches the summary’s primary focus; guide **Plain-language readout** stays collapsed by default.
+- **Examples:** fourth sample — **join-heavy nested loop** (**`nl-join-inner-heavy`**) — see **`src/examples/README.md`**.
+
+## Guided-link parity, first-frame polish, help-shell visual contract (Phase 106)
+
+- **Shared URL open:** **`openWorkflowGuideWhenUrlRequests`** (**`workflowGuideOpenFromUrl.ts`**) runs from **`useLayoutEffect`** on **Analyze** and **Compare** so **`?guide=`** does not flash closed for one frame while preserving the false→open announcer path.
+- **Compare merged E2E:** **`persisted-flows`** copies **Compare** merged guided link with a decoy query param, **`goto`** the clipboard URL, and expects the guide panel visible—parity with **Analyze** merged coverage.
+- **Visual contract:** **`data-pqat-help-visual-contract="1"`** on **`WorkflowGuideShell`**; **`e2e-visual`** captures **`analyze-workflow-guide-panel`** as **`analyze-workflow-guide-shell.png`** (help chrome vs analysis).
+- **Copy clarity:** Footer hint + **`title`** / **`aria-label`** spell out **merged** (full context) vs **entry** (clean route).
 
 **Local vs reopened analysis:** Pasting and analyzing keeps the raw text in the browser until you clear it. After success, the address bar gains **`?analysis=<opaqueId>`** (and **`node=`** when a node is selected) so the same result can be fetched again from **SQLite-backed** storage. Opening a URL with **`analysis=`** loads the snapshot from the server (`GET /api/analyses/{id}`) and clears the textarea; running **Analyze** again on new paste strips the old `analysis` query param and replaces it after the new response. Responses include **`artifactSchemaVersion`** (Phase 49); the server normalizes older stored JSON on read. If the snapshot is **missing**, **access denied**, **corrupt** (**422**), or from an **unsupported newer schema** (**409**), the page shows a specific message instead of a generic failure. **Copy share link** (non-auth) or **Copy artifact link** (auth deployments) reflects server policy—see [Deployment & auth](deployment-auth.md). Links remain valid across API restarts if the database file is kept (see [API & Reports](api-and-reports.md#storage-phase-36-access-control-phase-37)).
 

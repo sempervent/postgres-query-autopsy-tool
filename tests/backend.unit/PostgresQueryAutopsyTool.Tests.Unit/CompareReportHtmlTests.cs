@@ -35,6 +35,8 @@ public sealed class CompareReportHtmlTests
 
         var html = svc.RenderCompareHtmlReport(cmp);
         Assert.Contains("Postgres Query Autopsy — Compare", html, StringComparison.Ordinal);
+        Assert.Contains("Reading thread", html, StringComparison.Ordinal);
+        Assert.Contains("Change at a glance", html, StringComparison.Ordinal);
         Assert.Contains("Plan capture &amp; EXPLAIN context (per side)", html, StringComparison.Ordinal);
         Assert.Contains("Plan A (baseline)", html, StringComparison.Ordinal);
         Assert.Contains("<h2>Index changes</h2>", html, StringComparison.Ordinal);
@@ -165,6 +167,8 @@ public sealed class CompareReportHtmlTests
         var cmp = await svc.CompareAsync(docA.RootElement, docB.RootElement, CancellationToken.None);
 
         var md = svc.RenderCompareMarkdownReport(cmp);
+        Assert.Contains("## Reading thread", md, StringComparison.Ordinal);
+        Assert.Contains("**Change at a glance**", md, StringComparison.Ordinal);
         Assert.Contains("## Index changes", md, StringComparison.Ordinal);
         Assert.DoesNotContain("## Index comparison", md, StringComparison.Ordinal);
     }

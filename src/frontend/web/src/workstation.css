@@ -48,6 +48,23 @@
   margin-bottom: 4px;
 }
 
+/* Phase 121 — export / handoff band (decision surface, not a raw toolbar) */
+.pqat-handoffBand {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+.pqat-formatLegend {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+}
+.pqat-formatLegend strong {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
 /* --- Panel surfaces (layered depth) --- */
 .pqat-panel {
   box-sizing: border-box;
@@ -641,6 +658,826 @@
     inset 3px 0 0 0 var(--accent-border),
     0 0 0 1px color-mix(in srgb, var(--accent-border) 20%, transparent),
     0 6px 20px -8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* Phase 107 — example entry + triage band */
+.pqat-tryExampleChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.pqat-tryExampleChips__btn {
+  max-width: 100%;
+  text-align: left;
+}
+
+.pqat-help-exampleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pqat-takeawayBand {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 12%, var(--surface-2));
+}
+
+.pqat-takeawayBand__eyebrow {
+  font-size: 0.625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-border);
+  margin: 0 0 6px;
+}
+
+.pqat-takeawayBand__headline {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-h);
+  margin: 0 0 6px;
+  line-height: 1.35;
+}
+
+.pqat-takeawayBand__support {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.pqat-takeawayBand--hero {
+  padding: 14px 16px;
+  border-width: 1px;
+  box-shadow: var(--elev-1);
+  background: color-mix(in srgb, var(--accent-bg) 18%, var(--surface-2));
+}
+
+.pqat-scanSignals {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
+.pqat-scanSignals__label {
+  font-size: 0.625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.pqat-scanSignals__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pqat-scanSignals__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--text-h);
+}
+
+.pqat-scanSignals__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.pqat-scanSignals__jump {
+  flex-shrink: 0;
+}
+
+.pqat-storyLane--triageLead {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 28%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 8%, var(--surface-2));
+}
+
+.pqat-listRow--triagePrimary {
+  box-shadow: inset 3px 0 0 0 var(--accent-border);
+}
+
+/* Phase 122 — graph selection scrolled this finding into view; Phase 128 — clearer “open from detail” shell */
+.pqat-listRow--graphPivot {
+  box-shadow:
+    inset 3px 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--border-subtle)),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, var(--border-subtle));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-bg) 7%, transparent);
+}
+
+.pqat-listRow--graphPivot:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-border) 72%, transparent);
+  outline-offset: 3px;
+}
+
+.pqat-triagePrimaryCue {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-border);
+  margin-bottom: 6px;
+}
+
+.pqat-graphPivotCue {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-secondary));
+  margin-bottom: 6px;
+}
+
+/* Phase 137 — graph + in-place issue readout read as one investigation band */
+.pqat-graphInvestigationStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pqat-graphInvestigationStack--fillsColumn {
+  flex: 1;
+  min-height: 0;
+}
+
+.pqat-graphInvestigationStack--fillsColumn > .pqat-graphFrame {
+  flex: 1;
+  min-height: 260px;
+}
+
+.pqat-graphIssueSummary {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 42%, var(--border));
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent-bg) 28%, var(--surface)) 0%,
+    color-mix(in srgb, var(--surface-2) 45%, var(--surface)) 100%
+  );
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border-subtle) 65%, transparent);
+}
+
+.pqat-graphIssueSummary--empty {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--text-tertiary) 38%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 42%, var(--surface));
+  box-shadow: none;
+}
+
+.pqat-graphIssueSummary__eyebrow {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-border) 55%, var(--text-tertiary));
+  margin: 0 0 6px;
+}
+
+.pqat-graphIssueSummary__context {
+  margin: 0 0 6px;
+}
+
+.pqat-graphIssueSummary__problem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: baseline;
+  margin: 0 0 6px;
+}
+
+.pqat-graphIssueSummary__title {
+  font-weight: 750;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--text-h);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.pqat-graphIssueSummary__why {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.pqat-graphIssueSummary__next {
+  margin: 0;
+}
+
+.pqat-graphIssueSummary__emptyBody {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* Phase 123: compact findings under the graph / in selected-node detail */
+.pqat-graphLocalFindingsShelf {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-bg) 12%, var(--surface));
+}
+
+.pqat-graphLocalFindingsShelf--workspace {
+  margin-top: 12px;
+}
+
+.pqat-graphLocalFindingsShelf--detail {
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.pqat-graphLocalFindingsShelf__title {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0 0 10px;
+}
+
+.pqat-graphLocalFindingsShelf__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pqat-localFindingPreview {
+  padding: 0;
+  margin: 0;
+}
+
+.pqat-localFindingPreview--lead {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 18%, transparent);
+}
+
+.pqat-localFindingPreview--secondary {
+  opacity: 0.96;
+}
+
+.pqat-localFindingPreview__badge {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-border);
+  margin-bottom: 6px;
+}
+
+.pqat-localEvidenceBridge {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--text-tertiary) 45%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+}
+
+.pqat-localEvidenceBridge__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.pqat-localEvidenceBridge__kicker {
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pqat-localEvidenceBridge__actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.pqat-localEvidenceBridge--single {
+  padding: 8px 10px;
+}
+
+.pqat-localEvidenceBridge__singleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.pqat-localEvidenceBridge__singleTitle {
+  font-weight: 650;
+  color: var(--text-h);
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.pqat-localEvidenceBridge--single .pqat-btn {
+  margin-top: 10px;
+}
+
+.pqat-localEvidenceBridge--single .pqat-hint {
+  max-width: 52ch;
+}
+
+.pqat-investigationThread {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+}
+
+.pqat-graphLocalFindingsShelf__truncationCue {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.pqat-graphLocalFindingsShelf__truncationCueHint {
+  font-weight: 450;
+  color: color-mix(in srgb, var(--text-tertiary) 92%, var(--text-secondary));
+}
+
+/* Phase 127: Ranked panel is an explicit focus target after skip / open-from-plan */
+#analyze-ranked-findings {
+  scroll-margin-top: 12px;
+}
+
+.pqat-rankedFindingsPanel:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-border) 65%, transparent);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+/* Phase 130: operator thread + title row — reads as one band, not a mode switch */
+.pqat-rankedContinuationContract {
+  margin-bottom: 2px;
+}
+
+.pqat-rankedFindingsPanel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-bottom: 2px;
+}
+
+/* Phase 131 — Compare pair inspector thread hint (sibling to Analyze ranked hint) */
+.pqat-comparePairContinuityBand {
+  margin-bottom: 8px;
+}
+
+.pqat-comparePairContinuityBand__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-bottom: 2px;
+}
+
+.pqat-comparePairThreadHint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-weight: 550;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+.pqat-rankedThreadHint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-weight: 550;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
+}
+
+/* Phase 129/130: short-lived confirmation after open-from-plan focus lands — calm thread, not a banner */
+.pqat-rankedArrivalCue {
+  margin: 0 0 12px;
+  padding: 6px 0 6px 12px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  border-left: 3px solid color-mix(in srgb, var(--accent-border) 55%, var(--border-subtle));
+  background: transparent;
+}
+
+.pqat-rankedFindingsPanel--arrivalCue {
+  transition: box-shadow 0.2s ease;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-border) 14%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pqat-rankedFindingsPanel--arrivalCue {
+    transition: none;
+  }
+}
+
+/* Phase 130: subtle lift tying ranked column to the plan-band handoff while pivot is active */
+.pqat-rankedFindingsPanel--pivotContinuity {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-bg) 9%, var(--surface)) 0,
+    transparent 36px
+  );
+}
+
+/* Graph legend moved above the canvas (Phase 129) — keeps skip link clear of overlapping hints */
+.pqat-graphLegendHint {
+  color: var(--text-tertiary);
+}
+
+.pqat-planEvidenceShortcuts {
+  margin: 0;
+  padding: 0;
+  position: relative;
+  z-index: 0;
+}
+
+/* Phase 128: skip link expands on focus; lift above overlapping plan hints for pointer clicks */
+.pqat-planEvidenceShortcuts:focus-within {
+  z-index: 6;
+  isolation: isolate;
+}
+
+/* Phase 133: narrow Compare — skip from lists to pair inspector (same affordance as Analyze skip-to-ranked) */
+.pqat-compareNarrowShortcuts {
+  margin: 0;
+  padding: 0;
+}
+
+.pqat-compareNarrowShortcuts:focus-within {
+  z-index: 4;
+  isolation: isolate;
+}
+
+/* Phase 126: skip link after plan-band evidence → Ranked column (visible on focus) */
+.pqat-skipToRanked {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--accent-border);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+
+.pqat-skipToRanked:focus {
+  clip: auto;
+  clip-path: none;
+  height: auto;
+  width: auto;
+  position: static;
+  padding: 6px 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+  outline: 2px solid color-mix(in srgb, var(--accent-border) 70%, transparent);
+  outline-offset: 2px;
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 22%, var(--surface));
+}
+
+.pqat-skipToComparePair {
+  display: inline-block;
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--accent-border);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+
+.pqat-skipToComparePair:focus {
+  clip: auto;
+  clip-path: none;
+  height: auto;
+  width: auto;
+  position: static;
+  padding: 6px 10px;
+  margin: 10px 0 0;
+  border-radius: 8px;
+  outline: 2px solid color-mix(in srgb, var(--accent-border) 70%, transparent);
+  outline-offset: 2px;
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--accent-bg) 22%, var(--surface));
+}
+
+@media (max-width: 720px) {
+  .pqat-investigationThread {
+    margin-top: 0;
+    padding-top: 8px;
+    border-top-color: color-mix(in srgb, var(--border-subtle) 65%, transparent);
+  }
+
+  .pqat-graphLocalFindingsShelf {
+    padding: 10px 12px;
+    margin-top: 8px;
+  }
+
+  .pqat-graphLocalFindingsShelf--workspace {
+    margin-top: 8px;
+  }
+
+  .pqat-localEvidenceBridge {
+    margin-top: 8px;
+    padding: 8px 10px;
+  }
+
+  .pqat-localEvidenceBridge--single {
+    padding: 6px 8px;
+  }
+}
+
+.pqat-localFindingPreview__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.pqat-localFindingPreview__title {
+  font-weight: 750;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--text-h);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.pqat-localFindingPreview__summary {
+  margin: 6px 0 8px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.pqat-graphLocalFindingsShelf__more {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.pqat-graphLocalFindingsShelf__more summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--text-tertiary);
+}
+
+.pqat-graphLocalFindingsShelf__moreList {
+  margin: 8px 0 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pqat-graphLocalFindingsShelf__moreLink {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--accent-border);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pqat-graphLocalFindingsShelf__moreLink:hover {
+  color: var(--accent);
+}
+
+.pqat-triageDeck {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 14px;
+  margin-bottom: 4px;
+  border-radius: var(--pqat-radius-panel, 14px);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 22%, var(--border-subtle));
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--surface-1));
+}
+
+.pqat-takeawayBand--primary {
+  border-color: color-mix(in srgb, var(--accent-border) 55%, var(--border-subtle));
+  margin-bottom: 0;
+}
+
+.pqat-scanSignals--compact {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.pqat-scanSignals__list--ranked {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pqat-scanSignals__list--ranked .pqat-scanSignals__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.pqat-scanSignals__rank {
+  font-size: 0.6875rem;
+  font-weight: 750;
+  font-family: var(--mono);
+  color: var(--text-tertiary);
+  min-width: 1.25rem;
+  text-align: center;
+}
+
+.pqat-summaryDeck--stickyNarrow {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + var(--pqat-sticky-top-offset, 54px));
+  z-index: 4;
+  align-self: start;
+  padding-bottom: 4px;
+  background: linear-gradient(to bottom, var(--surface-1) 92%, transparent);
+}
+
+.pqat-summaryShell--stickyNarrow {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + var(--pqat-sticky-top-offset, 54px));
+  z-index: 4;
+  align-self: start;
+  padding-bottom: 6px;
+  background: linear-gradient(to bottom, var(--surface-1) 92%, transparent);
+}
+
+.pqat-summaryContinuityCue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 10%, var(--surface-2));
+}
+
+.pqat-summaryContinuityCue__label {
+  font-size: 0.625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-border);
+}
+
+.pqat-summaryContinuityCue__text {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.pqat-planGuideTriageEcho {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--accent-border) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 6%, transparent);
+}
+
+.pqat-planGuideTriageEcho__label {
+  font-size: 0.5625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.pqat-comparePairTriageBridge {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-border) 32%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-bg) 12%, var(--surface-2));
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.pqat-comparePairTriageBridge__label {
+  font-size: 0.5625rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.pqat-comparePairTriageBridge--soft {
+  border-style: dashed;
+  opacity: 0.96;
+}
+
+/* Visually chains Context bridge → follow-up card on the pair panel (Phase 111). */
+.pqat-comparePairNextStep {
+  padding-top: 2px;
+  border-top: 1px dashed color-mix(in srgb, var(--accent-border) 25%, var(--border-subtle));
+}
+
+.pqat-triageSuggestionCue {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent-bg) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-border) 28%, var(--border-subtle));
+}
+
+.pqat-triageSuggestionCue--inline {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pqat-planGuideTriageEcho__head {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--text-h);
+  line-height: 1.35;
+}
+
+.pqat-planGuideTriageEcho__more {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
 }
 
 /* --- React Flow dark canvas --- */

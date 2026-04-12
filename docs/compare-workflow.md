@@ -1,12 +1,168 @@
 # Compare Workflow
 
+## Example entry & triage (Phase 107)
+
+- **Try a sample pair:** **`TryCompareExampleChips`** in capture (until a comparison exists) and **Compare** guide loads curated fixtures from **`src/examples/plans/`**; **`onCompare(overrideA?, overrideB?)`** passes fresh text into **`compareWithPlanTexts`**.
+- **Summary:** **Start here** band surfaces **`comparisonStory.overview`** once; the long wall-clock vs structure paragraph is under **details**; **Next steps** pinning explanation is shortened with optional **details**; metric meta line uses **saved in this app’s database** instead of “server SQLite” on the user-facing string.
+- **Empty state:** **`compareEmptyStateCopy`** points at samples + **?** tour.
+
+### Phase 108 — scan-first Compare, second sample, diff strip
+
+- **Samples:** Two pairs — **seq scan → index scan** and **bitmap heap → index scan** (see **`src/examples/README.md`**).
+- **Lead:** **`compareLeadTakeaway`** headline is **Change at a glance**; **`compareFollowUpDiffSignals`** renders **`compare-scan-signals`** (**Also scan**) with **Highlight in diffs** buttons (pins **`fd_*`** via existing highlight state).
+- **Disclosure:** **Walkthrough** + **structural readout** paragraphs are behind **Walkthrough and structural readout** **`<details>`** by default.
+
+### Phase 110 — selected-pair bridge, Show row proof, calmer meta copy
+
+- **Selected pair:** **`compareTriagePairBridgeLine`** renders a one-line bridge when the pair matches pins or **top worsened / top improved** (Phase **111** renames the label to **Context** and extends the bridge—see below).
+- **Scan strip:** **Show in list** (was **Show row**) is covered by Playwright (**active** finding-diff outline **in viewport**).
+- **Copy:** Summary meta and lanes hint use clearer “saved snapshot / who can open” wording.
+
+### Phase 111 — decision rhythm, briefing → row → pair
+
+- **Bridge:** **`compareTriagePairBridgeLine`** also matches **`comparisonStory.changeBeats`** pair focus (**Open pair** from the story) before falling back to top worsened/improved.
+- **Navigator:** **`briefingHighlightPair`** adds **Same row as Change briefing** on worsened/improved rows when a finding diff is highlighted from the scan strip; finding-diff rows show **Highlighted from Change briefing** when active.
+- **Selected pair:** Bridge label **Context**; follow-up block **Suggested follow-up** with **`pqat-comparePairNextStep`** visual chain from bridge to next step.
+- **Navigator filter:** **Open top regression** (was **jump to hottest**).
+
+### Phase 131 — pair thread hint (Analyze parity)
+
+- **Handoff:** **`ComparePage`** derives **`comparePairHandoffKind`** (**`summary`** | **`briefing`** | **`pinned`** | **`navigator`**) from triage bridge, continuity fallback, URL pins, or default list selection.
+- **UI:** **`CompareSelectedPairPanel`** shows **Pair** eyebrow + compact hint; **`data-testid="compare-visual-pair-continuation-contract"`** for **`e2e-visual`**. (Phase **133** refines visible copy for saved-link reopen and region **`aria-describedby`** — see below.)
+- **Analyze:** Ranked header uses **Continues from plan** (no repeated operator mono); row **Opened from detail** cue removed when the header band is present; visual contract **`analyze-visual-ranked-continuation-contract`**.
+
+### Phase 132 — responsive continuity, saved-link handoff copy, structural contracts
+
+- **Compare handoff origin:** **`compareHandoffOrigin`** — **`link`** when the comparison is loaded via **`getComparison`** (**`/compare?comparison=…`**), **`session`** after **Compare** runs from plan text in this tab (**`onCompare`**). Drives **`comparePairHandoffDisplayText`** (session strings: **From the summary**, **From the briefing**, **Pinned focus**, **From the lists** — Phase **134** refines **`link`** + **pinned**/**navigator**; see Phase **133–134**).
+- **Narrow layout:** **`layoutTier === 'narrow'`** always stacks **navigator** above **pair** in the DOM (reading + tab order), independent of **`mainColumnOrder`** (medium/wide still respect column order).
+- **UI:** Continuation band **`role="region"`** + **`aria-labelledby`** on **`compare-selected-pair-heading`**; **`data-testid="compare-pair-handoff-hint"`** + **`data-pqat-handoff-origin`** (**`link`** \| **`session`**). **Phase 133** adds **`aria-describedby`** on the region (hint id) and visible **— reopened** wording for **summary**/**briefing** when **`link`**.
+- **Analyze narrow:** Lower band maps in **findings → suggestions → selected node** order when stacked; ranked continuation contract **`role="region"`** + **`aria-labelledby`**, **`analyze-ranked-handoff-hint`** test id.
+
+### Phase 133 — legible reopen provenance, narrow skip-to-pair, calmer region announcements
+
+- **Visible handoff (saved link):** **`comparePairHandoffDisplayText`** uses **Summary — reopened** / **Briefing — reopened** when **`compareHandoffOrigin === 'link'`** and the handoff kind is **`summary`** / **`briefing`**; session paths stay **From the summary** / **From the briefing**. **Pinned** / **navigator** + **`link`** were later aligned to **Pinned — reopened** / **From the lists — reopened** (Phase **134**).
+- **Narrow keyboard path:** **`SkipToPairInspectorLink`** (**Skip to pair inspector**) between **navigator** and **pair** when **`layoutTier === 'narrow'`**; target **`#compare-pair-inspector-region`** (**`tabIndex={-1}`** on **`ComparePairColumn`** root) — same pattern as Analyze **Skip to ranked findings**.
+- **Continuation a11y:** Pair continuation **`role="region"`** uses **`aria-labelledby="compare-selected-pair-heading"`** + **`aria-describedby`** → thread hint id only (hint not duplicated on **`h2`**). Analyze pivot band: inner contract **`aria-describedby`** → **`analyze-ranked-handoff-hint`** id; **`h2`** does not also describe the thread hint when arrival cue is off.
+- **Tests:** Playwright reopen asserts **`toContainText(/Summary — reopened/)`** on **`compare-pair-handoff-hint`** for restored **`?comparison=`** / deep link; corrupt-analysis visual seed uses **retry** on **`POST /api/e2e/seed/corrupt-analysis`**.
+
+### Phase 134 — Analyze reopened ranked cues, narrow Compare keyboard proof, handoff matrix
+
+- **Analyze:** **`analyzeRankedHandoffOrigin`** on **`AnalyzePage`** (**`link`** after **`getAnalysis`**, **`session`** on **`onAnalyze`** / **Clear**). **`analyzeRankedContinuityCopy`**: non-pivot band **`Ranked — reopened`** (**`analyze-ranked-restored-hint`**); graph pivot thread **Continues from plan — reopened** when **`link`**. Ranked root **`aria-describedby`** → restored hint id when the band hint is shown.
+- **Compare copy:** **`link`** + **pinned** / **navigator** → **Pinned — reopened** / **From the lists — reopened** (same **— reopened** family as Analyze + summary/briefing).
+- **E2E:** **`viewport` 800px** — **Tab** path **`focus()`** + **`Enter`** on **Skip to pair inspector** → **`#compare-pair-inspector-region`** focused; Analyze reopen + pivot proves **Ranked — reopened** then **Continues from plan — reopened**; reopen→export asserts **Ranked — reopened**.
+- **Vitest:** **`analyzeRankedContinuityCopy.test.ts`**; **`CompareSelectedPairPanel`** matrix (**briefing** / **pinned** / **navigator** + **`link`**); **`AnalyzeFindingsPanel.virtual`** restored + pivot **`link`**.
+
+### Phase 135 — Broader handoff proof, Tab-chain skip, shared reopened copy, matrix doc
+
+- **Shared suffix:** **`withReopenedSuffix`** in **`reopenedContinuityCopy.ts`** — single place for **`… — reopened`** used by **`comparePairHandoffDisplayText`** and **`analyzeRankedContinuityCopy`**.
+- **Export:** **`exportDownloadSuccessHint(..., { restoredFromLink })`** when snapshot export follows a saved **`?analysis=`** / **`?comparison=`** load (aligned with reopened cues).
+- **Pair panel cue gate:** **`compareContinuityCueIsSpecific`** treats **join strategy shift** / **join strategy** phrases as specific so short engine cues like **Same region · join strategy shift** can drive the soft **Reading thread** panel (**`compare-selected-pair-continuity-fallback`**) and the **`briefing`** handoff thread (multi-pair compares only).
+- **E2E:** **Briefing — reopened** — real compare on **`rewrite_nl_orders_lineitems`** + **`rewrite_hash_orders_lineitems`** (synced into **`e2e/fixtures`**), scan **Worsened** / **Improved** rows until the soft continuity panel is visible without the **Context** summary bridge, assert **From the briefing**, persist URL, reopen and assert **Briefing — reopened** + continuity fallback visible; narrow Compare **Tab** from first **Worsened pair** row until **`compare-skip-to-pair-inspector`** focused, then **`Enter`** → **`#compare-pair-inspector-region`** focused.
+
+### Phase 136 — Analyze URL stability, lists handoff proof, cue rules table
+
+- **Analyze:** deep-link query sync (**`?analysis=`** / **`node=`**) runs in **`useLayoutEffect`** so the address bar matches the committed analysis before paint; Playwright waits on **`toHaveURL(/analysis=/)`** before reading **`page.url()`** on persist/reopen flows.
+- **Compare E2E:** **From the lists — reopened** on **nested loop amplification ↔ misestimation** fixtures (no per-pair continuity cues; navigator-only row, then **`?comparison=`** reopen).
+- **Cue gating:** **`compareContinuityCueSpecificity.ts`** + **`COMPARE_CONTINUITY_CUE_CLASSIFICATION_FIXTURES`** golden table (**`compareContinuityCueSpecificity.test.ts`**); **`compareOutputGuidance`** re-exports **`compareContinuityCueIsSpecific`**.
+- **Docs:** handoff-kind vs **Context** / **Reading thread** footnote under the pair-thread matrix (this section).
+
+**Compare pair thread (user-visible, `compare-pair-handoff-hint`)**
+
+| Kind | Session | Saved link (`compareHandoffOrigin === 'link'`) |
+|------|---------|-----------------------------------------------|
+| **summary** | From the summary | Summary — reopened |
+| **briefing** | From the briefing | Briefing — reopened |
+| **pinned** | Pinned focus | Pinned — reopened |
+| **navigator** | From the lists | From the lists — reopened |
+
+**Handoff kind vs pair context (Phase 136, contributor QA):**
+
+- **`summary`**: **`compareTriagePairBridgeLine`** returned a **Context** line (top worsened/improved, story beat, or URL pin that maps to this pair) — not the soft **Reading thread** panel.
+- **`briefing`**: no Context bridge, but **`regionContinuitySummaryCue`** passed **`compareContinuityCueIsSpecific`** → soft **`compare-selected-pair-continuity-fallback`** (**Reading thread** body). Needs a pair with a cue; on single-pair compares the only row is often “top worsened” → **`summary`** instead.
+- **`navigator`**: no Context bridge, no qualifying cue (or cue filtered as non-specific), no URL pins → **From the lists**.
+- **`pinned`**: a **`finding=`** / **`suggestion=`** / **`indexDiff=`** pin is active and the Context bridge from pins does not override (see **`comparePairHandoffKind`** in **`ComparePage`**).
+
+**Analyze Ranked (`analyze-ranked-handoff-hint` / `analyze-ranked-restored-hint`)**
+
+| Surface | Session | Saved link |
+|---------|---------|------------|
+| Graph pivot thread | Continues from plan | Continues from plan — reopened |
+| Ranked band (no pivot) | _(no reopened band)_ | Ranked — reopened |
+
+### Phase 112 — URL/summary bridge, reading-thread language, export parity
+
+- **Summary cue:** Change briefing meta uses **Reading thread ·** (replaces **Continuity ·**) so tone matches **Context** on the pair panel.
+- **Selected pair:** When **`compareTriagePairBridgeLine`** is empty but the summary still has a **`continuitySummaryCue`**, **`continuityPairFallback`** shows a soft **Reading thread** note (**`compare-selected-pair-continuity-fallback`**) so deep-link / URL-only emphasis still reads as one thread.
+- **Bridge copy:** **`compareOutputGuidance`** uses **highlighted** phrasing for finding / index / suggestion URL-driven lines.
+- **Clipboard:** Pinned-summary line label is **Link includes:** (**`formatComparePinnedSummaryLine`** in **`artifactLinks.ts`**).
+
+### Phase 113 — Compare export triage, guided cohesion, continuity proof
+
+- **Download:** With both plan texts in **Plan inputs**, **Export Markdown / HTML / JSON** calls **`/api/compare/report/*`** and prepends/injects **`compareExportTriage.ts`** (**Reading thread** block: change lead + optional pair id).
+
+### Phase 115 — Reopen→export confidence, server reading thread, calmer trust states
+
+- **Exports:** Server-rendered Markdown/HTML include **`## Reading thread`** / **Change at a glance** (compact lead from the change story or top finding diff). The client adds **Selection context** only when the UI has a pair bridge or primary pair id—no duplicate “full preamble” vs server.
+- **Reopen→export:** Playwright proves **`?comparison=`** reopen with empty plan boxes → **Markdown** download → request body contains **`comparison`** snapshot; file contains server **Reading thread** markers.
+- **Trust copy:** Compare/Analyze loading banners, artifact error titles, export success hint, Compare **Running comparison** banner.
+- **Export UX:** **`compare-export-snapshot-cue`** when exports use loaded snapshot; post-export status line.
+
+### Phase 116 — Export trust, Analyze reopen parity, clearer failures
+
+- **Serializer alignment:** **`ArtifactPersistenceJson.ApplyToHttpSerializerOptions`** applies persistence **`JsonSerializerOptions`** to **`ConfigureHttpJsonOptions`** so report POST bodies cannot silently drift from SQLite JSON (**duplicate** custom converters are skipped if the helper runs twice).
+- **Compare continuity:** **`compareContinuityCueIsSpecific`** treats very short vague tokens (**mixed**, **unclear**, **varies**, …) as non-specific so weak **Reading thread** fallback panels stay hidden.
+- **Analyze parity:** Reopen→export browser proof and capture **Download** UX live in [Analyze workflow](analyze-workflow.md) (**`analyze-export-snapshot-cue`**, **`formatApiErrorResponse`** for export failures).
+
+### Phase 117 — Clearer export failures, Compare parity, quieter guidance
+
+- **Report API:** **`/api/compare/report/*`** shares the same **400** JSON contract as Analyze report routes (**`request_body_invalid`** / **`export_request_incomplete`**); see [API & Reports](api-and-reports.md#reports).
+- **Export UX:** Compare **Download** success copy matches Analyze (**Saved result exported…** when both plan boxes are empty and a snapshot drives the export; otherwise **Download started…**). **`compare-export-status`** uses **`aria-live="polite"`** + **`aria-atomic="true"`**; capture hint text is slightly tighter.
+- **Trust:** **`formatApiErrorResponse`** maps the new codes to a single product **`message`** line (no **`error:`** prefix for those codes).
+
+### Phase 118 — Stable export contracts, browser-proven trust, calmer sharing copy
+
+- **Backend:** Analyze report semantic validation is **`ReportExportValidation`** + **`ReportExportBadRequestExceptionHandler`** (**ProblemDetails** for other failures). See [API & Reports](api-and-reports.md#reports).
+- **Playwright:** **`Compare: reopen with empty plan inputs exports HTML using snapshot payload`** proves snapshot **`POST /api/compare/report/html`** (not only markdown).
+- **Sharing / auth help:** **`ArtifactSharingPanel`** titles and fine print are more product-facing.
+
+### Phase 119 — Take-with-you export, JSON parity, calmer success
+
+- **Capture:** Eyebrow **Take with you**; shorter snapshot vs paste hints; format button **`title`**s.
+- **Parity:** Playwright **`Compare: reopen with empty plan inputs exports JSON using snapshot payload`** (**`POST /api/compare/report/json`**). **Analyze** gains reopen→**HTML** proof in [Analyze workflow](analyze-workflow.md).
+- **Sharing:** Save confirmation **Sharing updated.**
+
+### Phase 120 — Analyze JSON parity, Take-with-you legend, sharing scope note
+
+- **Analyze parity:** Playwright **`Analyze: reopen with empty plan input exports JSON using snapshot payload`** (**`POST /api/report/json`**) — closes the reopen→export matrix alongside markdown/HTML (Phase 119) and Compare JSON.
+- **Take with you:** **`compare-export-format-legend`** one-liner (Markdown / HTML / JSON roles); **`compare-export-snapshot-cue`** tightened; **Ready** / **Started** export status lines.
+- **Sharing:** **`artifact-sharing-effect-note`** + **Sharing saved…** (scope applies on next open) — aligned with [Analyze workflow](analyze-workflow.md).
+
+### Phase 121 — Handoff surface, export voice, continuity cues
+
+- **Take with you:** Same handoff pattern as [Analyze workflow](analyze-workflow.md) — **`pqat-handoffBand`**, **`compare-export-handoff-kicker`**, **`pqat-formatLegend`**, shared **`exportDownloadSuccessHint`** for export status.
+- **Continuity:** **`compareContinuityCueIsSpecific`** / **`resolveComparePairFallbackDisplay`** — see **`compareOutputGuidance.test.ts`** (Phase 121 cases).
+
+### Phase 114 — Reopen/export cohesion, landing proof, lower-noise guidance
+
+- **Download:** If both plan fields are filled, the server **rebuilds** the report from that text; if not (typical **reopen from link**), the client sends **`{ comparison }`** to **`/api/compare/report/*`** so exports stay coherent without re-pasting plans. Per-format buttons show **Preparing…** only on the active download.
+- **Pair fallback:** Short non-specific continuity cues no longer show a filler **Briefing link** panel—**Reading thread** still appears when the cue is structurally specific (**`compareContinuityCueIsSpecific`**).
+- **Analyze guide echo:** **Overview** + **Also scan** path uses copy that does not pretend the rail is always the same **Start here** finding/step thread.
+- **Playwright:** Long virtualized suggestions assert **viewport** + **scroller intersection** for the triage-aligned card (**`analyze-suggestion-card-triage-aligned`**), not only DOM presence.
+- **Sharing / auth help:** Calmer titles (**Who can load this**, link checkbox wording).
+
+### Phase 109 — compare triage deck, reliable scan actions, narrow stickiness
+
+- **`compare-triage-deck`**: bounded **Change at a glance** + **Also scan** with **Show row** actions that scroll and highlight the target artifact (**`scrollArtifactIntoView`** centers the row).
+- **Narrow:** **`summaryStickyNarrow`** keeps the summary triage block visible early when columns stack.
+- **Density:** extra operator/lanes/index keyboard nuance remains behind **`<details>`** so the default path stays scannable.
+
 ## Input (Phase 36)
 
 1. Paste **Plan A** and **Plan B** as **raw text** (plain JSON or `psql` **`QUERY PLAN`** output—same **`PlanInputNormalizer`** path as Analyze).
 2. Optionally expand **Optional: source SQL + EXPLAIN metadata** to attach **`queryTextA` / `queryTextB`**, shared EXPLAIN toggles, per-side **recorded EXPLAIN** commands, and **suggested EXPLAIN** snippets (mirrors Analyze ergonomics). Metadata is **optional** and **client-declared**.
 3. Click **Compare** — the API runs analyze twice (with per-side context), then the comparison engine. The full **`PlanComparisonResultV2`** is stored in **SQLite** with **`artifactSchemaVersion`** (Phase 49); the UI syncs **`?comparison=<comparisonId>`** with existing **`pair=`**, **`finding=`**, **`indexDiff=`**, **`suggestion=`** params.
 4. **Reopen:** `GET /api/comparisons/{id}` powers **`?comparison=`** loads (same durability rules as analyses). Legacy **`suggestion=`** values may still match via **`alsoKnownAs`** on compare suggestion rows after server normalization—canonical **`suggestionId`** is written back into the URL when the UI syncs.
-5. **Copy share link** / **Copy artifact link** in the summary header copies the current URL (includes **`comparison=`** when synced), labeled from **`/api/config`** in auth deployments. **Copy link** on the selected pair builds a **multi-line clipboard block** (URL + **`PQAT compare:`** + optional **`Pair ref:`** + optional **`Pinned finding:`** / **`Pinned index insight:`** / **`Pinned suggestion:`** when those highlights are active — **Phase 93**) so tickets get stable ids without hunting the query string (**Phase 86**). When a pin is active, **Copy pin context** (**Phase 96**) copies the same ids **without the URL line** for short chat/ticket pastes — use **Copy link** when the recipient needs the **reopenable URL**; use **Copy pin context** when you only need **PQAT ids + pinned readout** (**Phase 97** clarifies the split). Optional **Sharing** panel when auth is enabled (owner can change scope / groups / link access). **Phase 38:** same identity modes as Analyze (**JWT** / **API key** / legacy bearer / proxy); **`authHelp`** from **`/api/config`** summarizes the active mode.
+5. **Copy share link** / **Copy artifact link** in the summary header copies the current URL (includes **`comparison=`** when synced), labeled from **`/api/config`** in auth deployments. **Copy link** on the selected pair builds a **multi-line clipboard block** (URL + **`PQAT compare:`** + optional **`Pair ref:`** + optional **`Highlighted finding:`** / **`Highlighted index change:`** / **`Highlighted next step:`** when those URL highlights are active — **Phase 112** renames from older **Pinned …** wording) so tickets get stable ids without hunting the query string (**Phase 86**). When a pin is active, **Copy pin context** (**Phase 96**) copies the same ids **without the URL line** for short chat/ticket pastes (**Phase 112:** compact line uses **Link includes:**) — use **Copy link** when the recipient needs the **reopenable URL**; use **Copy pin context** when you only need **PQAT ids + pinned readout** (**Phase 97** clarifies the split). Optional **Sharing** panel when auth is enabled (owner can change scope / groups / link access). **Phase 38:** same identity modes as Analyze (**JWT** / **API key** / legacy bearer / proxy); **`authHelp`** from **`/api/config`** summarizes the active mode.
 
 ### Compare URL parameters (quick reference)
 
@@ -14,9 +170,9 @@
 |-------|------|------------------------------|
 | **`comparison`** | Persisted snapshot id (**required** for reopen). | Workspace loads that comparison; other params apply on top. |
 | **`pair`** | Selected **pair artifact** id (`pair_*`). | **Selected node pair** matches that artifact; **Copy link** includes **`Pair ref:`**. Removing **`pair=`** from the URL drops that explicit selection; the UI falls back to the current navigator choice or a default pair, and the sync effect rewrites the query string without **`pair=`** until you pin a pair again from the URL or UI. |
-| **`finding`** | Highlights a **findings diff** row (`fd_*`). | Navigator finding row shows **active** outline; **Copy link** adds **`Pinned finding:`**; scroll targets the row. |
-| **`indexDiff`** | Highlights an **index insight diff** (`ii_*`). | **Index changes** row is **active**; click row in UI also pins (**Phase 95**); **Copy link** adds **`Pinned index insight:`**. |
-| **`suggestion`** | Highlights a **compare next step** (`sg_*`). Values matching **`suggestionId`** or **`alsoKnownAs`** resolve to the same row; after hydrate the UI typically syncs the query string to the **canonical** `suggestionId`. The **settled** `sg_*` in the URL is the durable handle for reopen tests (**Phase 93–94**). | Next-step row highlighted; **Pin** or **Focus plan B** sets pins; **Copy link** adds **`Pinned suggestion:`**. |
+| **`finding`** | Highlights a **findings diff** row (`fd_*`). | Navigator finding row shows **active** outline; **Copy link** adds **`Highlighted finding:`**; scroll targets the row. |
+| **`indexDiff`** | Highlights an **index insight diff** (`ii_*`). | **Index changes** row is **active**; click row in UI also pins (**Phase 95**); **Copy link** adds **`Highlighted index change:`**. |
+| **`suggestion`** | Highlights a **compare next step** (`sg_*`). Values matching **`suggestionId`** or **`alsoKnownAs`** resolve to the same row; after hydrate the UI typically syncs the query string to the **canonical** `suggestionId`. The **settled** `sg_*` in the URL is the durable handle for reopen tests (**Phase 93–94**). | Next-step row highlighted; **Pin** or **Focus plan B** sets pins; **Copy link** adds **`Highlighted next step:`**. |
 
 ### URL params × first load vs in-place edit (Phase 101)
 
@@ -35,22 +191,32 @@
 
 ## Workflow guide persistence & re-entry (Phase 102)
 
-- **Dismissal:** **`compareDismissed`** in the same **`pqat_workflow_guide_v1`** object. Empty-page default is **`layout.visibility.intro && !compareDismissed`**; hiding the guide persists dismissal. **Clear** reopens the guide (same skip-sync ref pattern as Analyze so workspace **intro** off does not immediately collapse it).
+- **Dismissal:** **`compareDismissed`** in the same **`pqat_workflow_guide_v1`** object. Empty-page default is **`layout.visibility.intro && !compareDismissed`**; hiding the guide persists dismissal. **Clear** reopens the guide (same skip-sync ref pattern as Analyze so workspace **intro** off does not immediately collapse it). **`?guide=`** is applied in a **`useEffect`** (aligned with Analyze) so open-from-link transitions and announcers stay consistent—**not** read in the initial **`useState`**.
 - **Keyboard / URL:** **`?`** / **Shift+/** and **`/compare?guide=1`** match Analyze semantics; **`?guide=`** strips on **close** after an explicit open→close transition (not on first paint).
 - **Summary column:** One **`pqat-help-inline`** at the top of the summary shell distinguishes **Change briefing** vs **Index changes** vs **Next steps** relative to **Copy link**.
 - **Empty state:** Compare empty hint text was shortened so the workflow guide carries primary onboarding copy.
 
 ## Help lifecycle, focus, and support entry (Phase 103)
 
-- **Focus / Esc / Copy guided link:** Same model as [Analyze workflow](analyze-workflow.md#help-lifecycle-focus-and-support-entry-phase-103): explicit open targets the guide title; **Esc** closes when not typing in a field; **Copy guided link** is onboarding-only (**`?guide=1`**), not a persisted comparison URL.
-- **Copy trio clarity:** **Selected node pair** **`pqat-help-inline`** distinguishes **Copy link** (shareable snapshot + pins), **Copy pin context** (no URL), and **Copy guided link** (footer—onboarding).
+- **Focus / Esc / guided links:** Same model as [Analyze workflow](analyze-workflow.md#help-lifecycle-focus-and-support-entry-phase-103): explicit open targets the guide title; **Esc** closes when not typing in a field; footer **Copy merged guided link** / **Copy entry guided link** are onboarding-only (**`?guide=1`**), not persisted comparison URLs.
+- **Copy trio clarity:** **Selected node pair** **`pqat-help-inline`** distinguishes **Copy link** (shareable snapshot + pins), **Copy pin context** (no URL), and the guide’s **merged** / **entry** guided links.
 - **E2E:** Dismissal persistence across reload is asserted against **`pqat_workflow_guide_v1`**. If persisted **`pqat.compareWorkspaceLayout.v1`** exists, the test **sets `visibility.intro` to true** instead of deleting the whole layout—closer to real “re-enable intro” usage.
 
 ## Help accessibility and guided-link merge (Phase 104)
 
 - **Announcer:** **`compare-workflow-guide-announcer`** mirrors Analyze (**open / close / from link**).
 - **Tab loop & merged guided URL:** Same as [Analyze workflow](analyze-workflow.md#help-accessibility-and-guided-link-merge-phase-104).
-- **Copy trio:** **Selected node pair** buttons use **`aria-label`** + **`title`** to separate **Copy link** (shareable snapshot) vs **Copy pin context** (no URL) vs **Copy guided link** (guide footer).
+- **Copy trio:** **Selected node pair** buttons use **`aria-label`** + **`title`** to separate **Copy link** (shareable snapshot) vs **Copy pin context** (no URL) vs the guide’s **merged** / **entry** guided links.
+
+## Help landmarks and announcer E2E (Phase 105)
+
+- **Landmarks & dual links:** Same shell **`role="region"`**, footer **`role="group"`**, and two guided copy actions as documented in [Analyze workflow](analyze-workflow.md) (Phase 105).
+- **Playwright:** Compare announcer lifecycle + **Copy entry guided link** behavior are asserted alongside Analyze in **`persisted-flows.spec.ts`**.
+
+## Guided-link parity and first-frame polish (Phase 106)
+
+- **`?guide=`** open uses the same **`useLayoutEffect`** + **`openWorkflowGuideWhenUrlRequests`** path as **Analyze** (see [Analyze workflow](analyze-workflow.md), Phase 106) — no one-frame closed flash; announcer unchanged.
+- **Merged guided link:** **`persisted-flows`** asserts **Compare** merged clipboard retains decoy params and that **`goto`** reopens the guide.
 
 After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-column view: source query present/absent, **planner costs** (from JSON), **input normalization** line, declared options, and recorded command per side.
 
@@ -90,7 +256,7 @@ After a run, open **Plan capture / EXPLAIN context (A vs B)** for a compact two-
 
 **Phase 95:** **Index changes** insight rows are **keyboard-focusable** and **click-to-pin** (clears other pin types); **`Highlight finding`** uses **`stopPropagation`**. **Selected pair** shows **`compare-pinned-summary`** when any pin is active. **`aria-current`** on pinned finding / index / suggestion rows. **`persisted-flows`**: click index row → URL + summary; **Copy link** with pinned **finding** / **suggestion**; **`finding=`** deep link asserts row **`toBeInViewport`**. **`jwt-auth-smoke`**: pinned finding + suggestion **Copy link** lines in JWT mode. URL table adds **When active** column.
 
-**Phase 96:** **Index changes** list (**`CompareIndexInsightRows`**) uses **roving `tabIndex`** — only one row is tab-stopping at a time; **Arrow Up/Down** moves between rows, **Enter**/**Space** pins. **Next steps** (**`CompareNextStepsList`**) **Pin** controls chain with **Arrow Up/Down** for faster keyboard traversal. Hint copy states **one primary pin at a time** for **Copy link** (pinning replaces the previous). **Selected pair** adds **Copy pin context** (**`compare-copy-pin-context`**) — short clipboard via **`compareCompactPinContextPayload`** (no URL line; **`PQAT compare:`**, **`Pair ref:`**, **`Pinned for link:`** readout, optional **Rewrite outcome**). **`suggestion=`** Playwright flows assert **`toBeInViewport`** on the highlighted next-step row. Vitest: **`comparePinning`**, **`CompareIndexInsightRows`**, **`shareAppUrl`** compact payload. CSS **`focus-within`** on active finding / suggestion outlines.
+**Phase 96:** **Index changes** list (**`CompareIndexInsightRows`**) uses **roving `tabIndex`** — only one row is tab-stopping at a time; **Arrow Up/Down** moves between rows, **Enter**/**Space** pins. **Next steps** (**`CompareNextStepsList`**) **Pin** controls chain with **Arrow Up/Down** for faster keyboard traversal. Hint copy states **one primary pin at a time** for **Copy link** (pinning replaces the previous). **Selected pair** adds **Copy pin context** (**`compare-copy-pin-context`**) — short clipboard via **`compareCompactPinContextPayload`** (no URL line; **`PQAT compare:`**, **`Pair ref:`**, **`Link includes:`** readout, optional **Rewrite outcome**). **`suggestion=`** Playwright flows assert **`toBeInViewport`** on the highlighted next-step row. Vitest: **`comparePinning`**, **`CompareIndexInsightRows`**, **`shareAppUrl`** compact payload. CSS **`focus-within`** on active finding / suggestion outlines.
 
 **Phase 97:** **`indexDiff=`** (URL) updates move **roving focus** to the matching **Index changes** row with **`focus({ preventScroll: true })`** so the viewport does not jump when the highlight syncs. **Next steps** **Pin** row supports **Home** / **End** (Vitest **`CompareNextStepsList`**). Analyze **Plan workspace** + **Plan guide** **paired** layout: **`companionRailSurfaceStyle`**, **`pqat-analyzeWorkspaceRow--paired`**, **`graphFillColumn`** — see [Analyze workflow](analyze-workflow.md) (**Plan workspace** section).
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using PostgresQueryAutopsyTool.Core.Analysis;
+using PostgresQueryAutopsyTool.Core.Comparison;
 
 namespace PostgresQueryAutopsyTool.Api;
 
@@ -19,4 +20,10 @@ public sealed class CompareRequestDto
 
     public ExplainCaptureMetadata? ExplainMetadataA { get; init; }
     public ExplainCaptureMetadata? ExplainMetadataB { get; init; }
+
+    /// <summary>
+    /// Optional full comparison snapshot for report/export endpoints. When set, the server renders from this
+    /// snapshot instead of re-running compare (reopen-from-link export parity).
+    /// </summary>
+    public PlanComparisonResultV2? Comparison { get; init; }
 }

@@ -1,9 +1,15 @@
+import type { ReactNode } from 'react'
 import { WorkflowGuideCopyGuidedRow } from './WorkflowGuideCopyGuidedRow'
 import { WorkflowGuideShell } from './WorkflowGuideShell'
 import { COMPARE_WORKFLOW_GUIDE_TITLE_ID } from './workflowGuideDomIds'
 
-export function CompareWorkflowGuide(props: { panelId?: string; testId?: string; keyboardContain?: boolean }) {
-  const { panelId, testId, keyboardContain } = props
+export function CompareWorkflowGuide(props: {
+  panelId?: string
+  testId?: string
+  keyboardContain?: boolean
+  examplePicker?: ReactNode
+}) {
+  const { panelId, testId, keyboardContain, examplePicker } = props
   return (
     <WorkflowGuideShell
       panelId={panelId}
@@ -11,9 +17,20 @@ export function CompareWorkflowGuide(props: { panelId?: string; testId?: string;
       keyboardContain={keyboardContain}
       titleId={COMPARE_WORKFLOW_GUIDE_TITLE_ID}
       title="Compare plans"
-      lede="Paste two plans from the same or closely related query. The tool aligns nodes heuristically, surfaces deltas, and helps you narrate what changed—confidence and unmatched nodes are part of the story."
+      lede="Paste two plans from the same or a closely related query. The mapper aligns operators heuristically—start from the summary takeaway, then open pairs the UI highlights."
       footer={<WorkflowGuideCopyGuidedRow testId="compare-workflow-guide-copy-guided" />}
     >
+      {examplePicker ? (
+        <section className="pqat-help-section" aria-labelledby={`${COMPARE_WORKFLOW_GUIDE_TITLE_ID}-examples`}>
+          <h3 className="pqat-help-section__title" id={`${COMPARE_WORKFLOW_GUIDE_TITLE_ID}-examples`}>
+            Sample pairs
+          </h3>
+          <p className="pqat-help-section__body" style={{ marginBottom: 0 }}>
+            Fastest start: try both samples—seq→index rewrites vs bitmap→index access paths.
+          </p>
+          <div data-testid="compare-guide-example-entry">{examplePicker}</div>
+        </section>
+      ) : null}
       <section className="pqat-help-section" aria-labelledby={`${COMPARE_WORKFLOW_GUIDE_TITLE_ID}-input`}>
         <h3 className="pqat-help-section__title" id={`${COMPARE_WORKFLOW_GUIDE_TITLE_ID}-input`}>
           What to compare
@@ -53,8 +70,8 @@ export function CompareWorkflowGuide(props: { panelId?: string; testId?: string;
             Click findings, index insights, or suggestions to <strong>pin</strong> them into the URL so collaborators open the same focus.
           </li>
           <li>
-            <strong>Copy link</strong> restores this comparison snapshot (URL + pins). <strong>Copy pin context</strong> is chat-sized text only—no URL.{' '}
-            <strong>Copy guided link</strong> in the footer merges <code>guide=1</code> into the current address (keeps other params)—for onboarding handoff, not a snapshot by itself.
+            <strong>Copy link</strong> restores this saved comparison (URL + pins). <strong>Copy pin context</strong> is chat-sized text only—no URL.{' '}
+            Footer <strong>Copy merged guided link</strong> / <strong>Copy entry guided link</strong> reopen help (<code>guide=1</code>)—they are not a saved comparison by themselves.
           </li>
           <li>
             Removing <code>pair=</code> from the address bar clears an explicit pair selection; the app falls back to the current navigator selection or a sensible default pair.

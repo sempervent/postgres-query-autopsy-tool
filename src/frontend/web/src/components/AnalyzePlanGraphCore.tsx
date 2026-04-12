@@ -24,7 +24,7 @@ export function AnalyzePlanGraphCore({
   onSelectNodeId,
   onToggleCollapse,
   reframeToken,
-  graphHeight = 'clamp(360px, 48vh, 620px)',
+  graphHeight = 'clamp(240px, 30vh, 420px)',
   graphFillColumn = false,
 }: AnalyzePlanGraphCoreProps) {
   const nodeTypes: NodeTypes = useMemo(() => ({ analyzePlanNode: AnalyzePlanNode }), [])
@@ -42,7 +42,7 @@ export function AnalyzePlanGraphCore({
 
   const frameStyle = graphFillColumn
     ? { flex: 1, minHeight: 280, width: '100%' as const }
-    : { height: graphHeight, minHeight: 320 }
+    : { height: graphHeight, minHeight: 220 }
 
   return (
     <div className="pqat-graphFrame" style={frameStyle}>
@@ -59,11 +59,8 @@ export function AnalyzePlanGraphCore({
       >
         <GraphToolbar selectedNodeId={selectedNodeId} />
         <GraphSync selectedNodeId={selectedNodeId} reframeToken={reframeToken} />
-        <Background
-          gap={22}
-          size={1}
-          variant={import.meta.env.MODE === 'test' ? BackgroundVariant.Lines : BackgroundVariant.Dots}
-        />
+        {/* Dots in Vitest: Lines pattern can emit transient NaN SVG coords under jsdom measurement (noisy stderr). */}
+        <Background gap={22} size={1} variant={BackgroundVariant.Dots} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>

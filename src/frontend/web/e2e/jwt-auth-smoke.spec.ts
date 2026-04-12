@@ -49,7 +49,7 @@ test('JWT: owner creates analysis, reopens persisted link', async ({ browser, ba
   await page.goto('/')
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(page).toHaveURL(/[?&]analysis=/, { timeout: 30_000 })
   const persistedUrl = page.url()
 
@@ -58,7 +58,7 @@ test('JWT: owner creates analysis, reopens persisted link', async ({ browser, ba
   await installBearerRoute(reopen, jwt)
   await reopen.goto(persistedUrl)
   await expect(reopen.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })
-  await expect(reopen.getByText('Summary & metadata')).toBeVisible({ timeout: 60_000 })
+  await expect(reopen.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 60_000 })
   await reopenCtx.close()
   await ctx.close()
 })
@@ -174,7 +174,7 @@ test('JWT: Compare Copy link includes pinned index insight line when indexDiff i
 
   await page.getByTestId('compare-copy-deep-link').click()
   const clip = await readE2eCapturedClipboard(page)
-  expect(clip).toContain(`Pinned index insight: ${insightId}`)
+  expect(clip).toContain(`Highlighted index change: ${insightId}`)
   expect(clip).toContain('PQAT compare:')
   await ctx.close()
 })
@@ -203,7 +203,7 @@ test('JWT: Compare Copy link includes pinned finding line when finding is active
 
   await page.getByTestId('compare-copy-deep-link').click()
   const clip = await readE2eCapturedClipboard(page)
-  expect(clip).toContain(`Pinned finding: ${diffId}`)
+  expect(clip).toContain(`Highlighted finding: ${diffId}`)
   expect(clip).toContain('PQAT compare:')
   await ctx.close()
 })
@@ -236,7 +236,7 @@ test('JWT: Compare Copy link includes pinned suggestion line when suggestion is 
 
   await page.getByTestId('compare-copy-deep-link').click()
   const clip = await readE2eCapturedClipboard(page)
-  expect(clip).toContain(`Pinned suggestion: ${suggestionId}`)
+  expect(clip).toContain(`Highlighted next step: ${suggestionId}`)
   expect(clip).toContain('PQAT compare:')
   await ctx.close()
 })
@@ -265,6 +265,6 @@ test('JWT: Compare Copy pin context omits URL when a pin is active', async ({ br
   const clip = await readE2eCapturedClipboard(page)
   expect(clip).not.toMatch(/^https?:\/\//m)
   expect(clip).toContain('PQAT compare:')
-  expect(clip).toMatch(/Pinned for link:.*finding/i)
+  expect(clip).toMatch(/Link includes:.*finding/i)
   await ctx.close()
 })

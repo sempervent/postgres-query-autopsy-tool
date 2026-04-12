@@ -1,5 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { AnalyzedPlanNode, OptimizationSuggestion, PlanBottleneckInsight } from '../../api/types'
+import {
+  firstVirtualRowIndexAlignedWithAnalyzeTriage,
+  suggestionAlignsWithAnalyzeTriage,
+} from '../../presentation/analyzeOutputGuidance'
 import { bottleneckClassShortLabel } from '../../presentation/bottleneckPresentation'
 import {
   flattenGroupedSuggestionsForVirtualList,
@@ -16,7 +20,7 @@ import {
   suggestionVirtualRowEstimateSize,
 } from '../../presentation/optimizationSuggestionsPresentation'
 import { useCopyFeedback } from '../../presentation/useCopyFeedback'
-import { VirtualizedListColumn, VIRTUAL_LIST_THRESHOLD } from '../VirtualizedListColumn'
+import { VirtualizedListColumn, VIRTUAL_LIST_THRESHOLD, type VirtualizedListColumnHandle } from '../VirtualizedListColumn'
 
 const SUGGEST_VIRTUAL_THRESHOLD = Math.max(12, VIRTUAL_LIST_THRESHOLD - 24)
 
@@ -29,6 +33,10 @@ function SuggestionCardBody(props: {
   nodeLabel: (n: AnalyzedPlanNode) => string
   bottleneckByInsightId: Map<string, PlanBottleneckInsight>
   isTopLeverageCard: boolean
+  /** Evidence-aligned with summary “Start here” (finding link, focus node, or shared target nodes). */
+  alignsWithStartHere: boolean
+  /** Single card: first list row that matches triage for scroll-into-view / browser tests. */
+  isTriageScrollTarget?: boolean
   analysisId?: string | null
   copySuggestion: ReturnType<typeof useCopyFeedback>
 }) {
@@ -41,6 +49,8 @@ function SuggestionCardBody(props: {
     nodeLabel,
     bottleneckByInsightId,
     isTopLeverageCard,
+    alignsWithStartHere,
+    isTriageScrollTarget = false,
     analysisId,
     copySuggestion,
   } = props
@@ -60,6 +70,7 @@ function SuggestionCardBody(props: {
     <div
       className={`pqat-listRow pqat-listRow--suggestion pqat-workspaceReveal${isTopLeverageCard ? ' pqat-suggestionCard--topLead' : ''}`}
       style={{ padding: 14 }}
+      data-testid={isTriageScrollTarget ? 'analyze-suggestion-card-triage-aligned' : undefined}
     >
       {s.isGroupedCluster ? (
         <div className="pqat-suggestionGroupedBadge" title="Merged from multiple overlapping findings">
@@ -69,6 +80,15 @@ function SuggestionCardBody(props: {
       {isTopLeverageCard ? (
         <div className="pqat-hint" style={{ fontSize: 11, marginBottom: 8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           Strongest next experiment
+        </div>
+      ) : null}
+      {alignsWithStartHere ? (
+        <div
+          className="pqat-triageSuggestionCue"
+          data-testid="analyze-suggestion-triage-match"
+          title="Targets the same evidence thread as Start here"
+        >
+          Aligned with Start here
         </div>
       ) : null}
       <div className="pqat-guidedSuggestion">
@@ -203,6 +223,12 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
   bottlenecks?: PlanBottleneckInsight[] | null
   /** Phase 84: included in “Copy for ticket” payload when present. */
   analysisId?: string | null
+  /** Finding id from triage when takeaway is finding-driven (Phase 110). */
+  primaryTriageFindingId?: string | null
+  /** Start-here focus node (inspect-step or top finding anchor). */
+  triageFocusNodeId?: string | null
+  /** Node ids on the primary ranked finding (overlap with suggestion targets). */
+  primaryFindingNodeIds?: readonly string[] | null
 }) {
   const {
     sortedOptimizationSuggestions,
@@ -213,6 +239,9 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
     nodeLabel,
     bottlenecks,
     analysisId,
+    primaryTriageFindingId,
+    triageFocusNodeId,
+    primaryFindingNodeIds,
   } = props
 
   const copySuggestion = useCopyFeedback()
@@ -239,9 +268,51 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
   }, [groups, normalized])
   const useVirtual = virtualRows.length >= SUGGEST_VIRTUAL_THRESHOLD
 
+  const triageSuggestionCtx = useMemo(
+    () => ({
+      primaryFindingId: primaryTriageFindingId,
+      triageFocusNodeId,
+      primaryFindingNodeIds,
+    }),
+    [primaryTriageFindingId, triageFocusNodeId, primaryFindingNodeIds],
+  )
+
+  const triageAlignedRowIndex = useMemo(
+    () => firstVirtualRowIndexAlignedWithAnalyzeTriage(virtualRows, triageSuggestionCtx),
+    [virtualRows, triageSuggestionCtx],
+  )
+
+  const triageScrollTargetSuggestionId = useMemo(() => {
+    if (triageAlignedRowIndex < 0) return null
+    const row = virtualRows[triageAlignedRowIndex]
+    return row?.kind === 'card' ? row.suggestion.suggestionId : null
+  }, [virtualRows, triageAlignedRowIndex])
+
+  const alignedVirtualIndex = useMemo(() => {
+    if (!useVirtual) return -1
+    return triageAlignedRowIndex
+  }, [useVirtual, triageAlignedRowIndex])
+
+  const alignedSuggestionIdKey = triageScrollTargetSuggestionId ?? ''
+
+  const suggestionListRef = useRef<VirtualizedListColumnHandle>(null)
+
+  useEffect(() => {
+    if (alignedVirtualIndex < 0) return
+    const id = window.requestAnimationFrame(() => {
+      suggestionListRef.current?.scrollToIndex(alignedVirtualIndex, { align: 'center' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [alignedVirtualIndex, alignedSuggestionIdKey, sortedOptimizationSuggestions.length])
+
   if (!sortedOptimizationSuggestions.length) {
     return (
-      <section className="pqat-panel pqat-panel--detail" style={{ marginBottom: 16, padding: '16px 18px' }} aria-label="Optimization suggestions">
+      <section
+        className="pqat-panel pqat-panel--detail"
+        style={{ marginBottom: 16, padding: '16px 18px' }}
+        aria-label="Optimization suggestions"
+        data-testid="analyze-optimization-suggestions-panel"
+      >
         <div className="pqat-eyebrow">Next steps</div>
         <h2 style={{ marginTop: 0 }}>Optimization suggestions</h2>
         <p className="pqat-hint" style={{ marginBottom: 0 }}>
@@ -254,6 +325,8 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
 
   function renderSuggestionCard(s: OptimizationSuggestion) {
     const expanded = expandedOptimizationId === s.suggestionId
+    const alignsWithStartHere = suggestionAlignsWithAnalyzeTriage(s, triageSuggestionCtx)
+    const isTriageScrollTarget = Boolean(triageScrollTargetSuggestionId && s.suggestionId === triageScrollTargetSuggestionId)
     return (
       <SuggestionCardBody
         key={s.suggestionId}
@@ -265,6 +338,8 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
         nodeLabel={nodeLabel}
         bottleneckByInsightId={bottleneckByInsightId}
         isTopLeverageCard={topLeverageId !== null && s.suggestionId === topLeverageId}
+        alignsWithStartHere={alignsWithStartHere}
+        isTriageScrollTarget={isTriageScrollTarget}
         analysisId={analysisId}
         copySuggestion={copySuggestion}
       />
@@ -272,7 +347,12 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
   }
 
   return (
-    <section className="pqat-panel pqat-panel--detail" style={{ marginBottom: 16, padding: '16px 18px' }} aria-label="Optimization suggestions">
+    <section
+      className="pqat-panel pqat-panel--detail"
+      style={{ marginBottom: 16, padding: '16px 18px' }}
+      aria-label="Optimization suggestions"
+      data-testid="analyze-optimization-suggestions-panel"
+    >
       <div className="pqat-eyebrow">Next steps</div>
       <h2 style={{ marginTop: 0 }}>Optimization suggestions</h2>
       {copySuggestion.status ? (
@@ -281,16 +361,17 @@ export function AnalyzeOptimizationSuggestionsPanel(props: {
         </div>
       ) : null}
       <p className="pqat-hint" style={{ marginBottom: 12 }}>
-        Ranked by priority and evidence strength within each section. The highlighted <strong>action line</strong> on each card is what
-        to run or measure first; the paragraph below adds context. Expand a card for rationale, cautions, and validation steps—not
-        guaranteed fixes.
+        Ordered by priority and evidence. Each card’s highlighted action line is the first concrete move; expand for cautions and
+        validation—not guaranteed fixes.
       </p>
       {useVirtual ? (
         <VirtualizedListColumn
+          ref={suggestionListRef}
           count={virtualRows.length}
           estimateSize={suggestionVirtualRowEstimateSize(virtualRows[0]!)}
           getItemSize={(i) => suggestionVirtualRowEstimateSize(virtualRows[i]!)}
           maxHeight="min(520px, 55vh)"
+          scrollContainerTestId="analyze-suggestions-virtual-scroller"
           aria-label="Optimization suggestions (scroll for more)"
         >
           {(i) => {

@@ -1,0 +1,27 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Index Scan",
+      "Relation Name": "shipments",
+      "Schema": "public",
+      "Alias": "shipments",
+      "Index Name": "shipments_wh_shipped_at_idx",
+      "Startup Cost": 0.45,
+      "Total Cost": 3800.0,
+      "Plan Rows": 12000,
+      "Plan Width": 48,
+      "Actual Startup Time": 0.03,
+      "Actual Total Time": 22.0,
+      "Actual Rows": 8000,
+      "Actual Loops": 1,
+      "Index Cond": "((warehouse_id = 3) AND (shipped_at IS NOT NULL))",
+      "Order": "Backward",
+      "Buffers": {
+        "Shared Hit Blocks": 350,
+        "Shared Read Blocks": 480,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      }
+    }
+  }
+]

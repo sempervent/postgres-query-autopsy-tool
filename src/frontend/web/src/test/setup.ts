@@ -156,6 +156,57 @@ globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserv
   }
 })()
 
+/**
+ * React Flow edge paths and some SVG children call `getBBox()` before layout settles in jsdom.
+ * Only `.react-flow` subtrees get a finite fallback so other SVG tests still surface real failures.
+ */
+;(function patchSvgBBoxForReactFlow() {
+  const proto = globalThis.SVGGraphicsElement?.prototype
+  if (!proto) return
+  const orig = proto.getBBox
+  if (typeof orig !== 'function') return
+  proto.getBBox = function (this: SVGGraphicsElement) {
+    const inRf = Boolean(this.closest?.('.react-flow'))
+    try {
+      const b = orig.call(this)
+      const ok =
+        Number.isFinite(b.x) &&
+        Number.isFinite(b.y) &&
+        Number.isFinite(b.width) &&
+        Number.isFinite(b.height)
+      if (ok) return b
+      if (!inRf) return b
+    } catch (e) {
+      if (!inRf) throw e
+    }
+    const fallback = { x: 0, y: 0, width: 100, height: 100 }
+    return { ...fallback, toJSON: () => fallback } as DOMRect
+  }
+})()
+
+/**
+ * React 18 + jsdom: React Flow can still briefly commit SVG props as NaN before our layout patches apply.
+ * Geometry patches above should handle almost all cases; this is a last resort when `.react-flow` is mounted.
+ * Filter only React DOM’s single-attribute NaN warning so real test failures still print.
+ */
+;(function suppressReactFlowSvgNaNWarningsInVitest() {
+  if (import.meta.env.MODE !== 'test') return
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    const head = args[0]
+    if (
+      typeof head === 'string' &&
+      head.startsWith('Received NaN for the `') &&
+      head.includes('` attribute.') &&
+      typeof document !== 'undefined' &&
+      document.querySelector('.react-flow')
+    ) {
+      return
+    }
+    orig.apply(console, args as Parameters<typeof console.error>)
+  }
+})()
+
 /** jsdom in some Vitest/Node stacks omits `document.execCommand`; copy uses it synchronously first (Phase 84). */
 beforeAll(() => {
   const d = globalThis.document

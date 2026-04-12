@@ -62,6 +62,8 @@ Immutable **multi-arch index** digests are pinned for **Playwright**, **web** (*
 
 **CI npm cache (Phase 81, superseded Phase 91 for `frontend` job):** The **`frontend`** job no longer uses **`setup-node`** / npm cache — it runs **`verify-frontend-docker.sh`** inside a container. Local contributors can still use **`actions/setup-node`** cache in forks if they customize workflows; upstream CI relies on Docker for deterministic installs.
 
+**Vitest + React Flow (Phase 130 / 131):** **`src/test/setup.ts`** patches jsdom layout for **`.react-flow`** and, in **`import.meta.env.MODE === 'test'`**, filters **`console.error`** lines that match React DOM’s exact **“Received NaN for the \`…\` attribute.”** pattern only when **`document.querySelector('.react-flow')`** is present (transient SVG coords under jsdom). If you add a component that legitimately needs that warning, prefer fixing the NaN source or scope a narrower test hook than broad **`console`** suppression.
+
 ### CI Node version (Phase 80)
 
 **`.github/workflows/ci.yml`** **`frontend`** job uses **`actions/setup-node@v4`** with **`node-version: "20.18.0"`** — aligns with **`package.json`** **`volta.node`**, **`src/frontend/web/.nvmrc`**, and the **Node 20** line used in Docker (**Alpine** image is digest-pinned on **`node:20-alpine`**; it may trail **20.18.0** patch-for-patch — CI is the exact patch reference). When bumping **20.18.x**, update **`.nvmrc`**, **Volta**, **`ci.yml`**, and re-test **`verify-frontend-docker`**.
@@ -147,11 +149,11 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 
 | Project | Spec | Env file | What it proves |
 |--------|------|----------|----------------|
-| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **422** / **409**, Compare **Copy link** with **pinned index insight**, deep-link + **Pair scope** copy, **`suggestion=`** / **`finding=`** / **`indexDiff=`** reopen highlights + URL bar checks, **Phase 66** theme (no screenshots) |
+| **`e2e-smoke`** | **`persisted-flows.spec.ts`**, **`theme-appearance.spec.ts`** | **`.env.testing`** | Non-auth persisted flows, **Try example** (**Analyze** + **Compare**), **422** / **409**, Compare **Copy link** with **pinned index insight**, deep-link + **Pair scope** copy, **`suggestion=`** / **`finding=`** / **`indexDiff=`** reopen highlights + URL bar checks, **merged/entry** guided links (**Analyze** + **Compare**) + guide announcer lifecycle, **Phase 66** theme (no screenshots) |
 | **`e2e-auth-api-key`** | **`auth-artifact-access.spec.ts`** | **`.env.testing.auth`** | API key: Analyze owner/deny/group sharing + **Copy artifact link** clipboard payload (**URL** + **`PQAT analysis:`**, Phase 88) |
 | **`e2e-auth-jwt`** | **`jwt-auth-smoke.spec.ts`** | **`.env.testing.jwt`** | JWT: Analyze + Compare reopen, Compare denial, **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**) |
 | **`e2e-auth-proxy`** | **`proxy-auth-smoke.spec.ts`** | **`.env.testing.proxy`** | Trusted headers **`X-PQAT-User`**: Analyze reopen + denial; **Compare Copy link** clipboard (**URL** + **`PQAT compare:`** + **`Pair ref:`**, Phase 91) |
-| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **4** tests, **region-targeted** PNGs: Analyze uses **`analyze-visual-summary-contract`**; Compare summary uses **`[aria-labelledby="compare-summary-heading"]`**; navigator/pair use **`aria-label`**; errors: **`analyze-page-error`** only; see **`e2e/visual/README.md`** |
+| **`e2e-visual`** | **`visual/canonical.spec.ts`** | **`.env.testing`** | **5** tests, **region-targeted** PNGs: **workflow guide** shell (**`analyze-workflow-guide-panel`** + **`data-pqat-help-visual-contract`**); Analyze uses **`analyze-visual-summary-contract`**; Compare summary uses **`[aria-labelledby="compare-summary-heading"]`**; navigator/pair use **`aria-label`**; errors: **`analyze-page-error`** only; see **`e2e/visual/README.md`** |
 
 **npm scripts** (host Playwright; API must already match the mode): **`test:e2e`** / **`test:e2e:smoke`**, **`test:e2e:copy`** (**`e2e/persisted-flows.spec.ts`** only — Phase 72 clipboard + persisted Analyze/Compare smoke; same **`e2e-smoke`** project), **`test:e2e:auth`** (alias **`test:e2e:api-key`**), **`test:e2e:jwt`**, **`test:e2e:proxy`**, **`test:e2e:visual`** / **`test:e2e:visual:update`**.
 
@@ -169,6 +171,7 @@ The API runs **one** `Auth:Mode` at a time. Each auth Playwright project must ma
 **Fixtures**
 
 - Plan JSON under **`src/frontend/web/e2e/fixtures/`** must match **`tests/backend.unit/PostgresQueryAutopsyTool.Tests.Unit/fixtures/postgres-json/`** for the bundled files. From **`src/frontend/web`**: **`npm run fixtures:sync`** (runs **`scripts/sync-e2e-fixtures.sh`**). CI runs **`npm run fixtures:check`** on the frontend job.
+- **Phase 107–108:** Curated **sample** JSON lives under **`src/frontend/web/src/examples/plans/`** (see **`src/examples/README.md`** for the fixture→bundle map). After changing an E2E fixture that backs an example, copy or update the corresponding **`examples/plans`** file and adjust **`analyzePlanExamples.ts`** / **`comparePlanExamples.ts`** labels if the story changes.
 
 **API test-only seeds**
 

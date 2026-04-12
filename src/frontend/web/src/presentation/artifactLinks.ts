@@ -1,6 +1,7 @@
 /** DOM / URL helpers for stable compare & analyze artifact references (Phase 33). */
 
 import type { StoredArtifactAccess } from '../api/types'
+import { scrollIntoViewOptionsForUser } from './motionPreferences'
 
 /** Button label for copy-link actions (non-auth vs auth semantics, Phase 37). */
 export function shareArtifactLinkLabel(
@@ -52,11 +53,13 @@ export const AnalyzeDeepLinkParam = {
 export function scrollArtifactIntoView(
   kind: string,
   artifactId: string,
-  options: ScrollIntoViewOptions = { behavior: 'smooth', block: 'nearest' },
+  options?: ScrollIntoViewOptions,
 ): void {
   if (!artifactId || typeof document === 'undefined') return
   const el = document.querySelector(`[data-artifact="${kind}"][data-artifact-id="${artifactId}"]`)
-  if (el instanceof HTMLElement && typeof el.scrollIntoView === 'function') el.scrollIntoView(options)
+  if (el instanceof HTMLElement && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView(scrollIntoViewOptionsForUser(options ?? { block: 'center', inline: 'nearest' }))
+  }
 }
 
 export function buildCompareDeepLinkSearchParams(parts: {
@@ -94,7 +97,7 @@ export function formatComparePinnedSummaryLine(parts: {
   if (ix) bits.push(`index insight ${ix}`)
   if (s) bits.push(`next step ${s}`)
   if (bits.length === 0) return null
-  return `Pinned for link: ${bits.join(' · ')}`
+  return `Link includes: ${bits.join(' · ')}`
 }
 
 /** Same as {@link compareDeepLinkPath}; alias for analyze routes. */

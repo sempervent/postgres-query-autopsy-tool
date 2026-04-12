@@ -1,0 +1,74 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Startup Cost": 10.0,
+      "Total Cost": 8000.0,
+      "Plan Rows": 2000,
+      "Plan Width": 32,
+      "Actual Startup Time": 0.12,
+      "Actual Total Time": 14.0,
+      "Actual Rows": 80,
+      "Actual Loops": 1,
+      "Hash Cond": "(orders.id = line_items.order_id)",
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Relation Name": "orders",
+          "Schema": "public",
+          "Alias": "orders",
+          "Startup Cost": 0.0,
+          "Total Cost": 120.0,
+          "Plan Rows": 400,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 0.8,
+          "Actual Rows": 80,
+          "Actual Loops": 1,
+          "Filter": "(status = 'open'::text)",
+          "Buffers": {
+            "Shared Hit Blocks": 60,
+            "Shared Read Blocks": 10,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0
+          }
+        },
+        {
+          "Node Type": "Hash",
+          "Startup Cost": 8.0,
+          "Total Cost": 200.0,
+          "Plan Rows": 50000,
+          "Plan Width": 16,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 6.5,
+          "Actual Rows": 48000,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Relation Name": "line_items",
+              "Schema": "public",
+              "Alias": "line_items",
+              "Startup Cost": 0.0,
+              "Total Cost": 180.0,
+              "Plan Rows": 50000,
+              "Plan Width": 16,
+              "Actual Startup Time": 0.02,
+              "Actual Total Time": 5.2,
+              "Actual Rows": 48000,
+              "Actual Loops": 1,
+              "Filter": "(qty > 0)",
+              "Buffers": {
+                "Shared Hit Blocks": 400,
+                "Shared Read Blocks": 900,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

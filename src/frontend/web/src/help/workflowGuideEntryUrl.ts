@@ -13,8 +13,9 @@ export function buildWorkflowGuideAbsoluteUrl(pathname: string): string {
 }
 
 /**
- * Copy guided link: current path + merged query (`guide=1` set/replaced) + hash.
+ * Merged guided link: current path + merged query (`guide=1` set/replaced) + hash.
  * Keeps deep-link params (e.g. `comparison=`, `analysis=`) so support can share “this view + guide”.
+ * For a clean path-only URL, use {@link buildWorkflowGuideAbsoluteUrl}.
  */
 export function buildCopyGuidedLinkUrlFromLocation(loc: Pick<Location, 'origin' | 'pathname' | 'search' | 'hash'>): string {
   const path = loc.pathname && loc.pathname.startsWith('/') ? loc.pathname : '/'

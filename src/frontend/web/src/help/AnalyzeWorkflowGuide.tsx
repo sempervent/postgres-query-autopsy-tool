@@ -1,9 +1,16 @@
+import type { ReactNode } from 'react'
 import { WorkflowGuideCopyGuidedRow } from './WorkflowGuideCopyGuidedRow'
 import { WorkflowGuideShell } from './WorkflowGuideShell'
 import { ANALYZE_WORKFLOW_GUIDE_TITLE_ID } from './workflowGuideDomIds'
 
-export function AnalyzeWorkflowGuide(props: { panelId?: string; testId?: string; keyboardContain?: boolean }) {
-  const { panelId, testId, keyboardContain } = props
+export function AnalyzeWorkflowGuide(props: {
+  panelId?: string
+  testId?: string
+  keyboardContain?: boolean
+  /** Phase 107: same Try-example chips as capture (optional). */
+  examplePicker?: ReactNode
+}) {
+  const { panelId, testId, keyboardContain, examplePicker } = props
   return (
     <WorkflowGuideShell
       panelId={panelId}
@@ -11,9 +18,20 @@ export function AnalyzeWorkflowGuide(props: { panelId?: string; testId?: string;
       keyboardContain={keyboardContain}
       titleId={ANALYZE_WORKFLOW_GUIDE_TITLE_ID}
       title="Analyze a plan"
-      lede="Paste one PostgreSQL execution plan. The app normalizes it, ranks evidence-backed findings, and gives you a workspace to explore—not a single verdict you should trust blindly."
+      lede="Paste a PostgreSQL plan JSON. The app ranks findings and gives you a graph-first workspace—use the top summary to triage before you read everything."
       footer={<WorkflowGuideCopyGuidedRow testId="analyze-workflow-guide-copy-guided" />}
     >
+      {examplePicker ? (
+        <section className="pqat-help-section" aria-labelledby={`${ANALYZE_WORKFLOW_GUIDE_TITLE_ID}-examples`}>
+          <h3 className="pqat-help-section__title" id={`${ANALYZE_WORKFLOW_GUIDE_TITLE_ID}-examples`}>
+            Sample plans
+          </h3>
+          <p className="pqat-help-section__body" style={{ marginBottom: 0 }}>
+            Fastest start: tap a sample—each shows a different shape (scan, sort pressure, index ordering).
+          </p>
+          <div data-testid="analyze-guide-example-entry">{examplePicker}</div>
+        </section>
+      ) : null}
       <section className="pqat-help-section" aria-labelledby={`${ANALYZE_WORKFLOW_GUIDE_TITLE_ID}-paste`}>
         <h3 className="pqat-help-section__title" id={`${ANALYZE_WORKFLOW_GUIDE_TITLE_ID}-paste`}>
           What to paste
@@ -34,13 +52,13 @@ export function AnalyzeWorkflowGuide(props: { panelId?: string; testId?: string;
         </h3>
         <ul className="pqat-help-section__body">
           <li>
-            <strong>Graph</strong> shows structure and hotspots; <strong>Text</strong> is the same tree in outline form. Click nodes to anchor everything else.
+            <strong>Graph</strong> for structure and hotspots; <strong>Text</strong> for the same tree in outline form. Click a node to anchor the rest of the page.
           </li>
           <li>
-            The <strong>Plan guide</strong> (when visible) summarizes the story for your current selection—still interpretation layered on raw plan data.
+            <strong>Plan guide</strong> (when open) summarizes the selected operator—still interpretation on top of raw plan data.
           </li>
           <li>
-            <strong>Findings</strong> are ranked signals with evidence. <strong>Optimization suggestions</strong> merge overlapping hints into practical next checks.
+            <strong>Findings</strong> are ranked signals with evidence. <strong>Suggestions</strong> group overlapping hints into practical next checks.
           </li>
         </ul>
       </section>
@@ -50,13 +68,13 @@ export function AnalyzeWorkflowGuide(props: { panelId?: string; testId?: string;
         </h3>
         <ul className="pqat-help-section__body">
           <li>
-            Start with summary and top findings, then jump into the graph for the nodes they mention.
+            Read the <strong>Start here</strong> band and <strong>Also scan</strong> first—then click through to the graph.
           </li>
           <li>
-            <strong>Bottlenecks</strong> highlight where time or reads concentrate; treat them as pointers, not proof of root cause.
+            <strong>Bottlenecks</strong> show where time or reads pile up—pointers for investigation, not guaranteed root cause.
           </li>
           <li>
-            Use <strong>Copy</strong> actions on nodes, findings, and suggestions when you file tickets—always re-run the same <code>EXPLAIN</code> on your cluster to verify.
+            Use <strong>Copy</strong> on nodes, findings, and suggestions for tickets—re-run the same <code>EXPLAIN</code> on your database to verify.
           </li>
         </ul>
       </section>

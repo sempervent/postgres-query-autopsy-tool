@@ -2,20 +2,30 @@
 
 **Phase 75:** Happy-path captures are **region-targeted** (stable story surfaces), not full-page document shots — the Analyze workstation grew taller; full-page baselines were brittle against layout expansion.
 
-**Phase 92:** The first Analyze PNG (**`analyze-happy-summary`**) targets **`data-testid="analyze-visual-summary-contract"`** — **Summary & metadata** metric tiles plus the **Structured plan briefing** callout only. It **excludes** share buttons, **ArtifactSharingPanel**, **Plan source / EXPLAIN metadata**, and other footer/meta blocks so the contract tracks **story surfaces** without churn from sharing/metadata layout. The full card remains **`aria-label="Analysis summary"`** for assistive tech.
+**Phase 92 / 108:** The first Analyze PNG (**`analyze-happy-summary`**) targets **`data-testid="analyze-visual-summary-contract"`** — **Summary** triage (**Start here**, **Also scan**), collapsed **Analysis id & plan counts**, and the **Plan briefing** callout (default-visible inspect lane + collapsed overview). It **excludes** share buttons, **ArtifactSharingPanel**, **Plan source / EXPLAIN metadata**, and other footer/meta blocks so the contract tracks **story surfaces** without churn from sharing/metadata layout. The full card remains **`aria-label="Analysis summary"`** for assistive tech.
+
+**Phase 107:** The same contract region now includes the **Start here** triage band (**`analyze-summary-takeaway`**) when findings exist; flow/index-shape lanes may be collapsed in **`<details>`** in the DOM but the briefing block still prints above the fold for **`simple_seq_scan`**.
 
 **Phase 76:** **Tooling pins**, **`waitForGraphLayoutSettled`** before the Analyze **workspace** screenshot, and a **viewport / tooling matrix** (below) so contributors know what CI assumes.
 
 Error-path captures use the **`analyze-page-error`** panel only (compact, deterministic).
 
-The suite stays **small** by design: **four tests**, **eight PNG baselines** (Linux).
+**Phase 106:** Fifth test — **workflow guide** shell only (**`analyze-workflow-guide-panel`**, **`data-pqat-help-visual-contract`**) at **`/?guide=1`**, **`analyze-workflow-guide-shell.png`**.
+
+The suite stays **small** by design: **six tests** (Phase 131), **eleven PNG baselines** (Linux).
+
+**Phase 120–121:** **Take with you** uses **`pqat-handoffBand`**, **`analyze-export-handoff-kicker`**, **`pqat-formatLegend`**, and stable **`analyze-export-report-row`** / **`compare-export-report-row`** — crop candidates when adding **`e2e-visual`** baselines; run **`--update-snapshots`** on **Linux** (Docker).
+
+**Phase 131:** Tight crops for **Analyze** ranked continuation (**`analyze-visual-ranked-continuation-contract`**, after **Open in ranked list** from a sample) and **Compare** pair handoff (**`compare-visual-pair-continuation-contract`**, eyebrow + thread hint + **Selected node pair** heading).
 
 ## Viewport & capture matrix (`canonical.spec.ts`)
 
 | Test | Viewport | Captures |
 |------|-----------|----------|
-| Analyze happy | **1280 × 900** | Three **region** PNGs: **metrics + plan briefing** (`analyze-visual-summary-contract`), **Analyze workspace** (graph + guide), **Findings list** |
-| Compare happy | **1280 × 900** | Three **region** PNGs: **Compare summary**, **Compare navigator**, **Compare pair inspector** |
+| Workflow guide shell | **720 × 780** | **`analyze-workflow-guide-panel`** (**help** chrome contract) |
+| Analyze happy | **1280 × 900** | Three **region** PNGs: **metrics + plan briefing** (`analyze-visual-summary-contract`), **Analyze workspace** (graph + guide), **Ranked findings panel** (`#analyze-ranked-findings`) |
+| Compare happy | **1280 × 900** | Four **region** PNGs: **Compare summary**, **Compare navigator**, **Compare pair inspector**, **pair continuation contract** (`compare-visual-pair-continuation-contract`) |
+| Analyze ranked continuation | **1280 × 900** | **`analyze-visual-ranked-continuation-contract`** (open-from-plan thread + **Findings** heading) |
 | Analyze corrupt | **1280 × 720** | **`analyze-page-error`** element only |
 | Analyze access denied | **1280 × 720** | **`analyze-page-error`** element only |
 
@@ -27,8 +37,10 @@ The suite stays **small** by design: **four tests**, **eight PNG baselines** (Li
 
 | Test | PNG stubs (Linux suffix `-e2e-visual-linux.png`) |
 |------|--------------------------------------------------|
+| **Workflow guide shell** | **`analyze-workflow-guide-shell`** |
 | **Analyze happy path** | **`analyze-happy-summary`**, **`analyze-happy-workspace`**, **`analyze-happy-findings`** |
-| **Compare happy path** | **`compare-happy-summary`**, **`compare-happy-navigator`**, **`compare-happy-pair`** |
+| **Compare happy path** | **`compare-happy-summary`**, **`compare-happy-navigator`**, **`compare-happy-pair`**, **`compare-pair-continuation-contract`** |
+| **Analyze ranked continuation** | **`analyze-ranked-continuation-contract`** |
 | **Analyze corrupt** | **`analyze-error-corrupt`** |
 | **Analyze access denied** | **`analyze-error-access-denied`** |
 
@@ -44,7 +56,7 @@ Keep these aligned when bumping Playwright:
 
 **Docker `web` build:** **`src/frontend/web/.dockerignore`** ignores **`node_modules`** so **`docker compose build web`** does not **`COPY`** the host tree over **`npm ci`** — do not remove it.
 
-**Baseline weight:** eight PNGs total; prefer **updating existing regions** over adding new files unless a surface lacks contract coverage (Phase 75–76 kept the suite lean — no extra region added in Phase 76).
+**Baseline weight:** prefer **updating existing regions** over adding new files unless a surface lacks contract coverage; Phase 131 adds two **continuation** crops (Analyze + Compare).
 
 ## Project
 

@@ -8,6 +8,8 @@
  *     -e PLAYWRIGHT_CLI_ARGS="--project=e2e-visual --update-snapshots" playwright
  * Phase 92: Analyze summary snapshot uses data-testid analyze-visual-summary-contract (metrics + plan briefing only),
  * not the full summary card (share/metadata/footer).
+ * Phase 106: workflow guide shell uses analyze-workflow-guide-panel + data-pqat-help-visual-contract (help vs analysis chrome).
+ * Phase 131: tight crops for Analyze ranked continuation + Compare pair handoff (analyze-visual-ranked-continuation-contract, compare-visual-pair-continuation-contract).
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -47,23 +49,34 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
+test('visual snapshot: workflow guide shell (Analyze help surface)', async ({ page }) => {
+  await page.setViewportSize({ width: 720, height: 780 })
+  await page.goto('/?guide=1')
+  const shell = page.getByTestId('analyze-workflow-guide-panel')
+  await expect(shell).toBeVisible({ timeout: 15_000 })
+  await expect(shell).toHaveAttribute('data-pqat-help-visual-contract', '1')
+  await waitForFontsReady(page)
+  await expectStableRegionScreenshot(shell, 'analyze-workflow-guide-shell.png')
+})
+
 test('visual snapshot: Analyze happy path (story surfaces)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const planText = readFileSync(postgresJsonFixture('simple_seq_scan.json'), 'utf-8')
   await page.goto('/')
   await page.getByPlaceholder(/JSON or psql/i).fill(planText)
   await page.getByRole('button', { name: /Analyze/i }).click()
-  await expect(page.getByText('Summary & metadata')).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
   await expect(page.getByLabel('Analyze workspace')).toBeVisible({ timeout: 45_000 })
   await page.locator('.react-flow').waitFor({ state: 'visible', timeout: 45_000 }).catch(() => {})
   await waitForGraphLayoutSettled(page)
   await expect(page.getByRole('button', { name: /^Finding:/ }).first()).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByLabel('Findings list')).toBeVisible({ timeout: 30_000 })
+  const rankedFindingsPanel = page.locator('#analyze-ranked-findings')
+  await expect(rankedFindingsPanel).toBeVisible({ timeout: 30_000 })
   await waitForFontsReady(page)
 
   await expectStableRegionScreenshot(page.getByTestId('analyze-visual-summary-contract'), 'analyze-happy-summary.png')
   await expectStableRegionScreenshot(page.getByLabel('Analyze workspace'), 'analyze-happy-workspace.png')
-  await expectStableRegionScreenshot(page.getByLabel('Findings list'), 'analyze-happy-findings.png')
+  await expectStableRegionScreenshot(rankedFindingsPanel, 'analyze-happy-findings.png')
 })
 
 test('visual snapshot: Compare happy path (story surfaces)', async ({ page }) => {
@@ -88,14 +101,42 @@ test('visual snapshot: Compare happy path (story surfaces)', async ({ page }) =>
   await expectStableRegionScreenshot(compareSummaryRegion, 'compare-happy-summary.png')
   await expectStableRegionScreenshot(page.getByLabel('Compare navigator'), 'compare-happy-navigator.png')
   await expectStableRegionScreenshot(page.getByLabel('Compare pair inspector'), 'compare-happy-pair.png')
+  await expectStableRegionScreenshot(page.getByTestId('compare-visual-pair-continuation-contract'), 'compare-pair-continuation-contract.png')
+})
+
+test('visual snapshot: Analyze ranked continuation (open from plan)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/')
+  await page.getByTestId('analyze-try-example-simple-seq-scan-capture').click()
+  await expect(page.getByTestId('analyze-summary-heading')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 15_000 })
+  await page.locator('.react-flow__node').first().click()
+  await waitForGraphLayoutSettled(page)
+  await expect(page.getByTestId('analyze-local-evidence-open-top-in-list')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('analyze-local-evidence-open-top-in-list').click()
+  const contract = page.getByTestId('analyze-visual-ranked-continuation-contract')
+  await expect(contract).toBeVisible({ timeout: 15_000 })
+  await waitForFontsReady(page)
+  await expectStableRegionScreenshot(contract, 'analyze-ranked-continuation-contract.png')
 })
 
 test('visual snapshot: Analyze corrupt artifact banner', async ({ page, request }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
-  const res = await request.post('/api/e2e/seed/corrupt-analysis', {
-    data: { analysisId: 'e2e-visual-corrupt-analysis' },
-  })
-  expect(res.ok(), await res.text()).toBeTruthy()
+  // Phase 133: seed occasionally races warm API — brief retries keep the visual contract stable.
+  let seedBody = ''
+  let seedOk = false
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await request.post('/api/e2e/seed/corrupt-analysis', {
+      data: { analysisId: 'e2e-visual-corrupt-analysis' },
+    })
+    seedBody = await res.text()
+    if (res.ok()) {
+      seedOk = true
+      break
+    }
+    if (attempt < 4) await new Promise((r) => setTimeout(r, 280 * (attempt + 1)))
+  }
+  expect(seedOk, seedBody).toBe(true)
 
   await page.goto('/?analysis=e2e-visual-corrupt-analysis')
   await expect(page.getByTestId('analyze-persisted-loading')).toBeHidden({ timeout: 60_000 })

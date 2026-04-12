@@ -11,13 +11,13 @@ export function prefetchAnalyzePlanGraph() {
 }
 
 export function PlanGraphSkeleton({
-  graphHeight = 'clamp(360px, 48vh, 620px)',
+  graphHeight = 'clamp(240px, 30vh, 420px)',
   graphFillColumn = false,
 }: {
   graphHeight?: string
   graphFillColumn?: boolean
 }) {
-  const skelStyle = graphFillColumn ? { flex: 1, minHeight: 280, width: '100%' as const } : { height: graphHeight, minHeight: 320 }
+  const skelStyle = graphFillColumn ? { flex: 1, minHeight: 260, width: '100%' as const } : { height: graphHeight, minHeight: 280 }
   return (
     <div
       className="pqat-graphFrame pqat-graphSkeleton"

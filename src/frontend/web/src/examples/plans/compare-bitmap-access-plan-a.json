@@ -1,0 +1,41 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Bitmap Heap Scan",
+      "Relation Name": "shipments",
+      "Schema": "public",
+      "Alias": "shipments",
+      "Recheck Cond": "(warehouse_id = 3)",
+      "Startup Cost": 5.0,
+      "Total Cost": 12000.0,
+      "Plan Rows": 15000,
+      "Plan Width": 48,
+      "Actual Startup Time": 0.15,
+      "Actual Total Time": 48.0,
+      "Actual Rows": 12000,
+      "Actual Loops": 1,
+      "Heap Fetches": 9500,
+      "Buffers": {
+        "Shared Hit Blocks": 220,
+        "Shared Read Blocks": 4100,
+        "Shared Dirtied Blocks": 0,
+        "Shared Written Blocks": 0
+      },
+      "Plans": [
+        {
+          "Node Type": "Bitmap Index Scan",
+          "Index Name": "shipments_warehouse_id_idx",
+          "Startup Cost": 0.0,
+          "Total Cost": 350.0,
+          "Plan Rows": 15000,
+          "Plan Width": 0,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 6.0,
+          "Actual Rows": 15000,
+          "Actual Loops": 1,
+          "Index Cond": "(warehouse_id = 3)"
+        }
+      ]
+    }
+  }
+]

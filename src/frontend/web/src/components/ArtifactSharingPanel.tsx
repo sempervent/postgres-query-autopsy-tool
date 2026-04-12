@@ -57,7 +57,7 @@ export function ArtifactSharingPanel({
         await updateComparisonSharing(artifactId, { accessScope: scope, sharedGroupIds, allowLinkAccess: allowLink })
       }
       await onSaved()
-      setMsg('Saved.')
+      setMsg('Saved. Who can open this link updates on the next visit — not for files already taken offline.')
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
     } finally {
@@ -69,9 +69,9 @@ export function ArtifactSharingPanel({
     <details
       data-testid="artifact-sharing-details"
       className="pqat-sharingDetails pqat-metaPanel"
-      aria-label="Artifact sharing"
+      aria-label="Sharing and link access for this snapshot"
     >
-      <summary>Sharing &amp; access</summary>
+      <summary>Sharing</summary>
       <div className="pqat-sharingDetails__body">
         <div className="pqat-sharingDetails__row">
           <span className="pqat-signalLine__label">Owner</span>{' '}
@@ -88,10 +88,10 @@ export function ArtifactSharingPanel({
             value={scope}
             onChange={(e) => setScope(e.target.value)}
           >
-            <option value="private">private (owner only)</option>
-            <option value="link">link (capability URL when link access is on)</option>
-            <option value="group">group (listed groups)</option>
-            <option value="public">public (any signed-in user)</option>
+            <option value="private">Only you</option>
+            <option value="link">Anyone with the link (when link access is on)</option>
+            <option value="group">Listed groups only</option>
+            <option value="public">Any signed-in user</option>
           </select>
         </div>
         {scope === 'group' ? (
@@ -108,8 +108,11 @@ export function ArtifactSharingPanel({
         ) : null}
         <label className="pqat-checkRow pqat-checkRow--meta">
           <input data-testid="artifact-sharing-allow-link" type="checkbox" checked={allowLink} onChange={(e) => setAllowLink(e.target.checked)} />
-          <span>Allow link-style access (opaque URL when policy allows)</span>
+          <span>Allow opening from a shared link when your policy allows it</span>
         </label>
+        <p className="pqat-hint pqat-hint--tight" style={{ marginTop: 8, marginBottom: 0 }} data-testid="artifact-sharing-effect-note">
+          Applies when someone opens this URL again — it does not change copies or exports they already saved.
+        </p>
         <div className="pqat-sharingDetails__actions">
           <button
             data-testid="artifact-sharing-save"
@@ -118,7 +121,7 @@ export function ArtifactSharingPanel({
             disabled={saving}
             onClick={() => void save()}
           >
-            {saving ? 'Saving…' : 'Save sharing'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
           {msg ? (
             <span data-testid="artifact-sharing-status" className="pqat-sharingDetails__status">
@@ -127,19 +130,19 @@ export function ArtifactSharingPanel({
           ) : null}
         </div>
         <div className="pqat-authHelpCard">
-          <p className="pqat-authHelpCard__title">Server &amp; browser</p>
+          <p className="pqat-authHelpCard__title">How access is checked</p>
           {authHelp ? <p className="pqat-authHelpCard__text">{authHelp}</p> : null}
           <p className="pqat-authHelpCard__fine">
-            The API enforces access on every request. For calls from this browser:{' '}
+            Uses the identity from your current session. For local dev:{' '}
             {authIdentityKind === 'api_key' ? (
               <>
-                set <code className="pqat-codeInline">VITE_AUTH_API_KEY</code> (or{' '}
-                <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> if your gateway maps it).
+                <code className="pqat-codeInline">VITE_AUTH_API_KEY</code>, or{' '}
+                <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> if your gateway forwards it.
               </>
             ) : (
               <>
-                set <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> (JWT or legacy bearer) or{' '}
-                <code className="pqat-codeInline">VITE_AUTH_API_KEY</code> for API-key mode.
+                <code className="pqat-codeInline">VITE_AUTH_BEARER_TOKEN</code> (JWT or legacy) or{' '}
+                <code className="pqat-codeInline">VITE_AUTH_API_KEY</code>.
               </>
             )}
           </p>

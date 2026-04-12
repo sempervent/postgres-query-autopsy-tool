@@ -8,10 +8,13 @@ import {
   compareWithPlanTexts,
   ComparePlanParseError,
   ComparisonNotFoundError,
+  exportCompareHtml,
+  exportCompareJson,
+  exportCompareMarkdown,
   fetchAppConfig,
   getComparison,
 } from '../api/client'
-import { buildCompareBranchViewModel } from '../presentation/compareBranchContext'
+import { buildCompareBranchViewModel, resolveFindingDiffPair } from '../presentation/compareBranchContext'
 import { joinLabelAndSubtitle, nodeShortLabel, pairShortLabel } from '../presentation/nodeLabels'
 import {
   buildCompareIndexSectionModel,
@@ -20,6 +23,14 @@ import {
   compareEmptyStateCopy,
 } from '../presentation/comparePresentation'
 import { resolveCompareContinuitySummaryCue } from '../presentation/compareContinuityPresentation'
+import {
+  buildCompareExportTriageSummary,
+  injectCompareExportSupplementIntoHtml,
+  jsonCompareExportWithTriageEnvelope,
+  markdownCompareExportSupplement,
+} from '../presentation/compareExportTriage'
+import { exportDownloadSuccessHint } from '../presentation/exportStatusCopy'
+import { compareLeadTakeaway, compareTriagePairBridgeLine, resolveComparePairFallbackDisplay } from '../presentation/compareOutputGuidance'
 import {
   compareSuggestionsByPriority,
   normalizeOptimizationSuggestionsForDisplay,
@@ -47,12 +58,15 @@ import { buildSuggestedExplainSql } from '../presentation/explainCommandBuilder'
 import { PIN_LIVE_ANNOUNCE_DEFER_MS, useCopyFeedback } from '../presentation/useCopyFeedback'
 import { useWorkspaceLayoutTier } from '../hooks/useWorkspaceLayoutTier'
 import { useCompareWorkspaceLayout } from '../compareWorkspace/useCompareWorkspaceLayout'
+import { TryCompareExampleChips } from '../components/examples/TryPlanExampleChips'
 import { CompareCapturePanel } from '../components/compare/CompareCapturePanel'
+import { COMPARE_PLAN_EXAMPLES, getComparePlanExample, type ComparePlanExampleId } from '../examples/comparePlanExamples'
 import { ArtifactErrorBanner } from '../components/ArtifactErrorBanner'
 import { CompareWorkflowGuide } from '../help/CompareWorkflowGuide'
 import { WorkflowGuideBar } from '../help/WorkflowGuideBar'
 import { COMPARE_WORKFLOW_GUIDE_TITLE_ID } from '../help/workflowGuideDomIds'
 import { isWorkflowGuideHotkey, workflowGuideHotkeyShouldIgnoreTarget } from '../help/workflowGuideHotkey'
+import { openWorkflowGuideWhenUrlRequests } from '../help/workflowGuideOpenFromUrl'
 import {
   readWorkflowGuideDismissed,
   urlWantsWorkflowGuide,
@@ -60,11 +74,23 @@ import {
   writeWorkflowGuideDismissed,
 } from '../help/workflowGuidePrefs'
 import { CompareNavigatorPanel } from '../components/compare/CompareNavigatorPanel'
+import { SkipToPairInspectorLink } from '../components/compare/SkipToPairInspectorLink'
 
 const COMPARE_GUIDE_PANEL_ID = 'compare-workflow-guide-panel'
 import { ComparePairColumn } from '../components/compare/ComparePairColumn'
+import type { ComparePairHandoffKind } from '../components/compare/CompareSelectedPairPanel'
 import { CompareSummaryColumn } from '../components/compare/CompareSummaryColumn'
 import { CompareTopChangesPanel } from '../components/compare/CompareTopChangesPanel'
+
+function downloadCompareText(filename: string, text: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function ComparePage() {
   const location = useLocation()
@@ -89,7 +115,11 @@ export default function ComparePage() {
   const [recordedCommandA, setRecordedCommandA] = useState('')
   const [recordedCommandB, setRecordedCommandB] = useState('')
   const [loadingPersistedComparison, setLoadingPersistedComparison] = useState(false)
+  /** Pair handoff copy: saved /compare?comparison=… load vs run in this tab (Phase 132). */
+  const [compareHandoffOrigin, setCompareHandoffOrigin] = useState<'link' | 'session'>('session')
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null)
+  const [exportCompareBusyKind, setExportCompareBusyKind] = useState<'md' | 'html' | 'json' | null>(null)
+  const [exportCompareHint, setExportCompareHint] = useState<string | null>(null)
 
   const improved = comparison?.topImprovedNodes ?? []
   const worsened = comparison?.topWorsenedNodes ?? []
@@ -142,17 +172,10 @@ export default function ComparePage() {
   const layoutTier = useWorkspaceLayoutTier()
   const workspaceLayout = useCompareWorkspaceLayout(appConfig?.authEnabled ?? false)
   const { layout, setVisibility } = workspaceLayout
-  const [compareGuideOpen, setCompareGuideOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const sp = new URLSearchParams(window.location.search)
-        if (urlWantsWorkflowGuide(sp)) return true
-      } catch {
-        /* ignore */
-      }
-    }
-    return layout.visibility.intro && !readWorkflowGuideDismissed('compare')
-  })
+  /** `?guide=` is applied in `useLayoutEffect` (shared with Analyze) so the first paint matches the open state. */
+  const [compareGuideOpen, setCompareGuideOpen] = useState(
+    () => layout.visibility.intro && !readWorkflowGuideDismissed('compare'),
+  )
   const [compareGuideKeyboardContain, setCompareGuideKeyboardContain] = useState(false)
   const [compareGuideLiveMsg, setCompareGuideLiveMsg] = useState('')
   const compareGuideLiveClearRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
@@ -209,6 +232,7 @@ export default function ComparePage() {
         setComparison(data)
         setPlanA('')
         setPlanB('')
+        setCompareHandoffOrigin('link')
       } catch (e) {
         if (cancelled || loadPersistedCompareSeqRef.current !== seq) return
         setComparison(null)
@@ -265,18 +289,14 @@ export default function ComparePage() {
     }
   }, [compareGuideOpen, queueCompareGuideLiveMsg])
 
-  useEffect(() => {
-    if (!urlWantsGuide) return
-    let becameOpen = false
-    setCompareGuideOpen((wasOpen) => {
-      if (!wasOpen) {
-        becameOpen = true
-        pendingCompareGuideFocusTitleRef.current = true
-        pendingCompareGuideOpenAnnRef.current = 'Guided help opened from link.'
-      }
-      return true
+  useLayoutEffect(() => {
+    openWorkflowGuideWhenUrlRequests({
+      urlWantsGuide,
+      setGuideOpen: setCompareGuideOpen,
+      pendingFocusTitleRef: pendingCompareGuideFocusTitleRef,
+      pendingOpenAnnRef: pendingCompareGuideOpenAnnRef,
+      setKeyboardContain: setCompareGuideKeyboardContain,
     })
-    if (becameOpen) queueMicrotask(() => setCompareGuideKeyboardContain(true))
   }, [urlWantsGuide])
 
   useEffect(() => {
@@ -395,6 +415,51 @@ export default function ComparePage() {
     [comparison, selectedDetail],
   )
 
+  const comparePairTriageBridge = useMemo(
+    () =>
+      comparison
+        ? compareTriagePairBridgeLine(comparison, selectedDetail, {
+            highlightFindingDiffId,
+            highlightIndexInsightDiffId,
+            highlightSuggestionId,
+          })
+        : null,
+    [
+      comparison,
+      selectedDetail,
+      highlightFindingDiffId,
+      highlightIndexInsightDiffId,
+      highlightSuggestionId,
+    ],
+  )
+
+  const pairFallbackDisplay = useMemo(
+    () => resolveComparePairFallbackDisplay(comparePairTriageBridge, continuitySummaryCue),
+    [comparePairTriageBridge, continuitySummaryCue],
+  )
+
+  const comparePairHandoffKind = useMemo((): ComparePairHandoffKind | null => {
+    if (!selectedDetail) return null
+    if (comparePairTriageBridge?.trim()) return 'summary'
+    if (pairFallbackDisplay?.body?.trim()) return 'briefing'
+    if (highlightFindingDiffId || highlightIndexInsightDiffId || highlightSuggestionId) return 'pinned'
+    return 'navigator'
+  }, [
+    selectedDetail,
+    comparePairTriageBridge,
+    pairFallbackDisplay,
+    highlightFindingDiffId,
+    highlightIndexInsightDiffId,
+    highlightSuggestionId,
+  ])
+
+  const navigatorBriefingHighlightPair = useMemo(() => {
+    if (!comparison || !highlightFindingDiffId) return null
+    const item = comparison.findingsDiff?.items?.find((i) => i.diffId === highlightFindingDiffId)
+    if (!item) return null
+    return resolveFindingDiffPair(item, comparison.matches ?? [])
+  }, [comparison, highlightFindingDiffId])
+
   const branchViewModel = useMemo(() => {
     if (!comparison || !effectivePair) return null
     return buildCompareBranchViewModel(comparison, effectivePair, selectedDetail)
@@ -461,6 +526,111 @@ export default function ComparePage() {
     const hit = normalizedCompareOptimizationSuggestions.filter((s) => (s.targetNodeIds ?? []).includes(b))
     return [...hit].sort(compareSuggestionsByPriority)[0] ?? null
   }, [normalizedCompareOptimizationSuggestions, effectivePair])
+
+  useEffect(() => {
+    if (!exportCompareHint) return
+    const t = window.setTimeout(() => setExportCompareHint(null), 6500)
+    return () => window.clearTimeout(t)
+  }, [exportCompareHint])
+
+  const onExportCompare = useCallback(
+    async (kind: 'md' | 'html' | 'json') => {
+      if (!comparison) return
+      setExportCompareBusyKind(kind)
+      setExportCompareHint(null)
+      const hasBothPlans = Boolean(planA.trim() && planB.trim())
+      const explainMetadataA = sendCompareExplainMetadata
+        ? {
+            options: {
+              format: 'json' as const,
+              analyze: compareExplainToggles.analyze,
+              verbose: compareExplainToggles.verbose,
+              buffers: compareExplainToggles.buffers,
+              costs: compareExplainToggles.costs,
+            },
+            sourceExplainCommand: recordedCommandA.trim() || null,
+          }
+        : undefined
+      const explainMetadataB = sendCompareExplainMetadata
+        ? {
+            options: {
+              format: 'json' as const,
+              analyze: compareExplainToggles.analyze,
+              verbose: compareExplainToggles.verbose,
+              buffers: compareExplainToggles.buffers,
+              costs: compareExplainToggles.costs,
+            },
+            sourceExplainCommand: recordedCommandB.trim() || null,
+          }
+        : undefined
+      const fromSavedLink = !hasBothPlans
+      const args = hasBothPlans
+        ? {
+            planAText: planA,
+            planBText: planB,
+            queryTextA,
+            queryTextB,
+            explainMetadataA,
+            explainMetadataB,
+            diagnostics: includeDiagnostics,
+          }
+        : { comparison, diagnostics: includeDiagnostics }
+      const triageEnvelope = buildCompareExportTriageSummary(comparison, selectedDetail, {
+        lead: compareLeadTakeaway(comparison),
+        triageBridgeLine: comparePairTriageBridge,
+        continuitySummaryCue,
+      })
+      try {
+        if (kind === 'md') {
+          const r = await exportCompareMarkdown(args)
+          downloadCompareText(
+            `compare-${r.comparisonId}.md`,
+            markdownCompareExportSupplement(triageEnvelope) + r.markdown,
+            'text/markdown',
+          )
+        } else if (kind === 'html') {
+          const r = await exportCompareHtml(args)
+          downloadCompareText(
+            `compare-${r.comparisonId}.html`,
+            injectCompareExportSupplementIntoHtml(r.html, triageEnvelope),
+            'text/html',
+          )
+        } else {
+          const r = await exportCompareJson(args)
+          downloadCompareText(
+            `compare-${r.comparisonId}.json`,
+            JSON.stringify(jsonCompareExportWithTriageEnvelope(r, triageEnvelope), null, 2),
+            'application/json',
+          )
+        }
+        setExportCompareHint(
+          exportDownloadSuccessHint(fromSavedLink ? 'snapshot' : 'fromPlanText', {
+            restoredFromLink: fromSavedLink && compareHandoffOrigin === 'link',
+          }),
+        )
+      } catch (e) {
+        setExportCompareHint(e instanceof Error ? e.message : String(e))
+      } finally {
+        setExportCompareBusyKind(null)
+      }
+    },
+    [
+      comparison,
+      planA,
+      planB,
+      queryTextA,
+      queryTextB,
+      sendCompareExplainMetadata,
+      compareExplainToggles,
+      recordedCommandA,
+      recordedCommandB,
+      includeDiagnostics,
+      selectedDetail,
+      comparePairTriageBridge,
+      continuitySummaryCue,
+      compareHandoffOrigin,
+    ],
+  )
 
   useEffect(() => {
     if (!comparison) return
@@ -673,7 +843,17 @@ export default function ComparePage() {
     highlightSuggestionId,
   ])
 
-  async function onCompare() {
+  function loadCompareExampleAndRun(id: ComparePlanExampleId) {
+    const ex = getComparePlanExample(id)
+    if (!ex) return
+    setPlanA(ex.planAText)
+    setPlanB(ex.planBText)
+    void onCompare(ex.planAText, ex.planBText)
+  }
+
+  async function onCompare(overridePlanA?: string, overridePlanB?: string) {
+    const textA = (overridePlanA ?? planA).trim()
+    const textB = (overridePlanB ?? planB).trim()
     setError(null)
     setLoading(true)
     const p = new URLSearchParams(location.search)
@@ -684,8 +864,8 @@ export default function ComparePage() {
     setComparison(null)
     try {
       const result = await compareWithPlanTexts({
-        planAText: planA,
-        planBText: planB,
+        planAText: textA,
+        planBText: textB,
         queryTextA,
         queryTextB,
         diagnostics: includeDiagnostics,
@@ -715,6 +895,7 @@ export default function ComparePage() {
           : undefined,
       })
       setComparison(result)
+      setCompareHandoffOrigin('session')
       setSelectedPair(null)
       setHighlightFindingDiffId(null)
       setHighlightIndexInsightDiffId(null)
@@ -735,6 +916,7 @@ export default function ComparePage() {
     setPlanA('')
     setPlanB('')
     setComparison(null)
+    setCompareHandoffOrigin('session')
     setError(null)
     skipCompareEmptyGuideSyncRef.current = true
     setCompareGuideOpen(true)
@@ -766,6 +948,14 @@ export default function ComparePage() {
     return 'pqat-mainSplit pqat-mainSplit--medium'
   }, [layoutTier])
 
+  const showComparePairInspectorSkip = useMemo(
+    () =>
+      Boolean(comparison) &&
+      layoutTier === 'narrow' &&
+      (layout.visibility.branchStrip || layout.visibility.selectedPair),
+    [comparison, layoutTier, layout.visibility.branchStrip, layout.visibility.selectedPair],
+  )
+
   function renderNavigatorColumn() {
     if (!comparison) return null
     return (
@@ -793,6 +983,7 @@ export default function ComparePage() {
         setHighlightSuggestionId={setHighlightSuggestionId}
         copyNav={copyNav}
         copyFinding={copyFinding}
+        briefingHighlightPair={navigatorBriefingHighlightPair}
       />
     )
   }
@@ -820,6 +1011,10 @@ export default function ComparePage() {
           highlightSuggestionId,
           compareOptForPair,
           pairSubtitle,
+          triageBridgeLine: comparePairTriageBridge,
+          continuityPairFallback: pairFallbackDisplay,
+          pairHandoffKind: comparePairHandoffKind,
+          pairHandoffOrigin: compareHandoffOrigin,
         }}
       />
     )
@@ -852,6 +1047,14 @@ export default function ComparePage() {
           panelId={COMPARE_GUIDE_PANEL_ID}
           testId="compare-workflow-guide-panel"
           keyboardContain={compareGuideKeyboardContain}
+          examplePicker={
+            <TryCompareExampleChips
+              variant="help"
+              examples={COMPARE_PLAN_EXAMPLES}
+              disabled={loading || loadingPersistedComparison}
+              onSelect={loadCompareExampleAndRun}
+            />
+          }
         />
       ) : null}
 
@@ -892,14 +1095,29 @@ export default function ComparePage() {
             loadingPersistedComparison={loadingPersistedComparison}
             onCompare={() => void onCompare()}
             onClear={handleClear}
+            examplePicker={
+              !comparison ? (
+                <TryCompareExampleChips
+                  examples={COMPARE_PLAN_EXAMPLES}
+                  disabled={loading || loadingPersistedComparison}
+                  onSelect={loadCompareExampleAndRun}
+                />
+              ) : undefined
+            }
+            comparison={comparison}
+            exportCompareBusyKind={exportCompareBusyKind}
+            exportCompareHint={exportCompareHint}
+            canExportCompareReports={Boolean(comparison)}
+            exportUsesSnapshot={Boolean(comparison && (!planA.trim() || !planB.trim()))}
+            onExportCompare={onExportCompare}
           />
         </div>
       ) : null}
 
       {loadingPersistedComparison ? (
         <div className="pqat-stateBanner pqat-stateBanner--loading" data-testid="compare-persisted-loading">
-          <span className="pqat-stateBanner__title">Restoring snapshot</span>
-          <div className="pqat-stateBanner__body">Opening shared comparison…</div>
+          <span className="pqat-stateBanner__title">Loading your comparison</span>
+          <div className="pqat-stateBanner__body">Fetching the saved result for this link…</div>
         </div>
       ) : null}
 
@@ -914,9 +1132,9 @@ export default function ComparePage() {
 
       {loading ? (
         <div className="pqat-stateBanner pqat-stateBanner--info pqat-workspaceReveal">
-          <span className="pqat-stateBanner__title">Comparing plans</span>
+          <span className="pqat-stateBanner__title">Running comparison</span>
           <div className="pqat-stateBanner__body">
-            Mapping nodes and computing deltas. Large plans may take a few seconds—sections below fill in as data arrives.
+            Building the diff readout. Larger plans may take a few seconds—sections appear as they’re ready.
           </div>
         </div>
       ) : null}
@@ -961,6 +1179,7 @@ export default function ComparePage() {
                   copyShareCompare={copyShareCompare}
                   copyCompareSuggestion={copyCompareSuggestion}
                   shareCompareUi={shareCompareUi}
+                  summaryStickyNarrow={layoutTier === 'narrow'}
                   onSharingSaved={async () => {
                     try {
                       const data = await getComparison(comparison.comparisonId)
@@ -988,20 +1207,16 @@ export default function ComparePage() {
           ) : null}
 
           <div className={mainSplitClassName}>
-            {layoutTier !== 'narrow' ? (
-              <>
-                {layout.mainColumnOrder[0] === 'navigator' ? renderNavigatorColumn() : renderPairColumn()}
-                {layout.mainColumnOrder[1] === 'navigator' ? renderNavigatorColumn() : renderPairColumn()}
-              </>
-            ) : layout.mainColumnOrder[0] === 'navigator' ? (
+            {layoutTier === 'narrow' ? (
               <>
                 {renderNavigatorColumn()}
+                <SkipToPairInspectorLink visible={showComparePairInspectorSkip} />
                 {renderPairColumn()}
               </>
             ) : (
               <>
-                {renderPairColumn()}
-                {renderNavigatorColumn()}
+                {layout.mainColumnOrder[0] === 'navigator' ? renderNavigatorColumn() : renderPairColumn()}
+                {layout.mainColumnOrder[1] === 'navigator' ? renderNavigatorColumn() : renderPairColumn()}
               </>
             )}
           </div>

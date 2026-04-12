@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { PlanAnalysisResult } from '../../api/types'
 import { ArtifactErrorBanner } from '../ArtifactErrorBanner'
 import type { useCopyFeedback } from '../../presentation/useCopyFeedback'
@@ -24,7 +24,13 @@ export type AnalyzeCapturePanelProps = {
   loading: boolean
   loadingPersisted: boolean
   analysis: PlanAnalysisResult | null
+  exportAnalyzeBusyKind?: 'md' | 'html' | 'json' | null
+  exportAnalyzeHint?: string | null
+  /** True when the plan box is empty but a saved analysis is loaded (reopen-from-link export). */
+  exportUsesSnapshot?: boolean
   error: string | null
+  /** Phase 107: curated “Try example” chips (loads sample JSON + runs Analyze from parent). */
+  examplePicker?: ReactNode
 }
 
 export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
@@ -47,19 +53,34 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
     loading,
     loadingPersisted,
     analysis,
+    exportAnalyzeBusyKind = null,
+    exportAnalyzeHint = null,
+    exportUsesSnapshot = false,
     error,
+    examplePicker,
   } = props
+
+  const exportBusy = exportAnalyzeBusyKind !== null
+  const exportDisabled = exportBusy || !analysis
 
   return (
     <section className="pqat-panel pqat-panel--capture" style={{ minWidth: 0, padding: '18px 20px' }} aria-label="Plan capture input">
       <div className="pqat-eyebrow">Input</div>
       <h2>Input plan</h2>
       <p className="pqat-help-inline" data-testid="analyze-capture-guide-hint">
-        <strong>Read this first:</strong> everything in this panel is your raw capture. After you run Analyze, findings and the graph are interpretations—use{' '}
-        <strong>How to use Analyze</strong> at the top if you need the tour again.
+        <strong>Start here:</strong> this box is your raw plan. After <b>Analyze</b>, the summary and graph interpret it—open{' '}
+        <strong>How to use Analyze</strong> anytime for a quick tour.
       </p>
+      {examplePicker && !analysis ? (
+        <div data-testid="analyze-example-entry">
+          <div className="pqat-hint" style={{ marginBottom: 0 }}>
+            <strong>No plan handy?</strong> Load a sample—then review the top of the summary first, then the graph and findings.
+          </div>
+          {examplePicker}
+        </div>
+      ) : null}
       <p className="pqat-hint pqat-hint--tight">
-        Paste raw <code>EXPLAIN (…, FORMAT JSON)</code> output: plain JSON, or <code>psql</code> tabular output with a <code>QUERY PLAN</code> header and optional line wraps ending in <code>+</code>. The server normalizes common shapes before parsing. Planner <code>COSTS</code> are optional; cost fields are detected from the JSON.
+        Paste <code>EXPLAIN (…, FORMAT JSON)</code> as plain JSON, or <code>psql</code> output with a <code>QUERY PLAN</code> block (lines may end in <code>+</code>). Common shapes are normalized automatically. Planner <code>COSTS</code> are optional.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
         <textarea
@@ -172,27 +193,83 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
         <button type="button" className="pqat-btn pqat-btn--ghost" onClick={onClear}>
           Clear
         </button>
-
-        <div style={{ flex: 1 }} />
-
-        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('md')}>
-          Export Markdown
-        </button>
-        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('html')}>
-          Export HTML
-        </button>
-        <button type="button" className="pqat-btn pqat-btn--sm pqat-btn--ghost" disabled={!analysis} onClick={() => onExport('json')}>
-          Export JSON
-        </button>
       </div>
+
+      {analysis ? (
+        <div className="pqat-handoffBand" data-testid="analyze-export-report-row">
+          <div className="pqat-eyebrow" style={{ marginBottom: 4 }}>
+            Take with you
+          </div>
+          <p className="pqat-hint pqat-hint--tight" style={{ marginBottom: 6 }} data-testid="analyze-export-handoff-kicker">
+            Choose a format — each option is a complete handoff from this screen.
+          </p>
+          <p className="pqat-hint pqat-hint--tight" style={{ marginBottom: 6 }} data-testid="analyze-export-hint">
+            {exportUsesSnapshot ? (
+              <span data-testid="analyze-export-snapshot-cue">
+                From a saved link, the file matches this view — the plan box can stay empty.
+              </span>
+            ) : (
+              <>Otherwise the server rebuilds from whatever is in the plan box.</>
+            )}
+          </p>
+          <p className="pqat-formatLegend" data-testid="analyze-export-format-legend">
+            <strong>Markdown</strong> — notes & tickets · <strong>HTML</strong> — print or attach ·{' '}
+            <strong>JSON</strong> — tools &amp; storage
+          </p>
+          <div className="pqat-actionRow">
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="analyze-export-markdown"
+              title="Download Markdown report"
+              onClick={() => onExport('md')}
+            >
+              {exportAnalyzeBusyKind === 'md' ? 'Preparing…' : 'Markdown'}
+            </button>
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="analyze-export-html"
+              title="Download HTML report"
+              onClick={() => onExport('html')}
+            >
+              {exportAnalyzeBusyKind === 'html' ? 'Preparing…' : 'HTML'}
+            </button>
+            <button
+              type="button"
+              className="pqat-btn pqat-btn--sm pqat-btn--ghost"
+              disabled={exportDisabled}
+              data-testid="analyze-export-json"
+              title="Download JSON snapshot"
+              onClick={() => onExport('json')}
+            >
+              {exportAnalyzeBusyKind === 'json' ? 'Preparing…' : 'JSON'}
+            </button>
+          </div>
+          {exportAnalyzeHint ? (
+            <p
+              className="pqat-hint"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{ marginTop: 8, color: 'var(--text-secondary)' }}
+              data-testid="analyze-export-status"
+            >
+              {exportAnalyzeHint}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {loadingPersisted ? (
         <div
           className="pqat-stateBanner pqat-stateBanner--loading"
           data-testid="analyze-persisted-loading"
         >
-          <span className="pqat-stateBanner__title">Restoring snapshot</span>
-          <div className="pqat-stateBanner__body">Opening shared analysis…</div>
+          <span className="pqat-stateBanner__title">Loading your analysis</span>
+          <div className="pqat-stateBanner__body">Fetching the saved result for this link…</div>
         </div>
       ) : null}
 
@@ -200,9 +277,8 @@ export function AnalyzeCapturePanel(props: AnalyzeCapturePanelProps) {
 
       {!analysis ? (
         <div className="pqat-emptyHint pqat-hint" style={{ marginBottom: 0 }}>
-          <span className="pqat-emptyHint__lead">Ready to analyze</span>
-          Paste a plan JSON or psql <code>QUERY PLAN</code> output, then choose <b>Analyze</b>. The graph and findings
-          load after the server parses the plan.
+          <span className="pqat-emptyHint__lead">Ready</span>
+          Paste a plan or use a sample above, then <b>Analyze</b>. Findings and the graph appear once parsing finishes.
         </div>
       ) : null}
     </section>

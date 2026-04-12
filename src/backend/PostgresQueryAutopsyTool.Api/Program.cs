@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using PostgresQueryAutopsyTool.Api;
@@ -24,8 +25,12 @@ builder.Services.AddSingleton<IRequestIdentityAccessor, HttpRequestIdentityAcces
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    ArtifactPersistenceJson.ApplyToHttpSerializerOptions(options.SerializerOptions);
 });
+
+// Phase 118: report-route BadHttpRequest → JSON 400; other exceptions → default ProblemDetails pipeline.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ReportExportBadRequestExceptionHandler>();
 
 builder.Services.AddSingleton<IArtifactPersistenceStore>(sp =>
 {
@@ -77,6 +82,7 @@ var app = builder.Build();
 
 AuthConfigurationValidator.Validate(app.Services, app.Configuration);
 
+app.UseExceptionHandler();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseForwardedHeaders();
@@ -424,30 +430,30 @@ app.MapPut("/api/me/preferences/{key}", async (
 
 app.MapPost("/api/report/markdown", async (ReportRequestDto request, IPlanAnalysisService analysisService, CancellationToken ct) =>
 {
-    PlanAnalysisResult analysis = request.Analysis ?? (request.Plan.ValueKind != JsonValueKind.Undefined
-        ? await analysisService.AnalyzeAsync(request.Plan, ct)
-        : throw new BadHttpRequestException("Either `analysis` or `plan` must be provided."));
-
+    var incomplete = ReportExportValidation.TryAnalyzeReportRequest(request);
+    if (incomplete is not null)
+        return incomplete;
+    var analysis = request.Analysis ?? await analysisService.AnalyzeAsync(request.Plan, ct);
     var markdown = analysisService.RenderMarkdownReport(analysis);
     return Results.Ok(new { analysisId = analysis.AnalysisId, markdown });
 }).WithOpenApi();
 
 app.MapPost("/api/report/html", async (ReportRequestDto request, IPlanAnalysisService analysisService, CancellationToken ct) =>
 {
-    PlanAnalysisResult analysis = request.Analysis ?? (request.Plan.ValueKind != JsonValueKind.Undefined
-        ? await analysisService.AnalyzeAsync(request.Plan, ct)
-        : throw new BadHttpRequestException("Either `analysis` or `plan` must be provided."));
-
+    var incomplete = ReportExportValidation.TryAnalyzeReportRequest(request);
+    if (incomplete is not null)
+        return incomplete;
+    var analysis = request.Analysis ?? await analysisService.AnalyzeAsync(request.Plan, ct);
     var html = analysisService.RenderHtmlReport(analysis);
     return Results.Ok(new { analysisId = analysis.AnalysisId, html });
 }).WithOpenApi();
 
 app.MapPost("/api/report/json", async (ReportRequestDto request, IPlanAnalysisService analysisService, CancellationToken ct) =>
 {
-    PlanAnalysisResult analysis = request.Analysis ?? (request.Plan.ValueKind != JsonValueKind.Undefined
-        ? await analysisService.AnalyzeAsync(request.Plan, ct)
-        : throw new BadHttpRequestException("Either `analysis` or `plan` must be provided."));
-
+    var incomplete = ReportExportValidation.TryAnalyzeReportRequest(request);
+    if (incomplete is not null)
+        return incomplete;
+    var analysis = request.Analysis ?? await analysisService.AnalyzeAsync(request.Plan, ct);
     return ProgramAuthHelpers.JsonArtifact(analysis);
 }).WithOpenApi();
 
@@ -461,7 +467,7 @@ app.MapPost("/api/compare/report/markdown", async (
                       (string.Equals(v.ToString(), "1", StringComparison.OrdinalIgnoreCase) ||
                        string.Equals(v.ToString(), "true", StringComparison.OrdinalIgnoreCase));
 
-    var (err, comparison) = await CompareExecution.RunAsync(request, diagnostics, analysisService, ct);
+    var (err, comparison) = await CompareExecution.RunForReportAsync(request, diagnostics, analysisService, ct);
     if (err is not null)
         return err;
 
@@ -479,7 +485,7 @@ app.MapPost("/api/compare/report/html", async (
                       (string.Equals(v.ToString(), "1", StringComparison.OrdinalIgnoreCase) ||
                        string.Equals(v.ToString(), "true", StringComparison.OrdinalIgnoreCase));
 
-    var (err, comparison) = await CompareExecution.RunAsync(request, diagnostics, analysisService, ct);
+    var (err, comparison) = await CompareExecution.RunForReportAsync(request, diagnostics, analysisService, ct);
     if (err is not null)
         return err;
 
@@ -497,7 +503,7 @@ app.MapPost("/api/compare/report/json", async (
                       (string.Equals(v.ToString(), "1", StringComparison.OrdinalIgnoreCase) ||
                        string.Equals(v.ToString(), "true", StringComparison.OrdinalIgnoreCase));
 
-    var (err, comparison) = await CompareExecution.RunAsync(request, diagnostics, analysisService, ct);
+    var (err, comparison) = await CompareExecution.RunForReportAsync(request, diagnostics, analysisService, ct);
     if (err is not null)
         return err;
 
@@ -508,7 +514,16 @@ app.MapE2eSeedEndpoints(app.Configuration);
 
 app.Run();
 
-public partial class Program;
+public partial class Program
+{
+    /// <summary>Phase 117: limit structured 400 JSON to report/export routes (malformed bodies).</summary>
+    internal static bool IsReportExportPath(PathString path)
+    {
+        var v = path.Value ?? string.Empty;
+        return v.StartsWith("/api/report/", StringComparison.Ordinal)
+            || v.StartsWith("/api/compare/report/", StringComparison.Ordinal);
+    }
+}
 
 public sealed class AnalyzeRequestDto
 {
